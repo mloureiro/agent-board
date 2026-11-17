@@ -4,6 +4,7 @@ import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
+import { createPgliteDb, isPgliteUrl } from './pglite';
 import * as schema from './schema';
 
 export type Db = NodePgDatabase<typeof schema>;
@@ -24,6 +25,7 @@ export function createDb(
   databaseUrl: string,
   options: { backfillOwner?: string | null; onError?: (err: Error) => void } = {},
 ): { db: Db; pool: pg.Pool } {
+  if (isPgliteUrl(databaseUrl)) return createPgliteDb(databaseUrl, options);
   const pool = new pg.Pool({
     connectionString: databaseUrl,
     max: 10,
