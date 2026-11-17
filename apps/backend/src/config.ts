@@ -9,6 +9,8 @@ const requireEnv = (name: string): string => {
 export interface Config {
   nodeEnv: string;
   port: number;
+  /** The address to listen on; every interface unless HOST names one. */
+  host: string;
   /** Owner/admin connection: bootstrap and migrations only. */
   databaseUrl: string;
   /** The unprivileged `board_app` connection that serves every request. */
@@ -51,6 +53,7 @@ export function loadConfig(): Config {
   return {
     nodeEnv,
     port: Number(process.env.PORT ?? 4000),
+    host: process.env.HOST?.trim() || '0.0.0.0',
     databaseUrl: requireEnv('DATABASE_URL'),
     appDatabaseUrl: requireEnv('APP_DATABASE_URL'),
     backfillOwner,

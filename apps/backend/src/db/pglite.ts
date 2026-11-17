@@ -1,5 +1,14 @@
-import { PGlite, types, type QueryOptions, type Results, type Transaction } from '@electric-sql/pglite';
+import {
+  PGlite,
+  types,
+  type PGliteOptions,
+  type QueryOptions,
+  type Results,
+  type Transaction,
+} from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import type pg from 'pg';
 import type { Db } from './client';
 import * as schema from './schema';
@@ -17,12 +26,27 @@ interface Instance {
 // One data directory must be opened by one PGlite at a time, so handles on the same directory share it.
 const instances = new Map<string, Instance>();
 
+// A compiled executable has no node_modules for PGlite to find its own files in; PGLITE_ASSETS_DIR names a folder that holds them.
+function bundledAssets(): Pick<PGliteOptions, 'pgliteWasmModule' | 'initdbWasmModule' | 'fsBundle'> {
+  const dir = process.env.PGLITE_ASSETS_DIR;
+  if (!dir) return {};
+  const read = (name: string) => new Uint8Array(readFileSync(path.join(dir, name)));
+  return {
+    pgliteWasmModule: new WebAssembly.Module(read('pglite.wasm')),
+    initdbWasmModule: new WebAssembly.Module(read('initdb.wasm')),
+    fsBundle: new Blob([read('pglite.data')]),
+  };
+}
+
 function acquire(dataDir: string): Instance {
   let instance = instances.get(dataDir);
   if (!instance) {
     // node-postgres returns bigint and numeric columns as strings; PGlite would return numbers and bigints.
     instance = {
-      client: new PGlite(dataDir, { parsers: { [types.INT8]: (v) => v, [types.NUMERIC]: (v) => v } }),
+      client: new PGlite(dataDir, {
+        ...bundledAssets(),
+        parsers: { [types.INT8]: (v) => v, [types.NUMERIC]: (v) => v },
+      }),
       handles: 0,
     };
     instances.set(dataDir, instance);
