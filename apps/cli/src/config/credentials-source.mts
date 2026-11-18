@@ -46,6 +46,7 @@ export function runCredentialsCommand(command: string, options: CredentialsOptio
   }
   const result = spawnSync(command, [], {
     shell: false,
+    killSignal: 'SIGKILL',
     stdio: ['ignore', 'pipe', 'pipe'],
     encoding: 'utf8',
     timeout: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
