@@ -156,6 +156,7 @@ test('startWorker runs systemd-run with the environment the worker needs, then r
       'AGENT_BOARD_CONFIG_DIR',
       'AGENT_BOARD_STATE_DIR',
       'AGENT_BOARD_RUN_DIR',
+      'AGENT_BOARD_CREDENTIALS_COMMAND',
       'XDG_STATE_HOME',
       'XDG_RUNTIME_DIR',
     ])
@@ -165,6 +166,7 @@ test('startWorker runs systemd-run with the environment the worker needs, then r
   for (const name of ['AGENT_BOARD_CONFIG_DIR', 'AGENT_BOARD_RUN_DIR', 'XDG_STATE_HOME', 'XDG_RUNTIME_DIR'])
     delete process.env[name];
   process.env['AGENT_BOARD_STATE_DIR'] = '/tmp/state';
+  process.env['AGENT_BOARD_CREDENTIALS_COMMAND'] = '/opt/board/credentials';
   process.env['AGENT_BOARD_RUN_DIR'] = '';
 
   const { calls, run } = recorder(({ file }) => (file === 'systemctl' ? '4242\n' : ''));
@@ -181,6 +183,7 @@ test('startWorker runs systemd-run with the environment the worker needs, then r
     '--setenv=PATH',
     '--setenv=HOME',
     '--setenv=AGENT_BOARD_STATE_DIR',
+    '--setenv=AGENT_BOARD_CREDENTIALS_COMMAND',
   ]);
   assert.deepEqual(systemdRun?.args.slice(-3), ['internal', 'worker', 'Ab3dEf9x']);
   assert.deepEqual(show, {
