@@ -192,3 +192,18 @@ describe('GIT_SHA', () => {
     expect(load({ ...noLogin, GIT_SHA: value }).revision).toBeNull();
   });
 });
+
+describe('HOST', () => {
+  const noLogin = { NO_LOGIN_USER: 'jascha' };
+  it('defaults to all interfaces', () => {
+    expect(load(noLogin).host).toBe('0.0.0.0');
+  });
+
+  it('uses the given address, trimmed', () => {
+    expect(load({ ...noLogin, HOST: ' 127.0.0.1\n' }).host).toBe('127.0.0.1');
+  });
+
+  it('falls back when blank', () => {
+    expect(load({ ...noLogin, HOST: '   ' }).host).toBe('0.0.0.0');
+  });
+});

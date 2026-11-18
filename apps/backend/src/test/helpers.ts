@@ -13,6 +13,7 @@ import { testAppDatabaseUrl, testDatabaseUrl } from './global-setup';
 export const testConfig: Config = {
   nodeEnv: 'test',
   port: 0,
+  host: '127.0.0.1',
   databaseUrl: testDatabaseUrl(),
   appDatabaseUrl: testAppDatabaseUrl(),
   backfillOwner: null,
