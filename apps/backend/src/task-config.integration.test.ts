@@ -5,7 +5,7 @@ import { buildServer } from './server';
 import { plainMachine, plainUi, type MachineAnswer } from './test/client';
 import { caller, sessionNamed, testConfig, useTestDb } from './test/helpers';
 
-const { db, admin } = useTestDb();
+const { db, admin } = await useTestDb();
 
 const OLD = '/home/me/code/old';
 const NEW = '/home/me/code/new';

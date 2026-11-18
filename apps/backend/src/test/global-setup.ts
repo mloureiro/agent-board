@@ -14,7 +14,7 @@ export function testAppDatabaseUrl(): string {
 
 /** Fresh schema for every test run, then all migrations. */
 export default async function setup() {
-  const { db, pool } = createDb(testDatabaseUrl());
+  const { db, pool } = await createDb(testDatabaseUrl());
   await db.execute(sql`drop schema if exists public cascade`);
   await db.execute(sql`drop schema if exists drizzle cascade`);
   await db.execute(sql`create schema public`);

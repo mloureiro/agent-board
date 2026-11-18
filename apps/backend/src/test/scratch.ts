@@ -43,13 +43,14 @@ export interface ScratchDatabases {
 /** Databases named after the test database and unique per run, so two suites at once never drop each other's. */
 export function scratchDatabases(label: string): ScratchDatabases {
   const base = new URL(testDatabaseUrl()).pathname.slice(1).replace(/[^A-Za-z0-9_]/g, '_');
-  const admin = createDb(testDatabaseUrl());
+  let admin: Awaited<ReturnType<typeof createDb>> | undefined;
+  const adminDb = async () => (admin ??= await createDb(testDatabaseUrl()));
   const names: string[] = [];
   return {
     async create() {
       const name = `${base}_${label}_${randomBytes(4).toString('hex')}`;
       names.push(name);
-      await admin.db.execute(sql.raw(`create database ${name}`));
+      await (await adminDb()).db.execute(sql.raw(`create database ${name}`));
       const url = new URL(testDatabaseUrl());
       url.pathname = `/${name}`;
       return url.toString();
@@ -57,8 +58,17 @@ export function scratchDatabases(label: string): ScratchDatabases {
     async dropAll() {
       // Not `with (force)`: callers close their connections first, and Postgres waits for a session that is still on
       // its way out. Forcing would kill that session, and its last message surfaces in the test run as an unhandled error.
-      for (const name of names.splice(0)) await admin.db.execute(sql.raw(`drop database if exists ${name}`));
-      await admin.pool.end();
+      const { db, pool } = await adminDb();
+      for (const name of names.splice(0)) await db.execute(sql.raw(`drop database if exists ${name}`));
+      await pool.end();
     },
   };
+}
+
+/** An empty directory for a PGlite data directory; `pgliteUrl` turns it into a database URL. */
+export const pgliteScratchDir = (): string => mkdtempSync(path.join(tmpdir(), 'board-pglite-'));
+
+export function pgliteUrl(dataDir: string, login?: string): string {
+  const encoded = dataDir.split('/').map(encodeURIComponent).join('/');
+  return `pglite://${login ? `${login}@` : ''}local${encoded}`;
 }

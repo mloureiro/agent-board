@@ -20,7 +20,7 @@ import { plainMachine, plainUi, type MachineAnswer } from './test/client';
 import { caller, question, SESSION, testConfig, useTestDb } from './test/helpers';
 import { MARKERS, sealed } from './test/sealed';
 
-const { db, admin } = useTestDb();
+const { db, admin } = await useTestDb();
 
 const PLAIN = 'plain text, not an envelope';
 const [TITLE, PROMPT, WORKDIR, , , ANSWER, MESSAGE, , , , , PR, HEAD] = MARKERS as [

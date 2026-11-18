@@ -34,11 +34,11 @@ async function refusedBy(attempt: () => Promise<unknown>): Promise<string | unde
 describe('the sealed-content constraints (migration 0014)', { timeout: SCRATCH_MIGRATION_TIMEOUT }, () => {
   const scratch = scratchDatabases('constraints');
   const folders: string[] = [];
-  const pools: ReturnType<typeof createDb>[] = [];
+  const pools: Awaited<ReturnType<typeof createDb>>[] = [];
 
   /** A connection to a new, empty database. */
-  const open = async (): Promise<ReturnType<typeof createDb>> => {
-    const connection = createDb(await scratch.create());
+  const open = async (): Promise<Awaited<ReturnType<typeof createDb>>> => {
+    const connection = await createDb(await scratch.create());
     pools.push(connection);
     return connection;
   };
@@ -87,8 +87,9 @@ describe('the sealed-content constraints (migration 0014)', { timeout: SCRATCH_M
   });
 });
 
+const { db, admin } = await useTestDb();
+
 describe('what the application role can store afterwards', () => {
-  const { db, admin } = useTestDb();
   const clear = () => admin.execute(sql`truncate app_user, note, task, schedule restart identity cascade`);
   const as = <T>(fn: (tx: Tx) => Promise<T>): Promise<T> => asOwner(db, 'alice', fn);
 
