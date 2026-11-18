@@ -7,7 +7,7 @@ import { ACCOUNT_TABLES, exportPage, type AccountTable } from './services/accoun
 import { Changes } from './services/changes';
 import { asOwner, caller, SEALED, testConfig, useTestDb } from './test/helpers';
 
-const { db, admin } = useTestDb();
+const { db, admin } = await useTestDb();
 
 const KEY = '0573c0a7b6879764';
 const OTHER_KEY = 'ffffffffffffffff';

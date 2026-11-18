@@ -37,7 +37,7 @@ import { buildServer } from './server';
 import { caller, question, SESSION, testConfig, useTestDb } from './test/helpers';
 import { MARKERS, sealed, useDataKey } from './test/sealed';
 
-const { db, admin } = useTestDb();
+const { db, admin } = await useTestDb();
 
 // The machine's watches, in a directory of their own per test; no watch command ever runs here.
 const watchDeps = (): Pick<DispatchDeps, 'watches' | 'runWatch' | 'isAlive'> => ({

@@ -38,17 +38,19 @@ The cluster side lives in the separate, private `codeplant-de/cloud-infra` repos
 
 ### Environment of the backend
 
-| Variable           | Meaning                                                                                                                                     |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`     | Postgres, as a superuser or as the schema owner with CREATEROLE. Used only at start to create the app role and run migrations, then closed. |
-| `APP_DATABASE_URL` | The same database as `board_app`, the unprivileged role that serves every request. See below.                                               |
-| `ALLOWED_GROUPS`   | Authelia groups that may use the UI, comma-separated. Default `admins`.                                                                     |
-| `PROXY_SECRET`     | The secret Caddy and the backend share. Required in production, at least 32 characters. See below.                                          |
-| `CLI_VERSION`      | The newest CLI release, `x.y.z`. See below.                                                                                                 |
-| `PORT`             | Default 4000.                                                                                                                               |
-| `HOST`             | Address the backend binds to. Default 0.0.0.0; set 127.0.0.1 to accept local connections only.                                              |
-| `DEV_AUTH_USER`    | Local development only: act as this user without Authelia. The backend refuses to start with it in production.                              |
-| `BACKFILL_OWNER`   | Only for the first start on a database from before boards were separated per user: the username that owns the existing tasks.               |
+| Variable                | Meaning                                                                                                                                                                                               |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`          | Postgres, as a superuser or as the schema owner with CREATEROLE. Used only at start to create the app role and run migrations, then closed.                                                           |
+| `APP_DATABASE_URL`      | The same database as `board_app`, the unprivileged role that serves every request. See below.                                                                                                         |
+| `ALLOWED_GROUPS`        | Authelia groups that may use the UI, comma-separated. Default `admins`.                                                                                                                               |
+| `PROXY_SECRET`          | The secret Caddy and the backend share. Required in production, at least 32 characters. See below.                                                                                                    |
+| `CLI_VERSION`           | The newest CLI release, `x.y.z`. See below.                                                                                                                                                           |
+| `PORT`                  | Default 4000.                                                                                                                                                                                         |
+| `HOST`                  | Address the backend binds to. Default 0.0.0.0; set 127.0.0.1 to accept local connections only.                                                                                                        |
+| `DEV_AUTH_USER`         | Local development only: act as this user without Authelia. The backend refuses to start with it in production.                                                                                        |
+| `BACKFILL_OWNER`        | Only for the first start on a database from before boards were separated per user: the username that owns the existing tasks.                                                                         |
+| `PGLITE_ASSETS_DIR`     | Only with a `pglite:` URL, and only for a compiled executable that has no `node_modules`: a folder holding `pglite.wasm`, `initdb.wasm` and `pglite.data`. A missing file is a start error naming it. |
+| `PGLITE_SHARED_BUFFERS` | Only with a `pglite:` URL: PGlite's `shared_buffers`, a number and a unit (`kB`, `MB` or `GB`), such as `8MB`. Any other form, or setting it with a `postgresql://` URL, is a start error.            |
 
 **`APP_DATABASE_URL`.** The role must be `board_app`, with no superuser and no BYPASSRLS. On start the backend creates it with this URL's password, or resets the password. It refuses to start if the role is privileged.
 
@@ -57,6 +59,19 @@ The cluster side lives in the separate, private `codeplant-de/cloud-infra` repos
 **`CLI_VERSION`.** The machine API advertises it as `cli` in its `version` answer. The backend image sets it from `apps/cli/package.json` at build time. Unset, or not `x.y.z`, means unknown: the server advertises nothing and shows no machine as outdated.
 
 **`BACKFILL_OWNER`.** The migration stops with an error naming this variable when rows exist and it is unset. A fresh database does not need it, and it is ignored afterwards.
+
+### PGlite instead of Postgres
+
+A `DATABASE_URL` and `APP_DATABASE_URL` that start with `pglite:` run the backend on [PGlite](https://pglite.dev), an in-process Postgres, instead of a server. The form is `pglite://[role[:password]@]local/<absolute data directory>`: `local` is a fixed host token, because a URL without a host cannot carry a username, and the path is percent-decoded, so `~/Library/Application%20Support/board/db` works. The password is ignored. Both URLs point at the same directory, and `APP_DATABASE_URL` names `board_app`.
+
+`@electric-sql/pglite` is an optional dependency of the backend, loaded only for a `pglite:` URL. A hosted image that does not install it starts as before. A `postgresql://` URL never loads it.
+
+PGlite limits:
+
+- One session, so requests are serialised.
+- The session is a superuser underneath. Each statement or transaction on the `board_app` handle takes that role with `set local role`, so the role boundary is weaker than a Postgres login role: a statement that ran `reset role` would escape, which needs SQL injection.
+- PGlite runs Postgres 17, the core targets 16.
+- One database per data directory, and one process may open a directory.
 
 ### Boards per user
 

@@ -6,7 +6,7 @@ import { Changes } from './services/changes';
 import { plainMachine } from './test/client';
 import { caller, testConfig, useTestDb } from './test/helpers';
 
-const { db, admin } = useTestDb();
+const { db, admin } = await useTestDb();
 
 const DEBOUNCE_MS = 60;
 /** Long enough for a debounced event to have arrived, if one was coming. */
