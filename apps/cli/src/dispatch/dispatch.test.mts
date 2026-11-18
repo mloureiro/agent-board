@@ -110,6 +110,7 @@ function setup(
     async stop(unit) {
       stopped.push(unit);
     },
+    async signalWorker() {},
     async startWorker(shortLink) {
       started.push(shortLink);
       return { pid: 42 };

@@ -8,6 +8,9 @@ import { runHook } from '../worker/hook.mts';
 import { listenMain } from '../dispatch/listen.mts';
 import { watchUnitMain } from '../watch/unit.mts';
 import { workerMain } from '../worker/worker.mts';
+import { DEFAULT_SHUTDOWN_GRACE_S, shutdownWorkers } from '../setup/shutdown.mts';
+import { createWorkerSystem } from '../setup/worker-system.mts';
+import { createRunFiles } from '../worker/runtime.mts';
 import type { ProgramShared } from './program-shared.mts';
 
 export function registerInternalCommands(shared: ProgramShared): void {
@@ -16,7 +19,7 @@ export function registerInternalCommands(shared: ProgramShared): void {
     .command('internal', { hidden: true })
     .description('What the dispatcher, the timers and a run call; not for typing')
     .action(() => {
-      throw new UsageError('internal needs dispatch, listen, watch, worker or hook');
+      throw new UsageError('internal needs dispatch, listen, watch, worker, shutdown or hook');
     });
   const refuseInternalInRun = (): void => {
     notInRun('board internal is not available inside a board run');
@@ -58,6 +61,27 @@ export function registerInternalCommands(shared: ProgramShared): void {
     .action((task: string) => {
       refuseInternalInRun();
       return workerMain(task);
+    });
+  internal
+    .command('shutdown')
+    .description('Ask every running worker of this machine to pause its run, then stop the ones that did not end')
+    .option('--grace <seconds>', 'how long the workers have before they are stopped', String(DEFAULT_SHUTDOWN_GRACE_S))
+    .action(async (opts: { grace: string }) => {
+      refuseInternalInRun();
+      const seconds = Number(opts.grace);
+      if (!Number.isFinite(seconds) || seconds <= 0) throw new UsageError('--grace needs a number of seconds above 0');
+      await shutdownWorkers({
+        system: createWorkerSystem({
+          dryRun: false,
+          print: out,
+          ...(options.platform ? { platform: options.platform } : {}),
+        }),
+        files: createRunFiles(),
+        print: out,
+        now: () => new Date(),
+        sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+        graceMs: seconds * 1000,
+      });
     });
   // The hook of a run must never fail its tool call, so nothing it is given is a usage error.
   internal
