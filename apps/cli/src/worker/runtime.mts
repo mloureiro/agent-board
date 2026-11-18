@@ -2,6 +2,7 @@
 //   <task>.run    which lane runs it, whether borrowed, since when (written by the dispatcher at the start)
 //   <task>.alive  touched by the hook on every tool call: its mtime is the agent's last sign of life
 //   <task>.pause  present while the dispatcher asks the run to give up its slot
+//   <task>.shutdown  the deadline (ISO time) of a machine shutdown that asked the worker to end the run
 //   <task>.cwd    the agent's working directory at its last tool call (it may have entered a worktree)
 //   <task>.agents the definition of the agent the run is, for `claude --agents` (mode 0600)
 //   <task>.pgid   the process group of the claude process (written by the worker), which a stop signals as well as the worker's
@@ -47,6 +48,8 @@ export interface RunFiles {
   requestPause(taskId: string): void;
   // When the pause was asked for; undefined when it was not.
   pauseRequestedAt(taskId: string): Date | undefined;
+  requestShutdown(taskId: string, deadline: Date): void;
+  shutdownDeadline(taskId: string): Date | undefined;
   // All of the task's files: the run is over.
   clear(taskId: string): void;
 }
@@ -76,7 +79,7 @@ function mtime(path: string): Date | undefined {
 }
 
 export function createRunFiles(dir: string = runDir()): RunFiles {
-  const path = (taskId: string, kind: 'run' | 'alive' | 'pause' | 'cwd' | 'agents' | 'pgid'): string =>
+  const path = (taskId: string, kind: 'run' | 'alive' | 'pause' | 'shutdown' | 'cwd' | 'agents' | 'pgid'): string =>
     join(dir, `${taskId}.${kind}`);
   const ensureDir = (): void => ensureRunDir(dir);
   return {
@@ -174,8 +177,20 @@ export function createRunFiles(dir: string = runDir()): RunFiles {
       writeFileSync(path(taskId, 'pause'), '', { mode: 0o600, flag: 'wx' });
     },
     pauseRequestedAt: (taskId) => mtime(path(taskId, 'pause')),
+    requestShutdown(taskId, deadline) {
+      ensureDir();
+      writeFileSync(path(taskId, 'shutdown'), deadline.toISOString(), { mode: 0o600 });
+    },
+    shutdownDeadline(taskId) {
+      try {
+        const deadline = new Date(readFileSync(path(taskId, 'shutdown'), 'utf8').trim());
+        return Number.isNaN(deadline.getTime()) ? undefined : deadline;
+      } catch {
+        return undefined;
+      }
+    },
     clear(taskId) {
-      for (const kind of ['run', 'alive', 'pause', 'cwd', 'agents', 'pgid'] as const)
+      for (const kind of ['run', 'alive', 'pause', 'shutdown', 'cwd', 'agents', 'pgid'] as const)
         rmSync(path(taskId, kind), { force: true });
     },
   };

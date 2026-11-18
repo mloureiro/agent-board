@@ -525,11 +525,21 @@ test('internal dispatch, listen and worker say they need Linux or macOS elsewher
     ['internal', 'dispatch'],
     ['internal', 'listen'],
     ['internal', 'worker', ID],
+    ['internal', 'shutdown'],
   ])
     await assert.rejects(
       runBoard(argv, { env: {}, platform: 'win32' }),
       /needs Linux with systemd or macOS; this is win32/,
       argv.join(' '),
+    );
+});
+
+test('internal shutdown refuses a grace that is not a positive number of seconds', async () => {
+  for (const grace of ['0', '-3', 'soon'])
+    await assert.rejects(
+      runBoard(['internal', 'shutdown', '--grace', grace], { env: {}, platform: 'linux' }),
+      /--grace needs a number of seconds above 0/,
+      grace,
     );
 });
 

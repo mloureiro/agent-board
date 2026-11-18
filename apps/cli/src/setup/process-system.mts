@@ -161,6 +161,17 @@ export function createProcessSystem(options: ProcessSystemOptions): System {
       for (const pgid of groups) if (groupExists(pgid)) signalGroup(pgid, 'SIGKILL');
       forget(taskId);
     },
+    async signalWorker(unit, signal) {
+      const taskId = taskIdOfUnit(unit);
+      if (dryRun) return print(`DRY send ${signal} to worker ${taskId}`);
+      const record = await running(taskId);
+      if (record === undefined) return;
+      try {
+        process.kill(record.pid, signal);
+      } catch {
+        // gone since the identity check
+      }
+    },
     async startWorker(taskId) {
       // The id becomes a file name and an argument, so only the safe shape goes in, whoever named it.
       requireTaskId(taskId, SystemError);
