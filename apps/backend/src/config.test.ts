@@ -34,3 +34,21 @@ describe('PROXY_SECRET', () => {
     expect(loadConfig().proxySecret).toBe(secret);
   });
 });
+
+describe('HOST', () => {
+  it('defaults to all interfaces', () => {
+    stubEnv({});
+    vi.stubEnv('HOST', undefined);
+    expect(loadConfig().host).toBe('0.0.0.0');
+  });
+
+  it('uses the given address, trimmed', () => {
+    stubEnv({ HOST: ' 127.0.0.1\n' });
+    expect(loadConfig().host).toBe('127.0.0.1');
+  });
+
+  it('falls back when blank', () => {
+    stubEnv({ HOST: '   ' });
+    expect(loadConfig().host).toBe('0.0.0.0');
+  });
+});
