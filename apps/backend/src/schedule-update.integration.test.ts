@@ -6,7 +6,7 @@ import { plainMachine, plainUi, type MachineAnswer } from './test/client';
 import { buildServer } from './server';
 import { caller, testConfig, useTestDb } from './test/helpers';
 
-const { db, admin } = useTestDb();
+const { db, admin } = await useTestDb();
 const HOUR = 3_600_000;
 const crons = { cron: '0 9 * * 5#1', moreCrons: ['0 9 * * 5#3'], timezone: 'UTC' };
 

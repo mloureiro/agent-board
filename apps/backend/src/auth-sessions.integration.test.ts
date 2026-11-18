@@ -7,7 +7,7 @@ import { cookieValue, createSession, hashToken, sessionCookie } from './services
 import { caller, loginConfig, testConfig, useTestDb } from './test/helpers';
 import { rpc, SESSION_COOKIE } from './test/rpc';
 
-const { db, admin } = useTestDb();
+const { db, admin } = await useTestDb();
 
 const open: { close(): Promise<unknown> }[] = [];
 afterEach(() => Promise.all(open.splice(0).map((app) => app.close())));

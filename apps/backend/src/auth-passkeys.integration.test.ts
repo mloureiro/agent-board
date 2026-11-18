@@ -7,7 +7,7 @@ import { loginConfig, useTestDb } from './test/helpers';
 import { rpc } from './test/rpc';
 import { SoftwareAuthenticator } from './test/softwareAuthenticator';
 
-const { db, admin } = useTestDb();
+const { db, admin } = await useTestDb();
 
 const SIGNUP_TOKEN = 'signup-token-0123456789abcdef0123456789';
 

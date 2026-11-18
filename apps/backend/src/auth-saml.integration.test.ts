@@ -12,7 +12,7 @@ import {
 import { loginConfig, useTestDb } from './test/helpers';
 import { pkcePair, rpc } from './test/rpc';
 
-const { db, admin } = useTestDb();
+const { db, admin } = await useTestDb();
 
 const PUBLIC_URL = 'http://localhost:5173';
 const ACS = `${PUBLIC_URL}/api/auth/saml/acs`;

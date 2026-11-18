@@ -5,7 +5,7 @@ import { appUsers } from './db/schema';
 import { buildServer } from './server';
 import { caller, testConfig, useTestDb } from './test/helpers';
 
-const { db, admin } = useTestDb();
+const { db, admin } = await useTestDb();
 
 const KEY_A = '0573c0a7b6879764';
 const KEY_B = 'ffffffffffffffff';

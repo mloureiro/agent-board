@@ -5,7 +5,7 @@ import { linkRules } from './db/schema';
 import { caller, useTestDb } from './test/helpers';
 import { sealed, sealerFor } from './test/sealed';
 
-const { db, admin } = useTestDb();
+const { db, admin } = await useTestDb();
 
 const STORY: LinkRule = { pattern: 'sc-(\\d+)', url: 'https://app.shortcut.com/acme/story/$1' };
 

@@ -4,6 +4,7 @@ import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
+import { createPgliteDb, isPgliteUrl, rejectPgliteSettings } from './pglite';
 import * as schema from './schema';
 
 export type Db = NodePgDatabase<typeof schema>;
@@ -18,12 +19,14 @@ const escapeOption = (value: string): string => value.replace(/[\\\s]/g, '\\$&')
  * `backfillOwner` becomes the session setting `app.backfill_owner` that the tenancy migration reads.
  * `onError` hears about idle clients that lost their connection (a Postgres restart, `pg_terminate_backend`). The pool
  * has already dropped such a client and the next query opens a new one; without a listener the `error` event would
- * crash the process.
+ * crash the process. A `pglite:` URL starts an in-process database instead and loads PGlite only then.
  */
-export function createDb(
+export async function createDb(
   databaseUrl: string,
   options: { backfillOwner?: string | null; onError?: (err: Error) => void } = {},
-): { db: Db; pool: pg.Pool } {
+): Promise<{ db: Db; pool: pg.Pool }> {
+  if (isPgliteUrl(databaseUrl)) return createPgliteDb(databaseUrl, options);
+  rejectPgliteSettings();
   const pool = new pg.Pool({
     connectionString: databaseUrl,
     max: 10,

@@ -8,7 +8,7 @@ import { appUsers, tasks } from './schema';
 import { assertUnprivileged, createDb, ensureAppRole, type DbOrTx } from './client';
 import { withOwner } from './scope';
 
-const { db, admin } = useTestDb();
+const { db, admin } = await useTestDb();
 
 const roleFlags = async () => {
   const { rows } = await admin.execute<{
@@ -34,7 +34,7 @@ describe('the app role', () => {
     expect(await roleFlags()).toEqual([
       { rolsuper: false, rolbypassrls: false, rolcreatedb: false, rolcreaterole: false },
     ]);
-    const { pool } = createDb(testAppDatabaseUrl());
+    const { pool } = await createDb(testAppDatabaseUrl());
     try {
       expect((await pool.query('select current_user as name')).rows).toEqual([{ name: 'board_app' }]);
     } finally {

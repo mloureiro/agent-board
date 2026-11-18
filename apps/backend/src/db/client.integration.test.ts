@@ -3,7 +3,7 @@ import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { testAppDatabaseUrl, testDatabaseUrl } from '../test/global-setup';
 import { createDb, type Db } from './client';
 
-const admin = createDb(testDatabaseUrl());
+const admin = await createDb(testDatabaseUrl());
 afterAll(() => admin.pool.end());
 afterEach(() => vi.restoreAllMocks());
 
@@ -19,7 +19,7 @@ describe('a pool whose idle client loses its connection', () => {
   it('reports the error to onError and serves the next query on a new connection', async () => {
     let report!: (err: Error) => void;
     const reported = new Promise<Error>((resolve) => (report = resolve));
-    const app = createDb(testAppDatabaseUrl(), { onError: report });
+    const app = await createDb(testAppDatabaseUrl(), { onError: report });
     try {
       const pid = await backendPid(app.db);
       await terminate(pid);
@@ -37,7 +37,7 @@ describe('a pool whose idle client loses its connection', () => {
     let markLogged!: () => void;
     const logged = new Promise<void>((resolve) => (markLogged = resolve));
     const log = vi.spyOn(console, 'error').mockImplementation(() => markLogged());
-    const app = createDb(testAppDatabaseUrl());
+    const app = await createDb(testAppDatabaseUrl());
     try {
       await terminate(await backendPid(app.db));
 

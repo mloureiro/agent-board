@@ -14,7 +14,7 @@ import type { MachineAnswer } from './test/client';
 import { caller, testConfig, useTestDb } from './test/helpers';
 import { keysFor, sealed } from './test/sealed';
 
-const { db, admin } = useTestDb();
+const { db, admin } = await useTestDb();
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
