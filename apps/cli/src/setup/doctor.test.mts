@@ -1030,3 +1030,20 @@ test('a credentials command that fails is one failing check and no server check'
     false,
   );
 });
+
+test('a credentials command runs once per doctor run, and its hints name it and not board init', async () => {
+  let runs = 0;
+  const results = await runChecks(
+    machine(GOOD, {
+      credentialsCommand: '/bin/creds',
+      runCredentials: () => {
+        runs += 1;
+        return { AGENT_BOARD_TOKEN: TOKEN, AGENT_BOARD_DATA_KEY: 'nope' };
+      },
+    }),
+  );
+  assert.equal(runs, 1);
+  const hint = results.find((result) => result.name === 'data key')?.hint ?? '';
+  assert.match(hint, /\/bin\/creds/);
+  assert.doesNotMatch(hint, /board init/);
+});

@@ -75,6 +75,13 @@ test('a command that outlives the timeout is refused', () => {
   assert.match(refusal(command, 100), /timed out/);
 });
 
+test('a command that ignores SIGTERM is still stopped at the timeout', () => {
+  const command = script('stubborn', 'trap "" TERM\nwhile :; do sleep 1; done');
+  const started = Date.now();
+  assert.match(refusal(command, 300), /timed out/);
+  assert.ok(Date.now() - started < 4000, 'returned shortly after the timeout');
+});
+
 test('the command is the only source: an env file beside it is not read or merged', () => {
   const command = script('only', `echo '${TOKEN_LINE}'\necho '${KEY_LINE}'`);
   writeFileSync(join(dir, 'env'), 'AGENT_BOARD_TOKEN=abm_fromfile\nAGENT_BOARD_DATA_KEY=ignored\nEXTRA=1\n', {

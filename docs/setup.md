@@ -59,7 +59,7 @@ A secret never goes on the command line. A file given with `--token-file` or `--
 
 Set `AGENT_BOARD_CREDENTIALS_COMMAND` to the absolute path of an executable to take the token and the data key from it instead of from `env`. The CLI runs it with no arguments and no shell, a 10 second timeout and no stdin, and reads its output as the two `env` lines (`AGENT_BOARD_TOKEN=…` and `AGENT_BOARD_DATA_KEY=…`). It is meant for a packaged server that keeps them in the macOS Keychain. Unset, the CLI reads `env` as before.
 
-When the variable is set, the command is the only source: `env` is neither read nor merged. A path that is not absolute or not executable, a non-zero exit, a timeout and output without both values are refused with a message that never contains the output.
+When the variable is set, the command is the only source: `env` is neither read nor merged. A path that is not absolute or not executable, a non-zero exit, a timeout and output without both values are refused with a message that never contains the output. A command that leaves a background child holding its stdout is reported as timed out.
 
 `board init` with the variable set takes no `--token-file` or `--data-key-file` (it refuses them), checks what the command returns, writes `web.json` and, if missing, `config.json`, and writes no `env`. `board doctor` reports `credentials: from <path>` and never prints a value.
 
