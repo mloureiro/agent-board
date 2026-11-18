@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { decodeDataKey, isRecord } from '@agent-board/shared';
 import { ConfigError } from '../config/config.mts';
-import { loadEnvFile } from '../config/env-file.mts';
+import { loadCredentials } from '../config/credentials-source.mts';
 
 const AGENT_BOARD_TOKEN_PREFIX = 'abm_';
 
@@ -58,7 +58,11 @@ export function parseWebConfig(raw: unknown, env: Record<string, string>): WebCo
   return { url, token, dataKey };
 }
 
-export function loadWebConfig(configDir: string): WebConfig {
+export function loadWebConfig(
+  configDir: string,
+  env: Record<string, string | undefined> = process.env,
+  options: { timeoutMs?: number } = {},
+): WebConfig {
   const path = join(configDir, 'web.json');
   let raw: unknown;
   try {
@@ -70,5 +74,5 @@ export function loadWebConfig(configDir: string): WebConfig {
         : `web.json missing: ${path} (run "board init")`,
     );
   }
-  return parseWebConfig(raw, loadEnvFile(join(configDir, 'env')));
+  return parseWebConfig(raw, loadCredentials(configDir, env, options).values);
 }

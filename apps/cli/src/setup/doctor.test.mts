@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { encodeDataKey, machineCatalogIndex, machineDirsIndex } from '@agent-board/shared';
 import { DATA_KEY, fakeCatalogStore, KEYS, OWNER, SERVER_API, SERVER_HAS } from '../__tests__/helpers/fakes.mts';
 import { BackendError } from '../backend/backend.mts';
+import { ConfigError } from '../config/config.mts';
 import { formatResult, hasFailure, runChecks } from './doctor.mts';
 import type { CheckResult, DoctorDeps } from './doctor.mts';
 import { renderAgents } from './launchd.mts';
@@ -966,4 +967,56 @@ test('doctor shows the last reading with its time, and what is held until when',
       'tasks below high are held now until 2026-11-17T15:00:00.000Z ' +
       '(5-hour usage 85% (limit 80%, resets 2026-11-17T15:00:00.000Z))',
   );
+});
+
+test('with a credentials command the env file is not consulted and the source is reported without a value', async () => {
+  const { [`${CONFIG_DIR}/env`]: _env, ...withoutEnv } = GOOD;
+  const command = '/Applications/Board.app/Contents/MacOS/board-credentials';
+  const results = await runChecks(
+    machine(withoutEnv, {
+      credentialsCommand: command,
+      runCredentials: () => ({ AGENT_BOARD_TOKEN: TOKEN, AGENT_BOARD_DATA_KEY: KEY_TEXT }),
+    }),
+  );
+  const found = levels(results);
+  assert.equal(found['credentials'], 'ok');
+  assert.equal(found['env'], undefined);
+  assert.equal(found['server'], 'ok');
+  assert.equal(results.find((result) => result.name === 'credentials')?.message, `from ${command}`);
+  const text = results.map(formatResult).join('\n');
+  assert.ok(!text.includes(TOKEN) && !text.includes(KEY_TEXT));
+});
+
+test('a credentials command that fails is one failing check and no server check', async () => {
+  const results = await runChecks(
+    machine(GOOD, {
+      credentialsCommand: '/bin/creds',
+      runCredentials: () => {
+        throw new ConfigError('AGENT_BOARD_CREDENTIALS_COMMAND /bin/creds exited with code 1');
+      },
+    }),
+  );
+  const found = levels(results);
+  assert.equal(found['credentials'], 'fail');
+  assert.equal(
+    results.some((result) => result.name === 'server'),
+    false,
+  );
+});
+
+test('a credentials command runs once per doctor run, and its hints name it and not board init', async () => {
+  let runs = 0;
+  const results = await runChecks(
+    machine(GOOD, {
+      credentialsCommand: '/bin/creds',
+      runCredentials: () => {
+        runs += 1;
+        return { AGENT_BOARD_TOKEN: TOKEN, AGENT_BOARD_DATA_KEY: 'nope' };
+      },
+    }),
+  );
+  assert.equal(runs, 1);
+  const hint = results.find((result) => result.name === 'data key')?.hint ?? '';
+  assert.match(hint, /\/bin\/creds/);
+  assert.doesNotMatch(hint, /board init/);
 });

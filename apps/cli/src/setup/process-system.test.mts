@@ -50,7 +50,13 @@ function system(name: string, overrides: Partial<ProcessSystemOptions> = {}) {
       dryRun: false,
       print: (line) => void lines.push(line),
       dir,
-      env: { PATH: process.env['PATH'], HOME: root, AGENT_BOARD_RUN_DIR: dir, SECRET: 'must not pass' },
+      env: {
+        PATH: process.env['PATH'],
+        HOME: root,
+        AGENT_BOARD_RUN_DIR: dir,
+        AGENT_BOARD_CREDENTIALS_COMMAND: '/opt/board/credentials',
+        SECRET: 'must not pass',
+      },
       graceMs: 3000,
       command: (id) => [process.execPath, '-e', WORKER_SCRIPT, 'internal', 'worker', id],
       openLog: () => openSync(join(root, `${name}.log`), 'a'),
@@ -220,6 +226,7 @@ test('only a task id of the safe shape starts a worker, and the worker gets the 
   assert.equal(env['HOME'], root);
   assert.equal(env['SECRET'], undefined, 'only the variables the units pass');
   assert.equal(env['AGENT_BOARD_RUN_DIR'], join(root, 'env'));
+  assert.equal(env['AGENT_BOARD_CREDENTIALS_COMMAND'], '/opt/board/credentials');
   await envSystem.stop(unitName('Env00001'));
 });
 

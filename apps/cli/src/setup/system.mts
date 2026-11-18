@@ -116,6 +116,7 @@ export function createSystem(input: { dryRun: boolean; print: (line: string) => 
         'AGENT_BOARD_CONFIG_DIR',
         'AGENT_BOARD_STATE_DIR',
         'AGENT_BOARD_RUN_DIR',
+        'AGENT_BOARD_CREDENTIALS_COMMAND',
         'XDG_STATE_HOME',
         'XDG_RUNTIME_DIR',
       ]) {
