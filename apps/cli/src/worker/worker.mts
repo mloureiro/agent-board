@@ -72,6 +72,7 @@ const HEARTBEAT_EVERY_MS = 15_000;
 const MIN_PARK_MS = 60_000;
 // How often the spool is looked at for events to hand a running agent.
 const SPOOL_EVERY_MS = 2_000;
+const SHUTDOWN_GRACE_MS = 15_000;
 // A watch tick that finds this much more time gone than its 15 s interval ran while the machine slept (or the clock was set).
 const CLOCK_JUMP_MS = 60_000;
 
@@ -128,6 +129,8 @@ export interface WorkerDeps extends Context {
   // numbers differ from the last call of this run. Best effort, and what it throws goes in the log.
   recordUsage?: (reading: RateLimitReading) => void;
   contextWindows?: ContextWindowStore;
+  watchShutdown?: (onRequest: () => void) => () => void;
+  shutdownGraceMs?: number;
   // Makes the backend's calls for the task name this run, so the board refuses them once a later run holds the task.
   bindRun?: (scope: RunScope) => void;
   // Writes the title a title rule asks for; the step never fails the run.
@@ -479,6 +482,24 @@ async function runTask(
   // The run was ended because the user asked for a stop, with nothing to carry on with.
   let endedByStop = false;
   let pauseTold = false;
+  let shutdownRequested = false;
+  let shutdownTimer: NodeJS.Timeout | undefined;
+  const beginShutdown = (): void => {
+    if (!shutdownRequested) return;
+    const live = channel;
+    if (live === undefined || !live.open || shutdownTimer !== undefined) return;
+    const deadline = files.shutdownDeadline(taskId);
+    const graceMs =
+      deadline === undefined ? (deps.shutdownGraceMs ?? SHUTDOWN_GRACE_MS) : deadline.getTime() - Date.now();
+    deps.appendLog(taskId, 'the machine is shutting down: interrupted the agent');
+    live.interrupt();
+    shutdownTimer = setTimeout(() => live.stop(), Math.max(0, graceMs));
+    shutdownTimer.unref();
+  };
+  const stopWatchingShutdown = deps.watchShutdown?.(() => {
+    shutdownRequested = true;
+    beginShutdown();
+  });
   const logFailure = (what: string, error: unknown): void => {
     deps.appendLog(taskId, `${what}: ${errorText(error)}`);
   };
@@ -507,7 +528,7 @@ async function runTask(
   };
   const lookAtInbox = async (): Promise<void> => {
     const live = channel;
-    if (inboxOff || live === undefined || !live.open) return;
+    if (inboxOff || shutdownRequested || live === undefined || !live.open) return;
     let inbox: RunInbox;
     try {
       inbox = await backend.runInbox(task.id);
@@ -584,7 +605,7 @@ async function runTask(
       deps.now(),
     );
   // Once the task left Running or a pause was asked for, the events wait for the resume.
-  const holdsEvents = (): boolean => leftRunning || files.pauseRequestedAt(taskId) !== undefined;
+  const holdsEvents = (): boolean => leftRunning || shutdownRequested || files.pauseRequestedAt(taskId) !== undefined;
   const handOverSpool = (): void => {
     const live = channel;
     if (turnHoldsSpool || live === undefined || !live.open || holdsEvents()) return;
@@ -627,6 +648,7 @@ async function runTask(
     spawned: (pgid) => files.writeProcessGroup(taskId, pgid),
     start: (live) => {
       channel = live;
+      beginShutdown();
       spoolTimer = setInterval(handOverSpool, deps.spoolEveryMs ?? SPOOL_EVERY_MS);
       // The board marks the run as one that reads its inbox, which is what keeps a late message from being lost.
       void startLooking();
@@ -648,7 +670,7 @@ async function runTask(
       void startBeat();
       void transcript.start();
       void startLooking();
-      if (!pauseTold && channel?.open && files.pauseRequestedAt(taskId) !== undefined) {
+      if (!pauseTold && !shutdownRequested && channel?.open && files.pauseRequestedAt(taskId) !== undefined) {
         pauseTold = channel.send(pauseMessageText(task.id));
         if (pauseTold)
           deps.appendLog(taskId, 'the lane needs the slot: asked the agent to post a status and end its turn');
@@ -681,6 +703,8 @@ async function runTask(
   } catch (error) {
     stopAwake?.();
     stopListening?.();
+    stopWatchingShutdown?.();
+    clearTimeout(shutdownTimer);
     clearInterval(spoolTimer);
     files.clear(taskId);
     if (run.kind !== 'resume') await backend.updateTask(task.id, { sessionId: null });
@@ -688,6 +712,8 @@ async function runTask(
   }
   stopAwake?.();
   stopListening?.();
+  stopWatchingShutdown?.();
+  clearTimeout(shutdownTimer);
   clearInterval(spoolTimer);
   await transcript.flush();
   if (result.stopped) deps.appendLog(taskId, result.stopped.message);
@@ -767,6 +793,7 @@ async function runTask(
       stopped: result.stopped,
       pauseRequested,
       stopRequested: endedByStop,
+      shutdownRequested,
       reported: after.status !== 'running',
       watching: openWatches.length > 0 || unprompted().length > 0,
     });
@@ -777,6 +804,18 @@ async function runTask(
     }
     if (outcome.kind === 'stopped') {
       if (after.status === 'running') await backend.stopped(task.id, 'Stopped by you.');
+      return;
+    }
+    if (outcome.kind === 'paused' && shutdownRequested) {
+      if (after.status !== 'running') return;
+      try {
+        await backend.pause(
+          task.id,
+          `Paused: the worker on ${config.machine} shut down. Resumes next, on ${config.machine}.`,
+        );
+      } catch (error) {
+        logFailure('the board did not take the pause report', error);
+      }
       return;
     }
     if (outcome.kind === 'paused') {
@@ -803,8 +842,25 @@ export function hookCommand(runDir: string, id: string): string {
   return `${selfCommand('internal', 'hook').map(shellQuote).join(' ')} ${shellQuote(runDir)} ${shellQuote(id)}`;
 }
 
+// A SIGUSR2 that arrives before the run listens would kill the worker by default, so the latch holds it.
+export function latchShutdownSignal(): (onRequest: () => void) => () => void {
+  let requested = false;
+  const listeners = new Set<() => void>();
+  process.on('SIGUSR2', () => {
+    if (requested) return;
+    requested = true;
+    for (const listener of listeners) listener();
+  });
+  return (onRequest) => {
+    listeners.add(onRequest);
+    if (requested) onRequest();
+    return () => void listeners.delete(onRequest);
+  };
+}
+
 export async function workerMain(taskId: string): Promise<void> {
   requireTaskId(taskId, UsageError);
+  const watchShutdown = latchShutdownSignal();
   let run: RunScope | undefined;
   const context = buildContext(false, { run: () => run });
   print(`worker ${taskId} log=${logPath(taskId)}`);
@@ -853,6 +909,7 @@ export async function workerMain(taskId: string): Promise<void> {
       return () => stop.abort();
     },
     watchEveryMs: 15_000,
+    watchShutdown,
     ...(process.platform === 'darwin' ? { keepAwake: () => keepAwake() } : {}),
     recordSkills: (cwd, skills) =>
       recordRunSkills({ store: createCatalogStore(), config: context.config }, cwd, skills),

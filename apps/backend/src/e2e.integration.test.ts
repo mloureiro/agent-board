@@ -365,6 +365,7 @@ describe('an agent’s proposal', () => {
       startedAt: async () => undefined,
       activeWorkers: async () => [],
       stop: async () => undefined,
+      signalWorker: async () => undefined,
       startWorker: async (taskId) => {
         started.push(taskId);
         return { pid: 1 };
@@ -508,6 +509,7 @@ describe('a wait', () => {
         startedAt: async () => undefined,
         activeWorkers: async () => [],
         stop: async () => undefined,
+        signalWorker: async () => undefined,
         startWorker: async (taskId) => {
           started.push(taskId);
           return { pid: 1 };

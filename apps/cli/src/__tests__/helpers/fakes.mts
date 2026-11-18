@@ -704,6 +704,7 @@ export interface FakeRunFiles extends RunFiles {
   runs: Map<string, RunRecord>;
   alive: Map<string, Date>;
   pauses: Map<string, Date>;
+  shutdowns: Map<string, Date>;
   cwds: Map<string, string>;
   agents: Map<string, string>;
   groups: Map<string, number>;
@@ -718,6 +719,7 @@ export function fakeRunFiles(now: () => Date = () => new Date()): FakeRunFiles {
     runs: new Map(),
     alive: new Map(),
     pauses: new Map(),
+    shutdowns: new Map(),
     cwds: new Map(),
     agents: new Map(),
     groups: new Map(),
@@ -739,7 +741,10 @@ export function fakeRunFiles(now: () => Date = () => new Date()): FakeRunFiles {
     writeNextDue: (at) => void (files.next = at),
     requestPause: (id) => void files.pauses.set(id, now()),
     pauseRequestedAt: (id) => files.pauses.get(id),
+    requestShutdown: (id, deadline) => void files.shutdowns.set(id, deadline),
+    shutdownDeadline: (id) => files.shutdowns.get(id),
     clear(id) {
+      files.shutdowns.delete(id);
       files.runs.delete(id);
       files.alive.delete(id);
       files.pauses.delete(id);

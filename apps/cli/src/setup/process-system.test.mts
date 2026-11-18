@@ -267,3 +267,43 @@ test('only `ps` exit 1 means no such process: any other failure throws and keeps
     process.env['PATH'] = saved;
   }
 });
+
+test('signalWorker reaches the verified worker process and not the agent group', async () => {
+  const handler = `
+    const { writeFileSync } = require('node:fs');
+    const id = process.argv.at(-1);
+    process.on('SIGUSR2', () => writeFileSync(process.env.AGENT_BOARD_RUN_DIR + '/' + id + '.got', 'yes'));
+    setInterval(() => {}, 1000);
+  `;
+  const { system: supervisor, dir } = system('signal', {
+    command: (id) => [process.execPath, '-e', handler, 'internal', 'worker', id],
+  });
+  const { pid } = await supervisor.startWorker('Sig00001');
+  assert.ok(pid !== undefined);
+  started.push(pid);
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  await supervisor.signalWorker(unitName('Sig00001'), 'SIGUSR2');
+  await eventually(() => {
+    try {
+      return readFileSync(join(dir, 'Sig00001.got'), 'utf8') === 'yes';
+    } catch {
+      return false;
+    }
+  }, 'the worker to get SIGUSR2');
+  assert.ok(alive(pid));
+
+  const other = spawn(
+    process.execPath,
+    ['-e', 'process.on("SIGUSR2", () => process.exit(0)); setInterval(() => {}, 1000)'],
+    {
+      stdio: 'ignore',
+    },
+  );
+  started.push(other.pid ?? 0);
+  writeFileSync(join(dir, 'Sig00002.pid'), JSON.stringify({ pid: other.pid, startedAt: new Date().toISOString() }));
+  await supervisor.signalWorker(unitName('Sig00002'), 'SIGUSR2');
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  assert.ok(alive(other.pid ?? 0), 'a process that is not the worker is not signalled');
+  other.kill('SIGKILL');
+  await supervisor.stop(unitName('Sig00001'));
+});

@@ -104,9 +104,17 @@ While the agent is active, the worker passes the heartbeat and the lane on to th
 
 Every stop is an interrupt first. The worker sends `claude` an interrupt on stdin, which ends what the agent is doing at once and keeps the session resumable. Then it closes stdin so the process exits. Only a process that is still there 30 seconds after the interrupt is killed, with SIGTERM and then SIGKILL.
 
+### Shutting the machine down
+
+For a supervisor that stops workers itself (an app that quits, a service manager), a worker takes `SIGUSR2` as "this machine is shutting down". Nothing in this tool sends it except `board internal shutdown`, so a worker that never gets one behaves as described above.
+
+On `SIGUSR2` the worker interrupts the agent, as for any stop, and waits for the turn to end. Once the shutdown grace has passed (15 seconds, or the deadline in the task's `<task>.shutdown` run file, an ISO time), it stops the agent as in [How a run is stopped](#how-a-run-is-stopped). Then it reports the run as paused: the task goes back to Todo with the note "Paused: the worker on `<machine>` shut down. Resumes next, on `<machine>`.", and its next run resumes the session on the same machine. A board that cannot be reached is logged and the worker exits; the next start's sweep deals with the task. Messages from the board and watch events are not handed to the agent after the signal, and a second `SIGUSR2` changes nothing.
+
+`board internal shutdown [--grace <seconds>]` does this for every worker of the machine. It lists the active workers, writes each one's `<task>.shutdown` file with a deadline 5 seconds before the grace ends, and sends `SIGUSR2` to the worker alone, never to the agent's process group (a unit's main process with `systemctl --user kill --kill-whom=main` on Linux; the pid its identity check verifies on macOS). It polls until no worker is left or the grace (default 20 seconds) is over, then stops each one still there with the usual SIGTERM and SIGKILL. It prints one line per task, `<task> paused`, `<task> stopped` or `<task> gone` (not running any more when it was signalled), and exits 0 unless it could not list the workers.
+
 ### Run files
 
-The heartbeat, pause flag, lane and working directory of a run live in `$XDG_RUNTIME_DIR/agent-board/`, private to your user. An agent's run also keeps the agent's definition there (`<task>.agents`). `AGENT_BOARD_RUN_DIR` overrides the directory. On macOS, without an `XDG_RUNTIME_DIR`, it is `~/.local/state/agent-board/run` (mode 700), where the process supervisor keeps its pid files too.
+The heartbeat, pause flag, shutdown deadline, lane and working directory of a run live in `$XDG_RUNTIME_DIR/agent-board/`, private to your user. An agent's run also keeps the agent's definition there (`<task>.agents`). `AGENT_BOARD_RUN_DIR` overrides the directory. On macOS, without an `XDG_RUNTIME_DIR`, it is `~/.local/state/agent-board/run` (mode 700), where the process supervisor keeps its pid files too.
 
 ### Sleep
 

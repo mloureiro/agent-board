@@ -203,6 +203,7 @@ export function decideOutcome(input: {
   pauseRequested: boolean;
   // The worker ended the run because the user asked it to stop.
   stopRequested: boolean;
+  shutdownRequested: boolean;
   // The task is no longer Running: the agent reported, the user answered, or the task was taken back.
   reported: boolean;
   // The task has open watches on this machine.
@@ -210,9 +211,11 @@ export function decideOutcome(input: {
 }): Outcome {
   // A run that reported before it noticed the pause or the stop is simply done.
   if (input.reported)
-    return input.exitCode === 0 || input.pauseRequested || input.stopRequested ? { kind: 'ok' } : failed(input);
+    return input.exitCode === 0 || input.pauseRequested || input.stopRequested || input.shutdownRequested
+      ? { kind: 'ok' }
+      : failed(input);
   if (input.stopRequested) return { kind: 'stopped' };
-  if (input.pauseRequested) return { kind: 'paused' };
+  if (input.pauseRequested || input.shutdownRequested) return { kind: 'paused' };
   if (input.stopped) return { kind: 'failed', reason: input.stopped.message };
   if (input.exitCode !== 0) return failed(input);
   return input.watching ? { kind: 'parked' } : { kind: 'unreported' };

@@ -538,6 +538,30 @@ await check('a claude that exits without reading its stdin does not take the wor
   assert.equal(result.code, 0, result.stderr);
   assert.ok(!/unexpected error|EPIPE/.test(result.stderr), result.stderr);
 });
+await check('SIGUSR2 makes a worker interrupt claude and report its task paused, under Bun too', async () => {
+  const claudePath = fakeClaude(
+    'claude-shutdown',
+    [
+      '#!/bin/sh',
+      'IFS= read -r prompt',
+      'kill -USR2 "$PPID"',
+      'while IFS= read -r line; do',
+      '  case "$line" in',
+      '    *control_request*) echo \'{"type":"result","subtype":"error_during_execution"}\';;',
+      '  esac',
+      'done',
+      '',
+    ].join('\n'),
+  );
+  const before = requests.length;
+  const started = Date.now();
+  const { result } = await runWorkerWith(claudePath, 'work');
+  assert.equal(result.code, 0, result.stderr);
+  assert.ok(Date.now() - started < 10_000, 'the worker waited for the grace instead of the end of the turn');
+  const sent = requests.slice(before).map((entry) => entry.command);
+  assert.ok(sent.includes('pause'), `no pause report in ${sent.join(', ')}`);
+  assert.ok(!sent.includes('fail'), 'the shutdown was reported as a failure');
+});
 await check('setup writes the binary that runs, not whatever ~/.local/bin/board resolves to', async () => {
   const installDir = join(root, 'installed');
   mkdirSync(installDir);

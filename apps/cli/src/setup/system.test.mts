@@ -214,3 +214,19 @@ test('startWorker gives no PID when systemctl show fails or reports none, and fa
   );
   assert.equal(calls.length, 1, 'no PID is asked for a unit that did not start');
 });
+
+test('signalWorker sends the signal to the unit main process only, and a dry run only prints the line', async () => {
+  const { calls, run } = recorder(() => failed('not loaded'));
+  await createSystem({ dryRun: false, print: () => undefined, run }).signalWorker('agent-board-Ab3dEf9x', 'SIGUSR2');
+  assert.deepEqual(calls, [
+    { file: 'systemctl', args: ['--user', 'kill', '--kill-whom=main', '--signal=SIGUSR2', 'agent-board-Ab3dEf9x'] },
+  ]);
+  const lines: string[] = [];
+  const dry = recorder();
+  await createSystem({ dryRun: true, print: (line) => void lines.push(line), run: dry.run }).signalWorker(
+    'agent-board-x',
+    'SIGUSR2',
+  );
+  assert.deepEqual(lines, ['DRY systemctl --user kill --kill-whom=main --signal=SIGUSR2 agent-board-x']);
+  assert.deepEqual(dry.calls, []);
+});
