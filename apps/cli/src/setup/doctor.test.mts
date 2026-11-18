@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { encodeDataKey, machineCatalogIndex, machineDirsIndex } from '@agent-board/shared';
 import { DATA_KEY, fakeCatalogStore, KEYS, OWNER, SERVER_API, SERVER_HAS } from '../__tests__/helpers/fakes.mts';
 import { BackendError } from '../backend/backend.mts';
+import { ConfigError } from '../config/config.mts';
 import { formatResult, hasFailure, runChecks } from './doctor.mts';
 import type { CheckResult, DoctorDeps } from './doctor.mts';
 import { renderAgents } from './launchd.mts';
@@ -992,5 +993,40 @@ test('doctor warns, and does not fail, when this machine applied an older versio
   assert.deepEqual(
     behind.map(({ level, message }) => [level, message]),
     [['warn', 'the board holds agents v3, this machine applied none']],
+  );
+});
+
+test('with a credentials command the env file is not consulted and the source is reported without a value', async () => {
+  const { [`${CONFIG_DIR}/env`]: _env, ...withoutEnv } = GOOD;
+  const command = '/Applications/Board.app/Contents/MacOS/board-credentials';
+  const results = await runChecks(
+    machine(withoutEnv, {
+      credentialsCommand: command,
+      runCredentials: () => ({ AGENT_BOARD_TOKEN: TOKEN, AGENT_BOARD_DATA_KEY: KEY_TEXT }),
+    }),
+  );
+  const found = levels(results);
+  assert.equal(found['credentials'], 'ok');
+  assert.equal(found['env'], undefined);
+  assert.equal(found['server'], 'ok');
+  assert.equal(results.find((result) => result.name === 'credentials')?.message, `from ${command}`);
+  const text = results.map(formatResult).join('\n');
+  assert.ok(!text.includes(TOKEN) && !text.includes(KEY_TEXT));
+});
+
+test('a credentials command that fails is one failing check and no server check', async () => {
+  const results = await runChecks(
+    machine(GOOD, {
+      credentialsCommand: '/bin/creds',
+      runCredentials: () => {
+        throw new ConfigError('AGENT_BOARD_CREDENTIALS_COMMAND /bin/creds exited with code 1');
+      },
+    }),
+  );
+  const found = levels(results);
+  assert.equal(found['credentials'], 'fail');
+  assert.equal(
+    results.some((result) => result.name === 'server'),
+    false,
   );
 });

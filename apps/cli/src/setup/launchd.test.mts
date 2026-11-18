@@ -106,9 +106,16 @@ test('the PATH is written out, and the variables that move the CLI files are pas
     agentPath('/Users/me'),
     '/Users/me/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin',
   );
-  assert.deepEqual(passedEnv({ AGENT_BOARD_STATE_DIR: '/s', XDG_STATE_HOME: '', HOME: '/h', PATH: '/x' }), {
-    AGENT_BOARD_STATE_DIR: '/s',
-  });
+  assert.deepEqual(
+    passedEnv({
+      AGENT_BOARD_STATE_DIR: '/s',
+      AGENT_BOARD_CREDENTIALS_COMMAND: '/c',
+      XDG_STATE_HOME: '',
+      HOME: '/h',
+      PATH: '/x',
+    }),
+    { AGENT_BOARD_STATE_DIR: '/s', AGENT_BOARD_CREDENTIALS_COMMAND: '/c' },
+  );
   const [withEnv] = renderAgents({ ...input, env: { AGENT_BOARD_STATE_DIR: '/s' } });
   assert.match(withEnv?.text ?? '', /<key>AGENT_BOARD_STATE_DIR<\/key>\n\t\t<string>\/s<\/string>/);
 });

@@ -36,6 +36,7 @@ import { catalogDirs, composeCatalog } from '../catalog/catalog.mts';
 import { createCatalogStore } from '../catalog/cache.mts';
 import type { CatalogStore } from '../catalog/cache.mts';
 import { dirsToSend, isAllowedDir, isDirectory, routedDirs, UNCOVERED_HINT } from '../config/dirs.mts';
+import { CREDENTIALS_COMMAND_VARIABLE, runCredentialsCommand } from '../config/credentials-source.mts';
 import { parseEnv } from '../config/env-file.mts';
 import { runDir } from '../worker/runtime.mts';
 import {
@@ -86,6 +87,9 @@ export interface CheckResult {
 export interface DoctorDeps {
   configDir: string;
   unitDir: string;
+  // AGENT_BOARD_CREDENTIALS_COMMAND when set: the credentials come from it and not from the env file.
+  credentialsCommand?: string;
+  runCredentials?: (command: string) => Record<string, string>;
   // The version of Node this runs on; undefined on another runtime.
   nodeVersion: string | undefined;
   readText: (path: string) => string | undefined;
@@ -237,11 +241,32 @@ function readWebUrl({ configDir, readText }: DoctorDeps): { url?: string; result
 
 const checkWeb: Check = (deps) => [readWebUrl(deps).result];
 
-function readCredentials({ configDir, readText, mode }: DoctorDeps): {
+function readCredentials(deps: DoctorDeps): {
   token?: string;
   dataKey?: Uint8Array;
   results: CheckResult[];
 } {
+  const { configDir, readText, mode, credentialsCommand } = deps;
+  if (credentialsCommand !== undefined) {
+    let values: Record<string, string>;
+    try {
+      values = (deps.runCredentials ?? runCredentialsCommand)(credentialsCommand);
+    } catch (error) {
+      return {
+        results: [
+          problem(
+            'credentials',
+            'fail',
+            error instanceof ConfigError ? error.message : `${credentialsCommand} could not be run`,
+            `fix the command, or unset ${CREDENTIALS_COMMAND_VARIABLE} to use the env file`,
+          ),
+        ],
+      };
+    }
+    return checkValues(values, `the output of ${credentialsCommand}`, [
+      ok('credentials', `from ${credentialsCommand}`),
+    ]);
+  }
   const path = join(configDir, 'env');
   const text = readText(path);
   if (text === undefined)
@@ -267,14 +292,21 @@ function readCredentials({ configDir, readText, mode }: DoctorDeps): {
         `chmod 600 ${path}`,
       ),
     );
-  const values = parseEnv(text);
+  return checkValues(parseEnv(text), 'env', results);
+}
+
+function checkValues(
+  values: Record<string, string>,
+  source: string,
+  results: CheckResult[],
+): { token?: string; dataKey?: Uint8Array; results: CheckResult[] } {
   const token = values['AGENT_BOARD_TOKEN'];
   if (!token) {
     results.push(
       problem(
         'token',
         'fail',
-        'AGENT_BOARD_TOKEN is not set in env',
+        `AGENT_BOARD_TOKEN is not set in ${source}`,
         'run "board init": it sees the env without a token and asks for the token only',
       ),
     );
@@ -298,7 +330,7 @@ function readCredentials({ configDir, readText, mode }: DoctorDeps): {
       problem(
         'data key',
         'fail',
-        'AGENT_BOARD_DATA_KEY is not set in env',
+        `AGENT_BOARD_DATA_KEY is not set in ${source}`,
         'copy the data key from the board\'s Settings page and run "board init": it sees the env without a key and asks for the key only',
       ),
     );
