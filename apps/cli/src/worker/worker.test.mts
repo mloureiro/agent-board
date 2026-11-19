@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -14,7 +14,7 @@ import type { WatchEvent } from '../watch/store.mts';
 import { commandDef, tempDir, timerDef, watchDef } from '../__tests__/helpers/watch.mts';
 import type { Invocation, Supervision } from './plan.mts';
 import { latchShutdownSignal, runWorker } from './worker.mts';
-import { runProcess } from './process.mts';
+import { groupExists, runProcess } from './process.mts';
 import type { RunChannel, RunResult, Watch } from './process.mts';
 import type { WorkerDeps } from './worker.mts';
 import {
@@ -1424,6 +1424,10 @@ function fakeChannel() {
       if (open) calls.push('interrupt', 'end');
       open = false;
     },
+    kill() {
+      calls.push('kill');
+      return true;
+    },
   };
   return { channel, calls, sent };
 }
@@ -1530,6 +1534,75 @@ test('the grace comes from the deadline the shutdown command wrote, and a deadli
   };
   await runWorker(deps, 'w1');
   assert.deepEqual(channel.calls, ['interrupt', 'interrupt', 'end']);
+});
+
+test('a shutdown request after the agent ended its turn kills the agent once, and the task is paused', async () => {
+  const { deps, backend, calls, channel, announce } = shutdownHarness({ graceMs: 5_000 });
+  deps.run = async (_invocation, _taskId, _env, watch) => {
+    watch.start?.(channel.channel);
+    channel.channel.end();
+    announce();
+    announce();
+    return { exitCode: null, signal: 'SIGTERM' };
+  };
+  await runWorker(deps, 'w1');
+  assert.deepEqual(channel.calls, ['end', 'kill']);
+  assert.ok(calls.some((line) => /stopped the agent, which had ended its turn/.test(line)));
+  assert.deepEqual(
+    backend.writes.filter((w) => w.startsWith('pause w1')),
+    ['pause w1: Paused: the worker on here shut down. Resumes next, on here.'],
+  );
+  assert.ok(!backend.writes.some((w) => w.startsWith('fail ')));
+});
+
+test('an agent that ends its turn during the grace but lingers is killed when the grace is over', async () => {
+  const { deps, channel, announce } = shutdownHarness({ graceMs: 30 });
+  deps.run = async (_invocation, _taskId, _env, watch) => {
+    watch.start?.(channel.channel);
+    announce();
+    channel.channel.end();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    return { exitCode: null, signal: 'SIGTERM' };
+  };
+  await runWorker(deps, 'w1');
+  assert.deepEqual(channel.calls, ['interrupt', 'end', 'kill']);
+});
+
+test('SIGUSR2 reaches an agent that ended its turn and still runs background work: it is stopped and the task paused', async () => {
+  process.env['AGENT_BOARD_STATE_DIR'] = mkdtempSync(join(tmpdir(), 'agent-board-shutdown-'));
+  const { deps, backend } = shutdownHarness({ graceMs: 5_000 });
+  deps.watchShutdown = latchShutdownSignal();
+  const pidFile = join(mkdtempSync(join(tmpdir(), 'agent-board-lingering-')), 'pgid');
+  const lingeringAgent = [
+    'read -r prompt',
+    `echo $$ > '${pidFile}'`,
+    `printf '%s\\n' '{"type":"result","subtype":"success"}'`,
+    'sleep 300 &',
+    'wait',
+  ].join('\n');
+  deps.run = (invocation, taskId, env, watch, onLine) =>
+    runProcess(
+      { ...invocation, command: 'sh', args: ['-c', lingeringAgent] },
+      taskId,
+      env,
+      {
+        ...watch,
+        start: (live) => {
+          watch.start?.(live);
+          setTimeout(() => process.kill(process.pid, 'SIGUSR2'), 300);
+        },
+      },
+      onLine,
+    );
+  const started = Date.now();
+  await runWorker(deps, 'w1');
+  assert.ok(Date.now() - started < 3_000, 'the run ended at the signal, not at the grace');
+  assert.deepEqual(
+    backend.writes.filter((w) => w.startsWith('pause w1')),
+    ['pause w1: Paused: the worker on here shut down. Resumes next, on here.'],
+  );
+  const pgid = Number(readFileSync(pidFile, 'utf8').trim());
+  assert.equal(groupExists(pgid), false, 'the agent and its background work are gone');
 });
 
 test('a request that came before the agent started interrupts it as soon as it has', async () => {
