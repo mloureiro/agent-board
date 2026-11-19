@@ -444,16 +444,26 @@ async function runTask(deps: WorkerDeps, taskId: string, workerStartedAt: Date):
   let pauseTold = false;
   let shutdownRequested = false;
   let shutdownTimer: NodeJS.Timeout | undefined;
+  let shutdownKilled = false;
   const beginShutdown = (): void => {
     if (!shutdownRequested) return;
     const live = channel;
-    if (live === undefined || !live.open || shutdownTimer !== undefined) return;
+    if (live === undefined) return;
+    if (!live.open) {
+      // The agent ended its turn but is still there with background work: there is no turn left to interrupt.
+      if (!shutdownKilled && live.kill()) {
+        shutdownKilled = true;
+        deps.appendLog(taskId, 'the machine is shutting down: stopped the agent, which had ended its turn');
+      }
+      return;
+    }
+    if (shutdownTimer !== undefined) return;
     const deadline = files.shutdownDeadline(taskId);
     const graceMs =
       deadline === undefined ? (deps.shutdownGraceMs ?? SHUTDOWN_GRACE_MS) : deadline.getTime() - Date.now();
     deps.appendLog(taskId, 'the machine is shutting down: interrupted the agent');
     live.interrupt();
-    shutdownTimer = setTimeout(() => live.stop(), Math.max(0, graceMs));
+    shutdownTimer = setTimeout(() => (live.open ? live.stop() : live.kill()), Math.max(0, graceMs));
     shutdownTimer.unref();
   };
   const stopWatchingShutdown = deps.watchShutdown?.(() => {

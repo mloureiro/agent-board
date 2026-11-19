@@ -23,6 +23,9 @@ export interface RunChannel {
   end: () => void;
   // Interrupt, end, and kill the process if it is still there after the kill grace: what a stop decision does.
   stop: () => void;
+  // Ends the agent's process group at once (SIGTERM, then SIGKILL after a grace), for an agent that outlives its closed stdin
+  // with background work. False when the agent has already exited: nothing was signalled.
+  kill: () => boolean;
   readonly open: boolean;
 }
 
@@ -112,6 +115,7 @@ export function runProcess(
     // A process that exits without reading its stdin must not take the worker down.
     child.stdin?.on('error', () => undefined);
     let ended = false;
+    let exited = false;
     let killTimer: NodeJS.Timeout | undefined;
     // An interrupt is out and its turn has not ended yet; `carryOn`: a message was sent after it, so the run goes on.
     let interruptOut = false;
@@ -142,6 +146,11 @@ export function runProcess(
         channel.end();
         killTimer ??= setTimeout(terminate, watch.killGraceMs ?? KILL_GRACE_MS);
         killTimer.unref();
+      },
+      kill() {
+        if (exited) return false;
+        terminate();
+        return true;
       },
     };
     // The prompt goes in on stdin, never in argv, and stdin stays open for what follows.
@@ -241,6 +250,7 @@ export function runProcess(
     // As soon as the agent has exited, not when its output closes: what it left may hold the pipe open.
     let ending: Promise<void> | undefined;
     child.on('exit', () => {
+      exited = true;
       ending ??= endGroup();
     });
     child.on('close', (exitCode, signal) => {
