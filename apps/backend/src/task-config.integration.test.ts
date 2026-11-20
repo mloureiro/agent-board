@@ -101,6 +101,35 @@ describe('configuring a task from the UI', () => {
     expect(await threadOf(running.id)).toEqual([]);
   });
 
+  it('a title is renamed in any status, writes no note, and leaves a run alone', async () => {
+    const id = await started();
+    expect(await ctx.ui.tasks.configure({ id, title: 'Renamed' })).toMatchObject({
+      title: 'Renamed',
+      status: 'needs-me',
+    });
+    const running = await ctx.ui.tasks.create({ title: 'r', input: 'x' });
+    await ctx.call('claim-task', { id: running.id, machine: 'laptop' });
+    expect(await ctx.ui.tasks.configure({ id: running.id, title: 'Still running' })).toMatchObject({
+      title: 'Still running',
+      status: 'running',
+      input: 'x',
+    });
+    expect((await ctx.ui.tasks.get({ id: running.id })).task.title).toBe('Still running');
+    expect(await threadOf(id)).toEqual([]);
+    expect(await threadOf(running.id)).toEqual([]);
+  });
+
+  it('refuses a title for a schedule’s occurrence and writes nothing; its other settings still go through', async () => {
+    const occurrence = await ctx.ui.tasks.create({ title: 'sweep', input: '/sweep', when: { every: HOUR } });
+    await expect(
+      ctx.ui.tasks.configure({ id: occurrence.id, title: 'This sweep', model: 'opus' }),
+    ).rejects.toMatchObject({
+      code: 'CONFLICT',
+    });
+    expect((await ctx.ui.tasks.get({ id: occurrence.id })).task).toMatchObject({ title: 'sweep', model: null });
+    expect(await ctx.ui.tasks.configure({ id: occurrence.id, model: 'opus' })).toMatchObject({ model: 'opus' });
+  });
+
   it('a new place sets the directory and the home directory, pins the machine, drops the session and keeps the status', async () => {
     const id = await started();
     expect((await row(id)).sessionId).not.toBeNull();
@@ -233,6 +262,7 @@ describe('configuring a task from the UI', () => {
     await expect(raw.configure({ id })).rejects.toMatchObject({ code: 'BAD_REQUEST' });
     await expect(raw.configure({ id, model: 'not a model' })).rejects.toMatchObject({ code: 'BAD_REQUEST' });
     await expect(raw.configure({ id, effort: 'huge' as 'low' })).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    await expect(raw.configure({ id, title: 'plain title' })).rejects.toMatchObject({ code: 'BAD_REQUEST' });
     await expect(raw.configure({ id, place: { machine: 'laptop', workdir: '/plain/path' } })).rejects.toMatchObject({
       code: 'BAD_REQUEST',
     });

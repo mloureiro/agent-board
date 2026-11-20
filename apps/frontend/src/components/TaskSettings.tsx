@@ -1,11 +1,11 @@
-import { ActionIcon, Button, Group, Modal, Select, Stack, Switch, Text } from '@mantine/core';
+import { ActionIcon, Button, Group, Modal, Select, Stack, Switch, Text, TextInput, Title } from '@mantine/core';
 import { IconPencil } from '@tabler/icons-react';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { DEFAULT_EFFORT, EFFORT_OPTIONS, effortFromOption } from '../lib/effort';
 import { DEFAULT_LANE, laneFromOption } from '../lib/lane';
 import { DEFAULT_MODEL, modelFromOption } from '../lib/model';
-import { useTRPC, type BoardTask } from '../lib/trpc';
+import { errorMessage, useTRPC, type BoardTask } from '../lib/trpc';
 import { isCurrentPlace } from '../lib/workingDirectories';
 import { confirmPlace } from './confirmPlace';
 import { DirectorySelect } from './DirectorySelect';
@@ -16,6 +16,73 @@ import { useModelOptions } from './useModelOptions';
 
 const SCHEDULE_HINT =
   'This card belongs to a schedule: the change applies to it only, the next occurrence takes its settings from the schedule.';
+
+/** The task's title, renamed in place in every status: Enter saves, Escape cancels. A schedule's card takes its title from the schedule. */
+export function TitleSetting({ task }: { task: BoardTask }) {
+  const trpc = useTRPC();
+  const configure = useMutation(trpc.tasks.configure.mutationOptions());
+  const [draft, setDraft] = useState<string | null>(null);
+  const unreadable = task.unreadable.includes('title');
+  const cancel = () => {
+    setDraft(null);
+    configure.reset();
+  };
+  if (draft === null)
+    return (
+      <Group gap={4} wrap="nowrap" align="flex-start">
+        <Title order={3} className="wrap-anywhere">
+          {task.title}
+        </Title>
+        {task.scheduleId === null && (
+          <ActionIcon
+            variant="subtle"
+            color="gray"
+            size="sm"
+            mt={4}
+            aria-label="Rename the task"
+            title="Rename the task"
+            onClick={() => setDraft(unreadable ? '' : task.title)}
+            style={{ flexShrink: 0 }}
+          >
+            <IconPencil size={16} />
+          </ActionIcon>
+        )}
+      </Group>
+    );
+  const title = draft.trim();
+  const unchanged = title === '' || (!unreadable && title === task.title);
+  const save = () => {
+    if (!unchanged && !configure.isPending) configure.mutate({ task, title }, { onSuccess: () => setDraft(null) });
+  };
+  return (
+    <Stack gap={4}>
+      <Group gap="xs" wrap="nowrap">
+        <TextInput
+          aria-label="Title"
+          value={draft}
+          onChange={(event) => setDraft(event.currentTarget.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') save();
+            if (event.key === 'Escape') cancel();
+          }}
+          autoFocus
+          style={{ flex: 1 }}
+        />
+        <Button size="xs" onClick={save} disabled={unchanged} loading={configure.isPending}>
+          Save
+        </Button>
+        <Button size="xs" variant="default" onClick={cancel}>
+          Cancel
+        </Button>
+      </Group>
+      {configure.error !== null && (
+        <Text size="xs" c="red">
+          {errorMessage(configure.error)}
+        </Text>
+      )}
+    </Stack>
+  );
+}
 
 /** A change applies from the next run on, in every status. */
 export function ModelPicker({ task }: { task: BoardTask }) {

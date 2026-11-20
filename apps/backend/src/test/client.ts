@@ -301,9 +301,11 @@ type CreateInput = Omit<Parameters<Raw['tasks']['create']>[0], 'id' | 'title' | 
   place?: { machine: string; workdir: string };
 };
 
-type ConfigureInput = Omit<Parameters<Raw['tasks']['configure']>[0], 'place'> & {
+type ConfigureInput = Omit<Parameters<Raw['tasks']['configure']>[0], 'place' | 'title'> & {
   /** The directory in plaintext; it is sealed like the browser seals it. */
   place?: { machine: string; workdir: string } | null;
+  /** The title in plaintext; it is sealed like the browser seals it. */
+  title?: string;
 };
 
 /** Makes a client of a tRPC caller: plaintext in and out, with the sealing the browser does (the same shared rules). */
@@ -497,7 +499,7 @@ export function plainUi(db: Db, owner = 'jascha') {
       rerun: mutation(raw.tasks.rerun),
       setPriority: mutation(raw.tasks.setPriority),
       // As the browser does: a new directory sealed for the row it lands on.
-      configure: async ({ place, ...input }: ConfigureInput) => {
+      configure: async ({ place, title, ...input }: ConfigureInput) => {
         const { task } = await raw.tasks.get({ id: input.id });
         const workdir =
           place === undefined || place === null
@@ -506,6 +508,7 @@ export function plainUi(db: Db, owner = 'jascha') {
         return openTask(
           await raw.tasks.configure({
             ...input,
+            ...(title === undefined ? {} : { title: await sealTitle(sealing.seal, taskRowOf(task), title) }),
             ...(place === null ? { place } : {}),
             ...(place === undefined || place === null || workdir === undefined
               ? {}

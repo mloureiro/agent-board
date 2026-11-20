@@ -6,7 +6,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Machine } from '../lib/opening';
 import type { BoardTask } from '../lib/trpc';
-import { AutoDoneSetting, EffortPicker, LanePicker, ModelPicker, WorkdirSetting } from './TaskSettings';
+import { AutoDoneSetting, EffortPicker, LanePicker, ModelPicker, TitleSetting, WorkdirSetting } from './TaskSettings';
 
 const configure = vi.hoisted(() => vi.fn(async (_: unknown) => ({})));
 const listed = vi.hoisted(() => ({
@@ -87,6 +87,44 @@ beforeEach(() => {
   configure.mockClear();
   listed.paths = ['/work/app', '/work/other'];
   listed.models = [];
+});
+
+describe('TitleSetting', () => {
+  const rename = () => userEvent.click(screen.getByRole('button', { name: 'Rename the task' }));
+
+  it('sends the new title on Enter and shows the title again', async () => {
+    renderWith(<TitleSetting task={task({ title: 'Old title', status: 'running' })} />);
+    await rename();
+    const input = screen.getByRole('textbox', { name: 'Title' });
+    await userEvent.clear(input);
+    await userEvent.type(input, 'New title{Enter}');
+    await waitFor(() => expect(configure).toHaveBeenCalledTimes(1));
+    expect(sent()).toMatchObject({ task: { id: 'task0001' }, title: 'New title' });
+    expect(await screen.findByRole('button', { name: 'Rename the task' })).toBeInTheDocument();
+  });
+
+  it('sends nothing for an unchanged or empty title, and Escape keeps the old one', async () => {
+    renderWith(<TitleSetting task={task({ title: 'Old title' })} />);
+    await rename();
+    expect(await save()).toBeDisabled();
+    await userEvent.clear(screen.getByRole('textbox', { name: 'Title' }));
+    expect(await save()).toBeDisabled();
+    await userEvent.type(screen.getByRole('textbox', { name: 'Title' }), '{Escape}');
+    expect(screen.getByRole('heading', { name: 'Old title' })).toBeInTheDocument();
+    expect(configure).not.toHaveBeenCalled();
+  });
+
+  it('offers no rename on a card of a schedule', () => {
+    renderWith(<TitleSetting task={task({ title: 'Sweep', scheduleId: 'sched001' })} />);
+    expect(screen.getByRole('heading', { name: 'Sweep' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Rename the task' })).not.toBeInTheDocument();
+  });
+
+  it('starts empty for a title that cannot be read', async () => {
+    renderWith(<TitleSetting task={task({ title: '(cannot decrypt)', unreadable: ['title'] })} />);
+    await rename();
+    expect(screen.getByRole('textbox', { name: 'Title' })).toHaveValue('');
+  });
 });
 
 describe('ModelPicker', () => {

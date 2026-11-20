@@ -1,7 +1,7 @@
 import { deriveKeys, openFields, openIcon, type RowRef } from '@agent-board/shared';
 import { describe, expect, it } from 'vitest';
 import { openerFor } from './opening';
-import { sealConfigure, sealNewTask } from './sealing';
+import { InputError, sealConfigure, sealNewTask } from './sealing';
 
 const keys = await deriveKeys(
   Uint8Array.from({ length: 32 }, (_, i) => i),
@@ -40,6 +40,20 @@ describe('sealConfigure', () => {
       await opened({ kind: 'task', forkOf: null, ...task, scheduleId: 'sched002' }, sealed.place?.workdir),
     ).toBeNull();
     expect(await opened({ kind: 'task', forkOf: null, ...task, scheduleId: null }, sealed.place?.workdir)).toBeNull();
+  });
+
+  it('seals a trimmed title for the row so that the page opens it, and refuses an empty one', async () => {
+    const task = { id: 'task0001', createdBy: 'agent', scheduleId: null } as const;
+    const sealed = await sealConfigure(keys, { task, title: '  Renamed \n' });
+    expect(Object.keys(sealed)).toEqual(['id', 'title']);
+    const row: RowRef = { kind: 'task', forkOf: null, ...task };
+    expect((await openFields(openerFor(keys), row, { title: sealed.title!, input: '' })).title).toBe('Renamed');
+    await expect(sealConfigure(keys, { task, title: '   ' })).rejects.toThrow(InputError);
+  });
+
+  it('refuses a title for a schedule’s occurrence, whose title is bound to the schedule', async () => {
+    const task = { id: 'task0001', createdBy: 'user', scheduleId: 'sched001' } as const;
+    await expect(sealConfigure(keys, { task, title: 'This sweep' })).rejects.toThrow(InputError);
   });
 
   it('sends only what changes: a model alone, no directory, or both', async () => {

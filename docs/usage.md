@@ -216,6 +216,17 @@ On a card of a repeating schedule, a change applies to that card only. The next 
 
 `set` and `unset` are refused inside a board run, because an agent does not move a task, pick its model or grant itself the permission to finish it. Viewing works there.
 
+#### Renaming a task
+
+The pencil next to the title on the task page renames it. Enter saves and Escape cancels.
+
+- It works in every status, a running or closed task included, and on an agent's proposal.
+- Your browser seals the new title. No note is written and the old title is not kept.
+- A card of a repeating schedule has no pencil: its title belongs to the schedule. Rename the schedule on the Schedules page, which reaches the card too while it has not started.
+- A title the browser cannot read can be replaced: the field starts empty.
+
+The CLI has no command for it yet.
+
 #### Editing the prompt
 
 Until a worker claims a task, you can change its title and prompt on its page: **Edit prompt**, next to the prompt. The editor starts from the current text. Your browser seals the new text as yours, and the old title and prompt stay in a note on the task. The button shows only on a task that:

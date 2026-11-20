@@ -14,7 +14,6 @@ import {
   Spoiler,
   Stack,
   Text,
-  Title,
 } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { IconCornerDownRight, IconGitFork, IconLockOff, IconTerminal2, IconX } from '@tabler/icons-react';
@@ -36,6 +35,7 @@ import {
   LanePicker,
   ModelPicker,
   TaskIconPicker,
+  TitleSetting,
   WorkdirSetting,
 } from '../components/TaskSettings';
 import { ThreadItem } from '../components/ThreadItem';
@@ -135,9 +135,9 @@ function TaskView({ id }: { id: string }) {
         <Stack gap="xs">
           <Group gap="xs" wrap="nowrap" align="flex-start">
             <TaskIconPicker task={task} size={24} />
-            <Title order={3} className="wrap-anywhere">
-              {task.title}
-            </Title>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <TitleSetting task={task} />
+            </div>
           </Group>
           <Group gap="xs">
             <Badge color={STATUS_COLOR[task.status]}>{task.closed ? 'Closed' : STATUS_LABEL[task.status]}</Badge>
