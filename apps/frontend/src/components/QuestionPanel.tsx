@@ -11,7 +11,7 @@ import {
   SimpleGrid,
   Stack,
   Text,
-  TextInput,
+  Textarea,
 } from '@mantine/core';
 import { useHotkeys } from '@mantine/hooks';
 import { IconAlertTriangle, IconMessageQuestion, IconPlayerPlay } from '@tabler/icons-react';
@@ -259,10 +259,12 @@ function QuestionForm({ questions, submitting, onSubmit, onDismiss, dismissing }
                   );
                 })}
               </SimpleGrid>
-              <Group gap="xs" wrap="nowrap">
-                <TextInput
+              <Group gap="xs" wrap="nowrap" align="flex-start">
+                <Textarea
                   size="xs"
                   style={{ flex: 1 }}
+                  autosize
+                  minRows={1}
                   placeholder={
                     question.multiSelect || draft.selected.length === 0 ? 'Other…' : 'Other… (replaces your choice)'
                   }
@@ -271,6 +273,12 @@ function QuestionForm({ questions, submitting, onSubmit, onDismiss, dismissing }
                     const other = event.currentTarget.value;
                     const startsTyping = !question.multiSelect && draft.other === '' && other !== '';
                     update(index, startsTyping ? { other, selected: [] } : { other });
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+                      event.preventDefault();
+                      submit();
+                    }
                   }}
                 />
                 {!question.multiSelect && draft.selected.length > 0 && (
