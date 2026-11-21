@@ -416,8 +416,14 @@ export async function init(deps: InitDeps, flags: InitFlags): Promise<InitResult
     files.push({ path: envPath, content: `${content}\n`, mode: 0o600 });
   }
   // The board is asked before the first file is touched, whenever a file is about to be written.
+  const writing = files.length > 0 || writeConfig;
+  if (writing && (boardUrl === undefined || credentials === undefined))
+    fail(
+      'the board',
+      `there is no ${boardUrl === undefined ? 'readable board URL (web.json is unreadable: give --url with --force)' : 'token and data key'} to check with; nothing was written`,
+    );
   const board =
-    (writeEnv || writeConfig) && boardUrl !== undefined && credentials !== undefined
+    writing && boardUrl !== undefined && credentials !== undefined
       ? await verifyBoard(deps, boardUrl, credentials.token, credentials.dataKey)
       : undefined;
   if (board?.machine !== undefined && flags.machine !== undefined && flags.machine.trim() !== board.machine)

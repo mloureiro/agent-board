@@ -1086,3 +1086,52 @@ test('init warns when a kept config.json names another machine than the token’
     rmSync(dir, { recursive: true });
   }
 });
+
+test('init asks the board before writing a web.json that is the only file missing', async () => {
+  const dir = tempDir();
+  const cfg = join(dir, 'cfg');
+  try {
+    await init(deps(cfg), FLAGS(dir));
+    rmSync(join(cfg, 'web.json'));
+    await assert.rejects(
+      init(
+        deps(cfg, {
+          verifyServer: async () => {
+            throw new BackendError('unauthorized', 401, true);
+          },
+        }),
+        { url: 'https://other.example.com' },
+      ),
+      /refused the token.*nothing was written/,
+    );
+    assert.throws(() => statSync(join(cfg, 'web.json')));
+    const checked: string[] = [];
+    await init(
+      deps(cfg, {
+        verifyServer: async (config) => {
+          checked.push(config.url);
+          return board();
+        },
+      }),
+      { url: 'https://other.example.com' },
+    );
+    assert.deepEqual(checked, ['https://other.example.com']);
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test('init with an unreadable web.json and files to write fails without writing', async () => {
+  const dir = tempDir();
+  const cfg = join(dir, 'cfg');
+  try {
+    await init(deps(cfg), FLAGS(dir));
+    writeFileSync(join(cfg, 'web.json'), 'not json');
+    rmSync(join(cfg, 'config.json'));
+    await assert.rejects(init(deps(cfg), {}), /no readable board URL.*nothing was written/);
+    assert.throws(() => statSync(join(cfg, 'config.json')));
+    assert.equal(readFileSync(join(cfg, 'web.json'), 'utf8'), 'not json');
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
