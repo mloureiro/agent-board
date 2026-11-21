@@ -209,6 +209,13 @@ Stopping the listener waits for a dispatch tick that is running. The unit's `Tim
 
 The listener checks the API range each time it connects. When the server no longer serves this CLI, the listener logs that and exits, and systemd restarts it every 10 seconds until the CLI matches. When the server is older than the CLI, the listener logs that once and keeps reconnecting with its usual backoff.
 
+### Sources and the Sources page
+
+The CLI adds `board sources` and a `sources` key in `config.json` (see [Sources](usage.md#sources)). The server adds the feature `machine.sources`, migration `0047_machine-sources`, and the **Sources** page. Additive: deploy and release in any order.
+
+- Until a machine runs a CLI with sources, it sends none and the page lists nothing for it.
+- After `board self-update`, restart the watch unit as well as the listener (`board restart watch`), since the watch unit runs the sources.
+
 ### `board watch --ci --ignore` and `ciIgnore` (CLI 0.31.0)
 
 The CLI alone changes: `--ignore <pattern>` on `board watch --ci`, and the `ciIgnore` setting of a `dirs` entry (see [dirs](#dirs) and [CI](usage.md#sources)). The server and the contract stay as they are, and the patterns are never sent to the board. Update machines in any order.

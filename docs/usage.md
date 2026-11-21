@@ -544,6 +544,8 @@ board sources rm <name>
 
 **State.** The task of each item, the last run and the pause are kept in `~/.local/state/agent-board/sources/<name>.json`. The board cannot read a key back, so this file is how a run finds the tasks of items that went away. `rm` deletes it; the tasks stay on the board.
 
+**On the board.** The **Sources** page lists every machine's sources with their timer, last run and result, and a source that cannot run with the reason. **Pause**, **Resume** and **Run now** reach the machine on its next dispatch tick, which the click starts; the button says "Pausing…" and the like until the machine has applied it. The page shows what the machine last sent: the dispatch tick sends the sources when they changed, and the watch unit after each run. The commands, keys and items never leave the machine. A server without the feature shows nothing, and the CLI goes on without it.
+
 Without the watch unit no source runs on its timer, and `board sources` says so. Keep the prompt free of text copied from the item, such as a Slack message or a PR description. Put a link in it instead, so the agent reads that text as data.
 
 ### Review requests from GitHub

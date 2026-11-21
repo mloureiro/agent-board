@@ -1,9 +1,22 @@
-import { compareVersions, isSafeMachineName, MACHINE_NAME_RULE, MIN_CLIENT } from '@agent-board/shared';
+import {
+  compareVersions,
+  isSafeMachineName,
+  MACHINE_NAME_RULE,
+  MAX_SOURCE_REQUESTS,
+  MIN_CLIENT,
+  sourceRequest,
+} from '@agent-board/shared';
+import type { SourceAction } from '@agent-board/shared';
 import { and, asc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 import { createHash, randomBytes } from 'node:crypto';
 import type { DbOrTx } from '../db/client';
 import { machines } from '../db/schema';
 import { AppError } from './errors';
+
+export interface SourceRequest {
+  action: SourceAction;
+  id: string;
+}
 
 const hash = (token: string): string => createHash('sha256').update(token).digest('hex');
 
@@ -32,6 +45,10 @@ export async function issueToken(db: DbOrTx, name: string): Promise<string> {
         usage: null,
         usageIndex: null,
         usageUpdatedAt: null,
+        sources: null,
+        sourcesIndex: null,
+        sourcesUpdatedAt: null,
+        sourceRequests: [],
       },
     });
   return token;
@@ -131,6 +148,10 @@ export async function revokeMachine(db: DbOrTx, name: string): Promise<void> {
       usage: null,
       usageIndex: null,
       usageUpdatedAt: null,
+      sources: null,
+      sourcesIndex: null,
+      sourcesUpdatedAt: null,
+      sourceRequests: [],
     })
     .where(eq(machines.name, name));
 }
@@ -179,4 +200,85 @@ export async function setMachineUsage(db: DbOrTx, name: string, sent: { usage: s
 export async function machineUsageIndex(db: DbOrTx, name: string): Promise<string | null> {
   const [row] = await db.select({ index: machines.usageIndex }).from(machines).where(eq(machines.name, name));
   return row?.index ?? null;
+}
+
+/** Stores the sealed sources a machine sent, with the blind index of what they hold. */
+export async function setMachineSources(
+  db: DbOrTx,
+  name: string,
+  sent: { sources: string; index: string },
+): Promise<void> {
+  await db
+    .update(machines)
+    .set({ sources: sent.sources, sourcesIndex: sent.index, sourcesUpdatedAt: new Date() })
+    .where(eq(machines.name, name));
+}
+
+/** The blind index of the sources a machine last sent (null when it sent none), and the requests that wait for it. */
+export async function machineSourcesState(
+  db: DbOrTx,
+  name: string,
+): Promise<{ index: string | null; requests: string[] }> {
+  const [row] = await db
+    .select({ index: machines.sourcesIndex, requests: machines.sourceRequests })
+    .from(machines)
+    .where(eq(machines.name, name));
+  return { index: row?.index ?? null, requests: row?.requests ?? [] };
+}
+
+/** The machine applied these requests: they stop being pending. A request that is not pending changes nothing. */
+export async function ackSourceRequests(db: DbOrTx, name: string, done: readonly string[]): Promise<void> {
+  await db.transaction(async (tx) => {
+    const [row] = await tx
+      .select({ requests: machines.sourceRequests })
+      .from(machines)
+      .where(eq(machines.name, name))
+      .for('update');
+    if (row === undefined) return;
+    const requests = row.requests.filter((request) => !done.includes(request));
+    if (requests.length !== row.requests.length)
+      await tx.update(machines).set({ sourceRequests: requests }).where(eq(machines.name, name));
+  });
+}
+
+/**
+ * The user's Pause, Resume or Run now of one source: the request waits in `sourceRequests` until the machine applies it on its
+ * next dispatch tick. A request that already waits changes nothing; a pause and a resume of one source replace each other.
+ */
+export async function requestSource(db: DbOrTx, name: string, request: SourceRequest): Promise<void> {
+  await db.transaction(async (tx) => {
+    const [row] = await tx
+      .select({ requests: machines.sourceRequests, revokedAt: machines.revokedAt })
+      .from(machines)
+      .where(eq(machines.name, name))
+      .for('update');
+    if (row === undefined || row.revokedAt !== null) throw new AppError('NOT_FOUND', `No machine ${name}.`);
+    const wanted = sourceRequest(request.action, request.id);
+    if (row.requests.includes(wanted)) return;
+    const opposite = request.action === 'pause' ? 'resume' : request.action === 'resume' ? 'pause' : undefined;
+    const kept = row.requests.filter(
+      (pending) => opposite === undefined || pending !== sourceRequest(opposite, request.id),
+    );
+    if (kept.length >= MAX_SOURCE_REQUESTS)
+      throw new AppError('BAD_REQUEST', `${MAX_SOURCE_REQUESTS} requests already wait for the machine`);
+    await tx
+      .update(machines)
+      .set({ sourceRequests: [...kept, wanted] })
+      .where(eq(machines.name, name));
+  });
+}
+
+/** The sealed sources and pending requests of the machines that sent sources; kept out of `listMachines` like the catalogues. */
+export async function listMachineSources(db: DbOrTx) {
+  return db
+    .select({
+      name: machines.name,
+      sources: machines.sources,
+      sourcesUpdatedAt: machines.sourcesUpdatedAt,
+      sourceRequests: machines.sourceRequests,
+      lastSeenAt: machines.lastSeenAt,
+    })
+    .from(machines)
+    .where(and(isNull(machines.revokedAt), isNotNull(machines.sources)))
+    .orderBy(asc(machines.name));
 }

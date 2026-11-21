@@ -43,6 +43,7 @@ The operator can read, swap, replay and forge anything in the database and in AP
 | `machine.dirs`               | `machine:<name>`                                                                             | the machine's CLI (`board dirs`, dispatch)                                                                                                      |
 | `machine.catalog`            | `machine:<name>`                                                                             | the machine's CLI (dispatch)                                                                                                                    |
 | `machine.usage`              | `machine:<name>`                                                                             | the machine's CLI (dispatch)                                                                                                                    |
+| `machine.sources`            | `machine:<name>`                                                                             | the machine's CLI (dispatch, the watch unit)                                                                                                    |
 | `agents.shared`              | `agents:v<version>`                                                                          | the user's CLI (`board agents push`, `board agents rm --board`), outside a board run, one document for all the agents on the board              |
 | `links`                      | `links:v<version>`                                                                           | the user's browser (Settings › Links), one document for all the link rules                                                                      |
 | `note.body`, `note.preview`  | `note:<taskId>:<author>:<kind>`                                                              | the client of that author                                                                                                                       |
@@ -57,10 +58,11 @@ The operator can read, swap, replay and forge anything in the database and in AP
 - An `icon` that does not open, or opens as anything but one emoji, shows as no icon. It is not listed in a task's `unreadable` fields and never stops a task from running.
 - `<parentId>` is the task a fork was made from (`fork_of`). Only a task of the user's has one; a schedule and its occurrences never do.
 - In `pr`, `watches` and in a polish note, `<id>` and `<taskId>` are the task the agent runs. The sealed text of a polish note is `{"target", "title", "prompt"}`, where `target` is the task it polishes.
-- The three machine documents are one JSON document each:
+- The four machine documents are one JSON document each:
   - `machine.dirs` is `{"dirs":[{"path":…,"label":…}]}`, with `label` only when the directory has one.
   - `machine.catalog` is `{"claude":…,"models":[…],"skills":[…],"dirs":{…},"lanes":[…]}`, with `lanes` only when the machine has some: the names of its lanes.
   - `machine.usage` is `{"limits":…,"windows":{…},"reached":[…],"held":[…],"open":[…]}`.
+  - `machine.sources` is `{"sources":[{"id":…,"name":…,"everyMs":…,"paused":…,"runNow":…,"problem":…,"last":{…}}]}`, with `problem` and `last` only when there is one. The commands are not in it.
 - `agents.shared` is `{"version":…,"agents":{"<name>":{…}}}`, see [The agents on the board](#the-agents-on-the-board). Its `<version>` is the clear version the server keeps beside it, and the document says the same version inside.
 - `links` is `{"version":…,"rules":[{"pattern":…,"url":…,"flags":…}]}`, with `flags` (`i`) only on a case-insensitive rule, see [The link rules](#the-link-rules). Its `<version>` works as that of `agents.shared`.
 
@@ -305,6 +307,9 @@ Each machine sends the board three sealed documents: its directory list, its cat
 | `machine.dirs`    | the listed directories that exist, each with its label                                              | the New task form's Working directory field              | `dirs:<machine>:<document>`    | `dirsIndex`        |
 | `machine.catalog` | the skills and models `claude` reports on the machine, and the names of its lanes                   | completing `/skill` and offering models                  | `catalog:<machine>:<document>` | `catalogIndex`     |
 | `machine.usage`   | the usage limits, the last readings, and the ids of Todo tasks the machine held back or could serve | a badge on a task card and a line in Settings › Machines | `usage:<machine>:<document>`   | `usageIndex`       |
+| `machine.sources` | the names, timers, pauses and last runs of the machine's sources, each with a random id             | the Sources page                                         | `sources:<machine>:<document>` | `sourcesIndex`     |
+
+**Source requests.** The browser's Pause, Resume and Run now are stored in the clear on the machine row as `<action>:<id>`, where the id is random and names no source. A hostile board can drop, replay or invent one. The worst it does is pause, resume or run one of the user's own sources out of turn: the machine applies it only to a source it has, and a run is what the source's timer would do anyway.
 
 **The directory list.** `board dirs` keeps the list that is enforced in the machine's own `config.json`. The copy is for the form to offer (see [Scheduling](usage.md#scheduling)).
 

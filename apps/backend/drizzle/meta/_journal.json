@@ -330,6 +330,13 @@
       "when": 1795187395462,
       "tag": "0046_task-icon",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1795285632974,
+      "tag": "0047_machine-sources",
+      "breakpoints": true
     }
   ]
 }

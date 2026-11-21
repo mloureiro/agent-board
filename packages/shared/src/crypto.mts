@@ -24,6 +24,7 @@ export type Field =
   | 'machine.dirs'
   | 'machine.catalog'
   | 'machine.usage'
+  | 'machine.sources'
   | 'agents.shared'
   | 'links'
   | 'note.body'

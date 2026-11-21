@@ -5,7 +5,7 @@
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
-import { isRecord } from '@agent-board/shared';
+import { isRecord, isSourceId } from '@agent-board/shared';
 import { getPaths } from '../config/config.mts';
 
 export interface SourceCounts {
@@ -28,6 +28,8 @@ export interface SourceState {
   paused: boolean;
   // Asked for with `board sources run --later` or from the board: the next scan runs it whatever its timer says.
   runNow: boolean;
+  // The opaque id the board and its requests know the source by; made on first publish.
+  id?: string;
   last?: SourceRun;
   tasks: Record<string, string>;
 }
@@ -72,6 +74,7 @@ export function parseSourceState(value: unknown): SourceState {
     for (const [key, id] of Object.entries(value['tasks'])) if (typeof id === 'string') tasks[key] = id;
   const last = parseRun(value['last']);
   return {
+    ...(isSourceId(value['id']) ? { id: value['id'] } : {}),
     paused: value['paused'] === true,
     runNow: value['runNow'] === true,
     ...(last === undefined ? {} : { last }),

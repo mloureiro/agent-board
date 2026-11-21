@@ -9,7 +9,11 @@ export interface SourceJob {
 }
 
 /** The runs of the sources that are due, one job each, from config.json as it is now. */
-export function dueSourceJobs(deps: SourceRunDeps, configFile: string): SourceJob[] {
+export function dueSourceJobs(
+  deps: SourceRunDeps,
+  configFile: string,
+  afterRun: () => Promise<void> = () => Promise.resolve(),
+): SourceJob[] {
   let loaded;
   try {
     loaded = loadSources(configFile);
@@ -22,6 +26,8 @@ export function dueSourceJobs(deps: SourceRunDeps, configFile: string): SourceJo
     .filter((source) => isSourceDue(source, deps.store, now))
     .map((source) => ({
       key: `source:${source.name}`,
-      job: async () => void (await runSource(deps, source)),
+      job: async () => {
+        if ((await runSource(deps, source)) !== undefined) await afterRun();
+      },
     }));
 }

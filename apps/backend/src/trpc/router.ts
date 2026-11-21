@@ -4,10 +4,12 @@ import {
   isSafeLane,
   isSafeMachineName,
   isSafeTaskId,
+  isSourceId,
   isWatchId,
   parseKeyId,
   parseKeySlots,
   PRIORITIES,
+  SOURCE_ACTIONS,
   STATUSES,
   type WireNote,
   type WireScheduleDraft,
@@ -24,7 +26,14 @@ import { tasks, type NoteRow, type TaskRow } from '../db/schema';
 import { ACCOUNT_TABLES, deleteAccount, exportPage, importRows, summarize } from '../services/account';
 import { getKeys, replaceSlots, setupKeys } from '../services/keys';
 import { getLinkRules, setLinkRules } from '../services/linkRules';
-import { issueToken, listMachineCatalogs, listMachines, revokeMachine } from '../services/machines';
+import {
+  issueToken,
+  listMachineCatalogs,
+  listMachines,
+  listMachineSources,
+  requestSource,
+  revokeMachine,
+} from '../services/machines';
 import { sharedAgentsForBrowser } from '../services/sharedAgents';
 import {
   addSchedule,
@@ -607,6 +616,21 @@ const machinesRouter = router({
     .mutation(async ({ ctx, input }) => revokeMachine(ctx.db, input.name)),
 });
 
+const sourcesRouter = router({
+  /** The sealed sources and pending requests of every machine that sent sources. */
+  list: procedure.query(({ ctx }) => listMachineSources(ctx.db)),
+  /** Pause, resume or run one source now; the machine applies it on its next dispatch tick, which this mutation starts. */
+  request: procedure
+    .input(
+      z.object({
+        machine: z.string().min(1).max(256),
+        action: z.enum(SOURCE_ACTIONS),
+        id: z.string().refine(isSourceId, 'not a source id'),
+      }),
+    )
+    .mutation(({ ctx, input }) => requestSource(ctx.db, input.machine, { action: input.action, id: input.id })),
+});
+
 const agentsRouter = router({
   /**
    * The agent definitions pushed for every machine: the sealed document, its version and when it was pushed, or null. Read
@@ -689,6 +713,7 @@ export const appRouter = router({
   tasks: tasksRouter,
   schedules: schedulesRouter,
   machines: machinesRouter,
+  sources: sourcesRouter,
   agents: agentsRouter,
   links: linksRouter,
 });
