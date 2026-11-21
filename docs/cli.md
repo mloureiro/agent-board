@@ -1342,7 +1342,10 @@ a script give --url, --token-file and --data-key-file: a secret never goes on
 the command line, where it would land in the shell history. A secret file must
 be mode 600 or 400 like env, which a pipe is: `printf %s "$TOKEN" | board init
 --url … --token-file /dev/stdin --data-key-file ~/key`; only one of the two can
-be /dev/stdin. --machine defaults to the host name.
+be /dev/stdin. The board names the machine: the token belongs to the name typed
+on the Settings page, and init writes that name to config.json. --machine is
+only a check against it. For a board that does not report the name, --machine
+(or the host name) is used.
 
 A file that exists is kept unless --force, which copies it to
 <name>.bak-<timestamp> first (an env backup is mode 600 at most) and keeps what
@@ -1366,14 +1369,15 @@ Options:
   --data-key-file <path>  read the data key from this file: the bare key or the
                           env line(s) the Settings page offers (mode 600 or 400,
                           or a pipe)
-  --machine <name>        this machine's name on the board (default: the host
-                          name)
+  --machine <name>        fail unless the token belongs to this machine name
+                          (the board supplies the name; only a board that does
+                          not is told it)
   --force                 replace web.json and env after backing them up
   -h, --help              display help for command
 
 Examples:
   board init
-  printf %s "$TOKEN" | board init --url https://board.example.com --token-file /dev/stdin --data-key-file ~/key --machine laptop
+  printf %s "$TOKEN" | board init --url https://board.example.com --token-file /dev/stdin --data-key-file ~/key
 ```
 
 ### board doctor
