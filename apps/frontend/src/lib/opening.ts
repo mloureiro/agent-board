@@ -11,6 +11,9 @@ import {
   openFields,
   openIcon,
   openMachineCatalog,
+  openMachineSources,
+  parseSourceRequest,
+  type MachineSource,
   openMachineDirs,
   openMachineUsage,
   openNote,
@@ -471,4 +474,33 @@ export async function openOutput(
 ): Promise<string> {
   if (wire === null) return '';
   return (await tryOpen(keys, transcriptBinding('tr.output', run.taskId, run.runId, seq), wire)) ?? UNREADABLE_TEXT;
+}
+
+/** One machine's sources as the Sources page shows them; `sources` is null when the document does not open. */
+export interface OpenedSources {
+  machine: string;
+  sources: MachineSource[] | null;
+  updatedAt: string | null;
+  lastSeenAt: string | null;
+  // The pending requests (`pause:<id>` and the like) the machine has not applied yet.
+  requests: string[];
+}
+
+export async function openSources(keys: Keys, wire: RouterOutputs['sources']['list']): Promise<OpenedSources[]> {
+  return Promise.all(
+    wire.map(async ({ name, sources: sealed, sourcesUpdatedAt, sourceRequests, lastSeenAt }) => {
+      const shown = shownName(name) ?? INVALID_VALUE;
+      const opened =
+        shown === INVALID_VALUE || sealed === null
+          ? undefined
+          : await openMachineSources(openerFor(keys), name, sealed);
+      return {
+        machine: shown,
+        sources: opened?.sources ?? null,
+        updatedAt: sourcesUpdatedAt,
+        lastSeenAt,
+        requests: sourceRequests.filter((request) => parseSourceRequest(request) !== undefined),
+      };
+    }),
+  );
 }

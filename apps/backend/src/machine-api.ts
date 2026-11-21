@@ -40,6 +40,8 @@ import {
   parseWireTaskPatch,
   parseWireTranscriptBatch,
   parseWireUsage,
+  parseWireSources,
+  parseWireSourceRequestAck,
   parseWireWait,
   TranscriptError,
   SERVER_FEATURES,
@@ -59,10 +61,13 @@ import {
   machineDirsIndex,
   machineForToken,
   machineUsageIndex,
+  machineSourcesState,
+  ackSourceRequests,
   recordClient,
   setMachineCatalog,
   setMachineDirs,
   setMachineUsage,
+  setMachineSources,
 } from './services/machines';
 import {
   addSchedule,
@@ -217,6 +222,10 @@ async function handleMachineCall(
         dirsIndex: await machineDirsIndex(db, machine),
         catalogIndex: await machineCatalogIndex(db, machine),
         usageIndex: await machineUsageIndex(db, machine),
+        ...(await machineSourcesState(db, machine).then(({ index, requests }) => ({
+          sourcesIndex: index,
+          sourceRequests: requests,
+        }))),
         agentsVersion: await sharedAgentsVersion(db),
         ...(config.cliVersion === null ? {} : { cli: config.cliVersion }),
       };
@@ -350,6 +359,16 @@ async function handleMachineCall(
         machine,
         parsed(() => parseWireUsage(body['body'])),
       );
+      return null;
+    case 'set-sources':
+      await setMachineSources(
+        db,
+        machine,
+        parsed(() => parseWireSources(body['body'])),
+      );
+      return null;
+    case 'ack-source-requests':
+      await ackSourceRequests(db, machine, parsed(() => parseWireSourceRequestAck(body['body'])).requests);
       return null;
     case 'get-agents':
       return getSharedAgents(db);

@@ -17,6 +17,7 @@ import {
   openEvents,
   openListedTasks,
   openCatalogs,
+  openSources,
   openMachines,
   openOutput,
   openRuns,
@@ -189,6 +190,16 @@ export function createPlainTRPC(raw: RawTRPC, client: RawClient, keys: Keys | nu
             queryKey: plainKey(raw.machines.catalogs.queryKey()),
             queryFn: async ({ signal }) =>
               openCatalogs(need(), await client.machines.catalogs.query(undefined, { signal })),
+          }),
+      },
+    },
+    sources: {
+      request: raw.sources.request,
+      list: {
+        queryOptions: () =>
+          queryOptions({
+            queryKey: plainKey(raw.sources.list.queryKey()),
+            queryFn: async ({ signal }) => openSources(need(), await client.sources.list.query(undefined, { signal })),
           }),
       },
     },

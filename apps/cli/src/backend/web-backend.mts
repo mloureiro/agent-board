@@ -68,6 +68,8 @@ interface Connection {
   dirsIndex: string | null;
   catalogIndex: string | null;
   usageIndex: string | null;
+  sourcesIndex: string | null;
+  sourceRequests: string[];
   agentsVersion: number | null;
 }
 
@@ -92,6 +94,8 @@ const COMMAND_FEATURES: Partial<Record<string, ServerFeature>> = {
   'edit-schedule': 'prompt.edit',
   'set-catalog': 'machine.catalog',
   'set-usage': 'machine.usage',
+  'set-sources': 'machine.sources',
+  'ack-source-requests': 'machine.sources',
   'get-agents': 'agents.shared',
   'set-agents': 'agents.shared',
 };
@@ -126,6 +130,8 @@ export function createWebBackend(options: WebBackendOptions): WebBackend {
         dirsIndex: identity.dirsIndex ?? null,
         catalogIndex: identity.catalogIndex ?? null,
         usageIndex: identity.usageIndex ?? null,
+        sourcesIndex: identity.sourcesIndex ?? null,
+        sourceRequests: identity.sourceRequests ?? [],
         agentsVersion: identity.agentsVersion ?? null,
       };
     })();
@@ -332,6 +338,12 @@ export function createWebBackend(options: WebBackendOptions): WebBackend {
       const { features, usageIndex } = await connect();
       return { supported: features.has('machine.usage'), index: usageIndex };
     },
+    setSources: async (body) => send('set-sources', { body }),
+    sourcesState: async () => {
+      const { features, sourcesIndex, sourceRequests } = await connect();
+      return { supported: features.has('machine.sources'), index: sourcesIndex, requests: sourceRequests };
+    },
+    ackSourceRequests: async (body) => send('ack-source-requests', { body }),
     getAgents: async () => call('get-agents', {}, parseWireSharedAgents),
     setAgents: async (body) => send('set-agents', { body }),
     agentsState: async () => {

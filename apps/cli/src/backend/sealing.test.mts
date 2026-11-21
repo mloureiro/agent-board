@@ -11,6 +11,7 @@ import {
   parseWireCatalog,
   parseWireDirs,
   parseWireUsage,
+  parseWireSources,
   parseWireSetAgents,
   parseWireNoteInput,
   parseWirePr,
@@ -37,6 +38,7 @@ import type {
   WireDirs,
   WireSharedAgents,
   WireUsage,
+  WireSources,
   WireNote,
   WireNoteInput,
   WireSchedule,
@@ -80,6 +82,10 @@ interface FakeWire extends WireBackend {
   catalogSupported: boolean;
   usage: WireUsage | undefined;
   usageSupported: boolean;
+  sourcesWire: WireSources | undefined;
+  sourcesSupported: boolean;
+  sourceRequests: string[];
+  sourceAcks: string[][];
   agents: WireSharedAgents | null;
 }
 
@@ -100,6 +106,10 @@ function fakeWire(): FakeWire {
     catalogSupported: true,
     usage: undefined,
     usageSupported: true,
+    sourcesWire: undefined,
+    sourcesSupported: true,
+    sourceRequests: [],
+    sourceAcks: [],
     agents: null,
     async listTasks() {
       return state.tasks;
@@ -204,6 +214,19 @@ function fakeWire(): FakeWire {
     },
     async usageState() {
       return { supported: state.usageSupported, index: state.usage?.index ?? null };
+    },
+    async setSources(body) {
+      state.sourcesWire = parseWireSources(JSON.parse(record(state, body)));
+    },
+    async sourcesState() {
+      return {
+        supported: state.sourcesSupported,
+        index: state.sourcesWire?.index ?? null,
+        requests: state.sourceRequests,
+      };
+    },
+    async ackSourceRequests(body) {
+      state.sourceAcks.push(body.requests);
     },
     async getAgents() {
       return state.agents;

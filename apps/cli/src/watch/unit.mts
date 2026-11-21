@@ -20,6 +20,7 @@ import { forgetWakeTries, isRunLive, tryWake } from './wake.mts';
 import { getPaths, loadConfig } from '../config/config.mts';
 import { createSourceStore } from '../sources/store.mts';
 import { dueSourceJobs } from '../sources/scan.mts';
+import { publishSources } from '../sources/publish.mts';
 import type { SourceJob } from '../sources/scan.mts';
 
 export const SCAN_MS = 2000;
@@ -287,6 +288,8 @@ export async function watchUnitMain(): Promise<void> {
             signal,
           },
           configFile,
+          () =>
+            publishSources({ backend, machine: context.config.machine, configFile, store: sourceStore, log: print }),
         ),
     },
     stop.signal,

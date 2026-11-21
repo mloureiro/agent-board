@@ -8,6 +8,7 @@ import {
   machineCatalogIndex,
   machineDirsIndex,
   machineUsageIndex,
+  machineSourcesIndex,
   newTaskId,
   open,
   openFields,
@@ -27,6 +28,7 @@ import {
   sealMachineCatalog,
   sealMachineDirs,
   sealMachineUsage,
+  sealMachineSources,
   sealNote,
   sealPr,
   sealQuestions,
@@ -415,6 +417,22 @@ export function sealingBackend(inner: WireBackend, keys: Keys | (() => Promise<K
     async setUsage(machine, usage) {
       const sealed = await checked('set-usage', () => sealMachineUsage(sealer, machine, usage));
       await inner.setUsage({ usage: sealed, index: await machineUsageIndex(await getKeys(), machine, usage) });
+    },
+    async checkSources(machine, sources) {
+      const { supported, index } = await inner.sourcesState();
+      if (!supported) return 'unsupported';
+      return index === (await machineSourcesIndex(await getKeys(), machine, sources)) ? 'current' : 'stale';
+    },
+    async setSources(machine, sources) {
+      const sealed = await checked('set-sources', () => sealMachineSources(sealer, machine, sources));
+      await inner.setSources({ sources: sealed, index: await machineSourcesIndex(await getKeys(), machine, sources) });
+    },
+    async sourceRequests() {
+      const { supported, requests } = await inner.sourcesState();
+      return supported ? requests : [];
+    },
+    async ackSourceRequests(requests) {
+      await inner.ackSourceRequests({ requests: [...requests] });
     },
     async sharedAgentsVersion() {
       const { supported, version } = await inner.agentsState();
