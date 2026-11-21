@@ -60,6 +60,7 @@ The CLI sends `version` once per process, before its first other call. The answe
 {
   "contract": 9,
   "owner": "<username>",
+  "machine": "<name>",
   "keyId": "<16 hex>",
   "api": { "version": 9, "minClient": 9 },
   "features": ["<name>"],
@@ -70,16 +71,17 @@ The CLI sends `version` once per process, before its first other call. The answe
 }
 ```
 
-| Key                                       | Meaning                                                                                                                                   |
-| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `owner`                                   | The user whose board the token works on. The CLI derives its keys for this user.                                                          |
-| `keyId`                                   | The fingerprint of that user's data key, or `null` before they set up encryption.                                                         |
-| `api.version`                             | The break level this server speaks, `API_VERSION`.                                                                                        |
-| `api.minClient`                           | The oldest client break level it serves, `MIN_CLIENT`.                                                                                    |
-| `contract`                                | The legacy number. The server reports `max(LEGACY_CONTRACT, minClient)`.                                                                  |
-| `features`                                | What the server can do, see [Features](#features).                                                                                        |
-| `cli`                                     | The newest CLI release the server knows of (`CLI_VERSION`). Left out when it knows none.                                                  |
-| `dirsIndex`, `catalogIndex`, `usageIndex` | The blind index of the document the calling machine last sent with `set-dirs`, `set-catalog` or `set-usage`, or `null` when it sent none. |
+| Key                                       | Meaning                                                                                                                                                                                                                                      |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `owner`                                   | The user whose board the token works on. The CLI derives its keys for this user.                                                                                                                                                             |
+| `machine`                                 | The name of the machine the token belongs to (the name typed on the Settings page when the token was created). `board init` takes the machine name from it. Needs `version.machine`; a client treats a missing or unusable value as unknown. |
+| `keyId`                                   | The fingerprint of that user's data key, or `null` before they set up encryption.                                                                                                                                                            |
+| `api.version`                             | The break level this server speaks, `API_VERSION`.                                                                                                                                                                                           |
+| `api.minClient`                           | The oldest client break level it serves, `MIN_CLIENT`.                                                                                                                                                                                       |
+| `contract`                                | The legacy number. The server reports `max(LEGACY_CONTRACT, minClient)`.                                                                                                                                                                     |
+| `features`                                | What the server can do, see [Features](#features).                                                                                                                                                                                           |
+| `cli`                                     | The newest CLI release the server knows of (`CLI_VERSION`). Left out when it knows none.                                                                                                                                                     |
+| `dirsIndex`, `catalogIndex`, `usageIndex` | The blind index of the document the calling machine last sent with `set-dirs`, `set-catalog` or `set-usage`, or `null` when it sent none.                                                                                                    |
 
 A server without `machine.dirs`, `machine.catalog` or `machine.usage` leaves the matching index out. A client reads the three leniently: anything that is not a blind index counts as `null`, never as an error.
 
@@ -138,6 +140,7 @@ Capabilities and vocabulary have names. An additive change then needs no version
 | `task.moved-by`           | The task's `movedBy` field, see [Who moved a task](#who-moved-a-task).                                                                        |          |
 | `prompt.edit`             | The `edit-prompt` and `edit-schedule` commands.                                                                                               |          |
 | `task.lane`               | The `lane` key of `add-task`, `add-schedule` and `configure-task`, and the `requestedLane` field of a task and a schedule, see [Lane](#lane). |          |
+| `version.machine`         | The `machine` key of the `version` answer, see [Version handshake](#version-handshake).                                                       |          |
 
 - The baseline (`BASELINE_SERVER_FEATURES`) is what the server of contract 9 has. A server that answers no `features` key is taken to have exactly the baseline.
 - A new server capability appends its name to `ADDED_SERVER_FEATURES` in the same commit that implements it.

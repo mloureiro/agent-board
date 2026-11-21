@@ -202,6 +202,7 @@ describe('machine API', () => {
     expect(json.result).toEqual({
       contract: LEGACY_CONTRACT,
       owner: 'jascha',
+      machine: 'laptop',
       keyId: null,
       api: { version: API_VERSION, minClient: MIN_CLIENT },
       features: [...SERVER_FEATURES],
@@ -211,6 +212,13 @@ describe('machine API', () => {
     });
     expect(LEGACY_CONTRACT).toBe(9);
     expect(json.result.features).toContain('task.configure');
+  });
+
+  it('names the machine its token belongs to in the version answer, per token', async () => {
+    expect((await ctx.call('laptop', 'version')).json.result).toMatchObject({ machine: 'laptop' });
+    expect((await ctx.call('workstation', 'version')).json.result).toMatchObject({ machine: 'workstation' });
+    await caller(db).machines.revoke({ name: 'laptop' });
+    expect((await ctx.call('laptop', 'version')).status).toBe(401);
   });
 
   it('the UI needs a signed-in user in an allowed group; Remote-* headers do not open the machine API', async () => {

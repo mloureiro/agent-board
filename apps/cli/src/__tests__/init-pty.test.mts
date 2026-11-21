@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { execFile, spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { encodeDataKey } from '@agent-board/shared';
+import { fakeBoard } from './helpers/fake-board.mts';
 import { DATA_KEY } from './helpers/fakes.mts';
 
 const MAIN = fileURLToPath(new URL('../main.mts', import.meta.url));
@@ -16,13 +17,13 @@ const KEY_TEXT = encodeDataKey(DATA_KEY);
 // prompt cannot show. Python's pty module is the helper; without it the test is skipped.
 const DRIVER = `
 import fcntl, os, pty, select, struct, sys, termios, time
-node, main, cfg, home, token, key = sys.argv[1:7]
+node, main, cfg, home, token, key, url = sys.argv[1:8]
 env = {'HOME': home, 'AGENT_BOARD_CONFIG_DIR': cfg, 'XDG_CONFIG_HOME': home + '/xdg', 'PATH': '/usr/bin:/bin', 'TERM': 'xterm-256color'}
 pid, fd = pty.fork()
 if pid == 0:
     # A terminal with no width makes clack wrap every character.
     fcntl.ioctl(0, termios.TIOCSWINSZ, struct.pack('HHHH', 40, 160, 0, 0))
-    os.execve(node, [node, main, 'init', '--url', 'http://127.0.0.1:9', '--machine', 'm'], env)
+    os.execve(node, [node, main, 'init', '--url', url, '--machine', 'box'], env)
 out = b''
 def expect(text, seconds):
     global out
@@ -64,14 +65,22 @@ function ptyAvailable(): boolean {
   return spawnSync('python3', ['-c', 'import pty, select'], { stdio: 'ignore' }).status === 0;
 }
 
-function typeInto(token: string, key: string): { dir: string; transcript: string } {
+async function typeInto(token: string, key: string, url: string): Promise<{ dir: string; transcript: string }> {
   const dir = mkdtempSync(join(tmpdir(), 'board-pty-test-'));
-  const result = spawnSync('python3', ['-I', '-c', DRIVER, process.execPath, MAIN, join(dir, 'cfg'), dir, token, key], {
-    encoding: 'utf8',
-    timeout: 90_000,
+  const result = await new Promise<{ status: number; output: string }>((resolve) => {
+    execFile(
+      'python3',
+      ['-I', '-c', DRIVER, process.execPath, MAIN, join(dir, 'cfg'), dir, token, key, url],
+      { encoding: 'utf8', timeout: 90_000 },
+      (error, stdout, stderr) =>
+        resolve({
+          status: error === null ? 0 : typeof error.code === 'number' ? error.code : -1,
+          output: stderr + stdout,
+        }),
+    );
   });
-  assert.equal(result.status, 0, `the pty driver failed: ${result.stderr}${result.stdout}`);
-  return { dir, transcript: result.stdout };
+  assert.equal(result.status, 0, `the pty driver failed: ${result.output}`);
+  return { dir, transcript: result.output };
 }
 
 for (const [name, token, key] of [
@@ -82,9 +91,10 @@ for (const [name, token, key] of [
     `AGENT_BOARD_DATA_KEY=${KEY_TEXT}`,
   ],
 ] as const) {
-  test(`a person answers the real prompts of board init with ${name}, one line each`, (context: TestContext) => {
+  test(`a person answers the real prompts of board init with ${name}, one line each`, async (context: TestContext) => {
     if (!ptyAvailable()) return context.skip('python3 with the pty module is not available');
-    const { dir, transcript } = typeInto(token, key);
+    const board = await fakeBoard();
+    const { dir, transcript } = await typeInto(token, key, board.url).finally(() => board.close());
     try {
       assert.equal(
         readFileSync(join(dir, 'cfg', 'env'), 'utf8'),
