@@ -41,6 +41,7 @@ const PASSED_ENV = [
   'AGENT_BOARD_CONFIG_DIR',
   'AGENT_BOARD_STATE_DIR',
   'AGENT_BOARD_RUN_DIR',
+  'AGENT_BOARD_CREDENTIALS_COMMAND',
   'XDG_STATE_HOME',
   'XDG_RUNTIME_DIR',
 ];
@@ -160,6 +161,17 @@ export function createProcessSystem(options: ProcessSystemOptions): System {
       for (let waited = 0; waited < graceMs && groups.some(groupExists); waited += POLL_MS) await sleep(POLL_MS);
       for (const pgid of groups) if (groupExists(pgid)) signalGroup(pgid, 'SIGKILL');
       forget(taskId);
+    },
+    async signalWorker(unit, signal) {
+      const taskId = taskIdOfUnit(unit);
+      if (dryRun) return print(`DRY send ${signal} to worker ${taskId}`);
+      const record = await running(taskId);
+      if (record === undefined) return;
+      try {
+        process.kill(record.pid, signal);
+      } catch {
+        // gone since the identity check
+      }
     },
     async startWorker(taskId) {
       // The id becomes a file name and an argument, so only the safe shape goes in, whoever named it.

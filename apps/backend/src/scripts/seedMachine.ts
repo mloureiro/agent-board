@@ -25,7 +25,7 @@ for (const [name, url] of [
     process.exit(2);
   }
 }
-const { db, pool } = createDb(config.appDatabaseUrl);
+const { db, pool } = await createDb(config.appDatabaseUrl);
 const board = appRouter.createCaller({ root: db, config, changes: new Changes(), username: owner });
 
 const dataKey = generateDataKey();

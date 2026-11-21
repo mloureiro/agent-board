@@ -21,7 +21,7 @@ import { plainMachine, plainUi, type MachineAnswer } from './test/client';
 import { sealed } from './test/sealed';
 import { asOwner, caller, question, SEALED, SESSION, sessionNamed, testConfig, useTestDb } from './test/helpers';
 
-const { db, admin } = useTestDb();
+const { db, admin } = await useTestDb();
 
 async function setup() {
   const app = await buildServer(testConfig, db);

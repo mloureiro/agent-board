@@ -6,6 +6,7 @@ import type { ServerIdentity } from '../backend/contract-check.mts';
 import { BackendError } from '../backend/backend.mts';
 import { checkBoardUrl, looksLikeMachineToken, webUrlOf } from '../backend/web-config.mts';
 import { ConfigError, readSecretFile } from '../config/config.mts';
+import { CREDENTIALS_COMMAND_VARIABLE, runCredentialsCommand } from '../config/credentials-source.mts';
 import { parseEnv } from '../config/env-file.mts';
 import exampleConfig from '../../config.example.json' with { type: 'json' };
 import { UsageError } from '../cli.mts';
@@ -39,6 +40,9 @@ export interface InitDeps {
   now: () => Date;
   print: (line: string) => void;
   verifyServer: (config: { url: string; token: string }) => Promise<ServerIdentity>;
+  // AGENT_BOARD_CREDENTIALS_COMMAND when set: it supplies the token and the data key, so no env file is written.
+  credentialsCommand?: string;
+  runCredentials?: (command: string) => Record<string, string>;
 }
 
 export interface InitResult {
@@ -240,12 +244,19 @@ export async function init(deps: InitDeps, flags: InitFlags): Promise<InitResult
   const existingEnv = readEnvValues(envPath);
   const have = { token: existingEnv?.[TOKEN], dataKey: existingEnv?.[DATA_KEY] };
   const missing = { token: !have.token, dataKey: !have.dataKey };
-  const writeEnv = force || existingEnv === undefined || missing.token || missing.dataKey;
+  const { credentialsCommand } = deps;
+  const viaCommand = credentialsCommand !== undefined;
+  if (viaCommand && (flags.tokenFile !== undefined || flags.dataKeyFile !== undefined))
+    throw new UsageError(
+      `${CREDENTIALS_COMMAND_VARIABLE} is set, so the token and the data key come from it: do not give --token-file or --data-key-file (unset the variable to write an env file)`,
+    );
+  const writeEnv = !viaCommand && (force || existingEnv === undefined || missing.token || missing.dataKey);
   const writeConfig = !existsSync(configPath);
   const kept: string[] = [];
-  if (!writeEnv) kept.push(`kept ${envPath} (it has both values; --force replaces it after a backup)`);
+  if (viaCommand) kept.push(`credentials come from ${credentialsCommand}; ${envPath} is not used or written`);
+  else if (!writeEnv) kept.push(`kept ${envPath} (it has both values; --force replaces it after a backup)`);
   if (!writeConfig) kept.push(`kept ${configPath} (config.json is always kept; edit it by hand)`);
-  if (!writeEnv) result.skipped.push(envPath);
+  if (!writeEnv && !viaCommand) result.skipped.push(envPath);
   if (!writeConfig) result.skipped.push(configPath);
 
   // Everything is asked and checked before the first file is touched, and each value only when its file will be written.
@@ -289,7 +300,22 @@ export async function init(deps: InitDeps, flags: InitFlags): Promise<InitResult
     kept.push(`kept ${webPath} (it exists; --force replaces it after a backup)`);
   }
   let credentials: { token: string; dataKey: string } | undefined =
-    have.token && have.dataKey ? { token: have.token, dataKey: have.dataKey } : undefined;
+    !viaCommand && have.token && have.dataKey ? { token: have.token, dataKey: have.dataKey } : undefined;
+  if (viaCommand) {
+    let values: Record<string, string>;
+    try {
+      values = (deps.runCredentials ?? runCredentialsCommand)(credentialsCommand);
+    } catch (error) {
+      throw new UsageError(error instanceof ConfigError ? error.message : `${credentialsCommand} could not be run`);
+    }
+    const token = values[TOKEN] ?? '';
+    const dataKey = values[DATA_KEY] ?? '';
+    const tokenIssue = tokenProblem(token);
+    if (tokenIssue) fail(`the token from ${credentialsCommand}`, tokenIssue);
+    const keyIssue = dataKeyProblem(dataKey);
+    if (keyIssue) fail(`the data key from ${credentialsCommand}`, keyIssue);
+    credentials = { token, dataKey };
+  }
   if (writeEnv) {
     if (flags.tokenFile !== undefined && flags.tokenFile === flags.dataKeyFile)
       throw new UsageError('--token-file and --data-key-file name the same file; they are two secrets');

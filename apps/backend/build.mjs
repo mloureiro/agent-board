@@ -4,7 +4,9 @@ import { build } from 'esbuild';
 import { readFileSync } from 'node:fs';
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
-const external = Object.keys(pkg.dependencies).filter((d) => !d.startsWith('@agent-board/'));
+const external = Object.keys({ ...pkg.dependencies, ...pkg.optionalDependencies }).filter(
+  (d) => !d.startsWith('@agent-board/'),
+);
 
 await build({
   entryPoints: ['src/index.ts'],

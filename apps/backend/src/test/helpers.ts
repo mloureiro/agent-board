@@ -11,6 +11,7 @@ import { testAppDatabaseUrl, testDatabaseUrl } from './global-setup';
 export const testConfig: Config = {
   nodeEnv: 'test',
   port: 0,
+  host: '127.0.0.1',
   databaseUrl: testDatabaseUrl(),
   appDatabaseUrl: testAppDatabaseUrl(),
   backfillOwner: null,
@@ -21,9 +22,9 @@ export const testConfig: Config = {
 };
 
 /** `db` is the unprivileged handle that serves requests; `admin` bypasses row-level security. The tables are wiped before each test. */
-export function useTestDb(): { db: Db; admin: Db } {
-  const app = createDb(testAppDatabaseUrl());
-  const admin = createDb(testDatabaseUrl());
+export async function useTestDb(): Promise<{ db: Db; admin: Db }> {
+  const app = await createDb(testAppDatabaseUrl());
+  const admin = await createDb(testDatabaseUrl());
   beforeEach(async () => {
     await admin.db.execute(sql`truncate app_user, note, task, schedule, machine restart identity cascade`);
   });

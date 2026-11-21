@@ -301,6 +301,7 @@ test('outcomes: a pause wins over the stop it caused, a report wins over a pause
     stopped: undefined,
     pauseRequested: false,
     stopRequested: false,
+    shutdownRequested: false,
     reported: false,
     watching: false,
   };
@@ -327,6 +328,7 @@ test('outcomes: a run that ended with watches open parks, unless it failed, paus
     stopped: undefined,
     pauseRequested: false,
     stopRequested: false,
+    shutdownRequested: false,
     reported: false,
     watching: true,
   };
@@ -344,6 +346,7 @@ test('outcomes: a stop the user asked for ends in Needs me, and a report still w
     stopped: undefined,
     pauseRequested: false,
     stopRequested: true,
+    shutdownRequested: false,
     reported: false,
     watching: false,
   };
@@ -351,6 +354,23 @@ test('outcomes: a stop the user asked for ends in Needs me, and a report still w
   assert.equal(decideOutcome({ ...base, exitCode: 143 }).kind, 'stopped', 'whatever the exit code says');
   assert.equal(decideOutcome({ ...base, exitCode: 0, pauseRequested: true }).kind, 'stopped');
   assert.equal(decideOutcome({ ...base, exitCode: 1, reported: true }).kind, 'ok');
+});
+
+test('outcomes: a machine shutdown pauses the run, below a user stop and a report', () => {
+  const base = {
+    signal: null,
+    stopped: undefined,
+    pauseRequested: false,
+    stopRequested: false,
+    shutdownRequested: true,
+    reported: false,
+    watching: true,
+  };
+  assert.equal(decideOutcome({ ...base, exitCode: 0 }).kind, 'paused');
+  assert.equal(decideOutcome({ ...base, exitCode: null, signal: 'SIGTERM' }).kind, 'paused');
+  assert.equal(decideOutcome({ ...base, exitCode: 1, watching: false }).kind, 'paused');
+  assert.equal(decideOutcome({ ...base, exitCode: 0, stopRequested: true }).kind, 'stopped');
+  assert.equal(decideOutcome({ ...base, exitCode: 143, reported: true }).kind, 'ok');
 });
 
 test('a paused run resumes with a note that it was paused, and with any reply since', () => {

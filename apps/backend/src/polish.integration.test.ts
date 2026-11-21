@@ -6,7 +6,7 @@ import { buildServer } from './server';
 import { plainMachine, plainUi, type MachineAnswer } from './test/client';
 import { caller, testConfig, useTestDb } from './test/helpers';
 
-const { db, admin } = useTestDb();
+const { db, admin } = await useTestDb();
 
 async function setup() {
   const app = await buildServer(testConfig, db);

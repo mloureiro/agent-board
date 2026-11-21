@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -1064,6 +1065,72 @@ test('init with an unreadable web.json and files to write fails without writing'
     await assert.rejects(init(deps(cfg), {}), /no readable board URL.*nothing was written/);
     assert.throws(() => statSync(join(cfg, 'config.json')));
     assert.equal(readFileSync(join(cfg, 'web.json'), 'utf8'), 'not json');
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test('with AGENT_BOARD_CREDENTIALS_COMMAND set, init writes web.json and no env, and the checks load through the command', async () => {
+  const dir = tempDir();
+  const out: string[] = [];
+  const configDir = join(dir, 'cfg');
+  const command = join(dir, 'creds');
+  writeFileSync(
+    command,
+    `#!/bin/sh\nprintf '%s\\n' 'AGENT_BOARD_TOKEN=${TOKEN}' 'AGENT_BOARD_DATA_KEY=${KEY_TEXT}'\n`,
+    {
+      mode: 0o755,
+    },
+  );
+  const env = {
+    AGENT_BOARD_CONFIG_DIR: configDir,
+    XDG_CONFIG_HOME: join(dir, 'xdg'),
+    PATH: '',
+    AGENT_BOARD_CREDENTIALS_COMMAND: command,
+  };
+  const options = {
+    env,
+    writeOut: (text: string) => out.push(text),
+    interactive: false,
+    verifyServer: async () => ({ owner: OWNER, keyId: KEYS.keyId, api: SERVER_API, features: SERVER_HAS }),
+    systemctlCode: async () => 1,
+    platform: 'linux',
+  };
+  try {
+    await runBoard(['init', '--url', 'https://board.example.com', '--machine', 'box'], options);
+    assert.ok(existsSync(join(configDir, 'web.json')));
+    assert.ok(existsSync(join(configDir, 'config.json')));
+    assert.equal(existsSync(join(configDir, 'env')), false);
+    const text = out.join('');
+    assert.match(text, new RegExp(`✓ credentials: from ${command}`));
+    assert.match(text, /✓ board key: the board's data key is id /);
+    assert.ok(!text.includes(TOKEN) && !text.includes(KEY_TEXT));
+
+    await assert.rejects(
+      runBoard(['init', '--force', '--token-file', tokenFile(dir)], options),
+      /AGENT_BOARD_CREDENTIALS_COMMAND.*--token-file/,
+    );
+    assert.equal(existsSync(join(configDir, 'env')), false);
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test('init through a command that returns a malformed token writes nothing', async () => {
+  const dir = tempDir();
+  const configDir = join(dir, 'cfg');
+  try {
+    await assert.rejects(
+      init(
+        deps(configDir, {
+          credentialsCommand: '/usr/local/bin/creds',
+          runCredentials: () => ({ AGENT_BOARD_TOKEN: 'nope', AGENT_BOARD_DATA_KEY: KEY_TEXT }),
+        }),
+        { url: 'https://board.example.com' },
+      ),
+      UsageError,
+    );
+    assert.equal(existsSync(configDir), false);
   } finally {
     rmSync(dir, { recursive: true });
   }

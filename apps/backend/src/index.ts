@@ -6,14 +6,14 @@ import { buildServer } from './server';
 const config = loadConfig();
 
 // The admin pool only prepares the database and is closed before the first request, so nothing can reach it.
-const admin = createDb(config.databaseUrl, { backfillOwner: config.backfillOwner });
+const admin = await createDb(config.databaseUrl, { backfillOwner: config.backfillOwner });
 await ensureAppRole(admin.db, config.appDatabaseUrl);
 await runMigrations(admin.db);
 await admin.pool.end();
 
 // Logs to the console until the server, and with it the request logger, exists.
 let logPoolError = (err: Error) => console.error('idle database client failed:', err);
-const { db, pool } = createDb(config.appDatabaseUrl, { onError: (err) => logPoolError(err) });
+const { db, pool } = await createDb(config.appDatabaseUrl, { onError: (err) => logPoolError(err) });
 await assertUnprivileged(db);
 const app = await buildServer(config, db);
 logPoolError = (err) => app.log.error({ err }, 'idle database client failed');
@@ -22,7 +22,7 @@ logPoolError = (err) => app.log.error({ err }, 'idle database client failed');
 const cleanup = () => cleanupAllBoards(db, app.log).catch((err: unknown) => app.log.error({ err }, 'cleanup failed'));
 void cleanup();
 setInterval(cleanup, 60 * 60_000).unref();
-await app.listen({ host: '0.0.0.0', port: config.port });
+await app.listen({ host: config.host, port: config.port });
 
 // A second signal while closing must not call `pool.end()` again, which rejects.
 let closing: Promise<void> | undefined;

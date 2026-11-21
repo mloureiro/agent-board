@@ -3,7 +3,7 @@ import type { Config } from './config';
 import { buildServer } from './server';
 import { testConfig, useTestDb } from './test/helpers';
 
-const { db } = useTestDb();
+const { db } = await useTestDb();
 
 const SECRET = 'proxy-secret-0123456789abcdef0123456789';
 const remote = { 'remote-user': 'jascha', 'remote-groups': 'admins' };

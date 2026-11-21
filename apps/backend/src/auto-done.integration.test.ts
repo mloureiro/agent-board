@@ -5,7 +5,7 @@ import { buildServer } from './server';
 import { plainMachine, plainUi, type MachineAnswer } from './test/client';
 import { caller, question, sessionNamed, testConfig, useTestDb } from './test/helpers';
 
-const { db, admin } = useTestDb();
+const { db, admin } = await useTestDb();
 
 const DIR = '/home/me/code/repo';
 const HOUR = 3_600_000;

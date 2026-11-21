@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildServer } from './server';
 import { caller, testConfig, useTestDb } from './test/helpers';
 
-const { db } = useTestDb();
+const { db } = await useTestDb();
 
 type Server = Awaited<ReturnType<typeof buildServer>>;
 let app: Server;

@@ -20,6 +20,7 @@ export interface System {
   // Task ids of the worker units that are running now.
   activeWorkers(): Promise<string[]>;
   stop(unit: string): Promise<void>;
+  signalWorker(unit: string, signal: 'SIGUSR2'): Promise<void>;
   startWorker(taskId: string): Promise<{ pid: number | undefined }>;
 }
 
@@ -106,6 +107,11 @@ export function createSystem(input: { dryRun: boolean; print: (line: string) => 
       if (input.dryRun) return input.print(`DRY systemctl --user stop ${unit}`);
       await run('systemctl', ['--user', 'stop', unit]).catch(() => undefined);
     },
+    async signalWorker(unit, signal) {
+      if (input.dryRun) return input.print(`DRY systemctl --user kill --kill-whom=main --signal=${signal} ${unit}`);
+      // The agent runs in the unit's cgroup: the default `--kill-whom=all` would signal it too.
+      await run('systemctl', ['--user', 'kill', '--kill-whom=main', `--signal=${signal}`, unit]).catch(() => undefined);
+    },
     async startWorker(taskId) {
       // The id becomes a unit name and an argument, so only the safe shape goes in, whoever named it.
       requireTaskId(taskId, SystemError);
@@ -116,6 +122,7 @@ export function createSystem(input: { dryRun: boolean; print: (line: string) => 
         'AGENT_BOARD_CONFIG_DIR',
         'AGENT_BOARD_STATE_DIR',
         'AGENT_BOARD_RUN_DIR',
+        'AGENT_BOARD_CREDENTIALS_COMMAND',
         'XDG_STATE_HOME',
         'XDG_RUNTIME_DIR',
       ]) {

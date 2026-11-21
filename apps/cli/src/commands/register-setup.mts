@@ -6,6 +6,7 @@ import { verifyContract } from '../backend/contract-check.mts';
 import { completionModel, renderCompletion, SHELLS } from './completion.mts';
 import type { Shell } from './completion.mts';
 import { getPaths } from '../config/config.mts';
+import { credentialsCommandOf } from '../config/credentials-source.mts';
 import { formatResult, hasFailure, realDoctorDeps, realLaunchdDoctorDeps, runChecks } from '../setup/doctor.mts';
 import type { CheckResult, DoctorDeps } from '../setup/doctor.mts';
 import { clackPrompts, init } from '../setup/init.mts';
@@ -44,6 +45,10 @@ export function registerSetupCommands(shared: ProgramShared): void {
       unitEnabled: async (unit) => (await systemctlCode(['--user', 'is-enabled', unit])) === 0,
     };
   };
+  const credentialsDeps = (): { credentialsCommand?: string } => {
+    const credentialsCommand = credentialsCommandOf(env);
+    return credentialsCommand === undefined ? {} : { credentialsCommand };
+  };
   const doctorDeps = (): DoctorDeps => {
     const { configDir } = getPaths(env);
     const systemctl = systemctlCode;
@@ -59,6 +64,7 @@ export function registerSetupCommands(shared: ProgramShared): void {
         options.agentLoaded ? { ...launchd, loaded: options.agentLoaded } : launchd,
         options.which,
       ),
+      ...credentialsDeps(),
       ...(options.platform ? { platform: options.platform } : {}),
       verifyServer: options.verifyServer ?? ((config) => verifyContract(config)),
     };
@@ -78,6 +84,7 @@ export function registerSetupCommands(shared: ProgramShared): void {
         "Set this machine up for the board: write web.json (the board's URL), env (the machine token and the data key, mode 600) and, if it is missing, config.json (from the example, with this machine's name). Then run the checks of `board doctor`.",
         'Set up encryption in the browser first: init asks for the data key from the board\'s Settings page as well as the token. The page offers the env lines to copy (`AGENT_BOARD_TOKEN=…`, `AGENT_BOARD_DATA_KEY=…`). At a prompt paste one line: the bare value, or its own line (a prompt takes one line, so the other line is refused, naming which one it wants); a file or pipe given with --token-file or --data-key-file may hold both lines. Without flags it asks. For a script give --url, --token-file and --data-key-file: a secret never goes on the command line, where it would land in the shell history. A secret file must be mode 600 or 400 like env, which a pipe is: `printf %s "$TOKEN" | board init --url … --token-file /dev/stdin --data-key-file ~/key`; only one of the two can be /dev/stdin. The board names the machine: the token belongs to the name typed on the Settings page, and init writes that name to config.json. --machine is only a check against it. For a board that does not report the name, --machine (or the host name) is used.',
         'A file that exists is kept unless --force, which copies it to <name>.bak-<timestamp> first (an env backup is mode 600 at most) and keeps what you do not give again: the URL, the token, the data key and any other line of env. An env that has the token but no data key (or the reverse) is completed without --force: init asks for the missing value only. config.json is never replaced.',
+        'With AGENT_BOARD_CREDENTIALS_COMMAND set to an executable, the token and the data key come from its output (the same two lines) and not from env: init refuses --token-file and --data-key-file, checks what the command prints, and writes web.json and config.json but no env.',
         'Not available inside a board run.',
       ),
     )
@@ -114,6 +121,7 @@ export function registerSetupCommands(shared: ProgramShared): void {
           now: options.now ?? (() => new Date()),
           print: out,
           verifyServer: options.verifyServer ?? ((config) => verifyContract(config)),
+          ...credentialsDeps(),
         },
         flags,
       );
@@ -133,7 +141,7 @@ export function registerSetupCommands(shared: ProgramShared): void {
       .description(
         paragraphs(
           'Check this machine, read-only, one line per check: ✓ passes, ✗ fails (with a fix), ! is a warning. Exit 1 if any check fails; warnings alone exit 0. The token is never printed.',
-          'Checks: Node 24+ (checkout only), the config directory, web.json, env (mode 600 or 400, token, data key), the board (reachable, token accepted, API version range, and whether it has a data key and this machine holds the same one), config.json, and for a worker machine claude, gh, flock, systemd-run, systemctl and the installed units with their timers and the listener (on macOS: claude, gh, lockf, the launchd agents and whether launchd has loaded them, the run directory, and a warning for a checkout under ~/Documents, ~/Desktop, ~/Downloads or iCloud Drive, which macOS keeps background jobs out of). The worker checks only warn on a machine with no unit or agent installed, and are left out on a system other than Linux and macOS, where no worker runs.',
+          'Checks: Node 24+ (checkout only), the config directory, web.json, env (mode 600 or 400, token, data key; with AGENT_BOARD_CREDENTIALS_COMMAND set, the credentials from that command instead, reported as `credentials: from <path>`), the board (reachable, token accepted, API version range, and whether it has a data key and this machine holds the same one), config.json, and for a worker machine claude, gh, flock, systemd-run, systemctl and the installed units with their timers and the listener (on macOS: claude, gh, lockf, the launchd agents and whether launchd has loaded them, the run directory, and a warning for a checkout under ~/Documents, ~/Desktop, ~/Downloads or iCloud Drive, which macOS keeps background jobs out of). The worker checks only warn on a machine with no unit or agent installed, and are left out on a system other than Linux and macOS, where no worker runs.',
         ),
       )
       .addHelpText('after', examples('board doctor', 'board doctor --json')),

@@ -5,7 +5,7 @@ import { buildServer } from './server';
 import { plainMachine, plainUi, type MachineAnswer } from './test/client';
 import { caller, testConfig, useTestDb } from './test/helpers';
 
-const { db, admin } = useTestDb();
+const { db, admin } = await useTestDb();
 
 const HOME = '/home/me/code/thing';
 const WORKTREE = '/home/me/code/thing/.claude/worktrees/fix-x';
