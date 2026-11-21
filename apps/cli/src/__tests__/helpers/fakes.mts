@@ -14,6 +14,7 @@ import {
   machineCatalogJson,
   machineDirsJson,
   machineUsageJson,
+  machineSourcesJson,
   MIN_CLIENT,
   deriveKeys,
   encodeDataKey,
@@ -32,6 +33,7 @@ import type {
   MachineCatalog,
   MachineDir,
   MachineUsage,
+  MachineSources,
   SharedAgentsOnBoard,
   Note,
   Schedule,
@@ -141,6 +143,12 @@ export interface FakeBackend extends Backend {
   boardCatalog: { supported: boolean; held: MachineCatalog | undefined; failure: Error | undefined };
   // The same for the usage status.
   boardUsage: { supported: boolean; held: MachineUsage | undefined; failure: Error | undefined };
+  boardSources: {
+    supported: boolean;
+    held: MachineSources | undefined;
+    requests: string[];
+    failure: Error | undefined;
+  };
   // The shared agent definitions the board holds: the document, or a version that does not open; `reported` is the version
   // the `version` answer names, which a lying server can set apart from what it serves.
   boardAgents: {
@@ -182,6 +190,7 @@ export function fakeBackend(tasks: Task[]): FakeBackend {
     boardDirs: { supported: true, held: undefined, failure: undefined },
     boardCatalog: { supported: true, held: undefined, failure: undefined },
     boardUsage: { supported: true, held: undefined, failure: undefined },
+    boardSources: { supported: true, held: undefined, requests: [], failure: undefined },
     boardAgents: { supported: true, held: null, conflicts: 0 },
     async sharedAgentsVersion() {
       if (!state.boardAgents.supported) return 'unsupported';
@@ -457,6 +466,24 @@ export function fakeBackend(tasks: Task[]): FakeBackend {
       if (state.boardUsage.failure) throw state.boardUsage.failure;
       state.writes.push(`usage ${machine}: ${usage.held.length} held, ${usage.open.length} open`);
       state.boardUsage.held = structuredClone(usage);
+    },
+    async checkSources(_machine, sources) {
+      if (state.boardSources.failure) throw state.boardSources.failure;
+      if (!state.boardSources.supported) return 'unsupported';
+      const { held } = state.boardSources;
+      return held !== undefined && machineSourcesJson(held) === machineSourcesJson(sources) ? 'current' : 'stale';
+    },
+    async setSources(machine, sources) {
+      if (state.boardSources.failure) throw state.boardSources.failure;
+      state.writes.push(`sources ${machine}: ${sources.sources.map(({ name }) => name).join(',') || 'none'}`);
+      state.boardSources.held = structuredClone(sources);
+    },
+    async sourceRequests() {
+      return state.boardSources.supported ? [...state.boardSources.requests] : [];
+    },
+    async ackSourceRequests(requests) {
+      state.writes.push(`ack sources ${requests.join(' ')}`);
+      state.boardSources.requests = state.boardSources.requests.filter((request) => !requests.includes(request));
     },
     async heartbeat(id, beat) {
       state.writes.push(`heartbeat ${id} ${beat.lane}${beat.borrowed ? ' borrowed' : ''}`);

@@ -9,6 +9,7 @@ import {
   IconLogout,
   IconMoon,
   IconPlus,
+  IconPlugConnected,
   IconRepeat,
   IconSettings,
   IconSun,
@@ -26,6 +27,7 @@ const NAV = [
   { to: '/', label: 'Board', icon: IconLayoutKanban },
   { to: '/backlog', label: 'Backlog', icon: IconInbox, phoneOnly: true },
   { to: '/schedules', label: 'Schedules', icon: IconRepeat },
+  { to: '/sources', label: 'Sources', icon: IconPlugConnected },
   { to: '/closed', label: 'Closed', icon: IconArchive },
   { to: '/settings', label: 'Settings', icon: IconSettings },
 ];

@@ -221,6 +221,9 @@ export const machineRowSchema = z.object({
   usage: nullable(sealed('machine.usage', 'usage')),
   usageIndex: nullable(blindIndex('usageIndex')),
   usageUpdatedAt: nullable(timestamp),
+  sources: nullable(sealed('machine.sources', 'sources')),
+  sourcesIndex: nullable(blindIndex('sourcesIndex')),
+  sourcesUpdatedAt: nullable(timestamp),
 });
 
 /** The version is in the binding of the document, so it comes in as it was; a board that has its own keeps it. */

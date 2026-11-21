@@ -60,7 +60,10 @@ const IGNORED: Record<AccountTable, Record<string, string>> = {
     pending: 'a message for a running agent; no task runs after an import',
   },
   task_pr: { owner: 'the signed-in user, whatever the file says' },
-  machine: { owner: 'the signed-in user, whatever the file says' },
+  machine: {
+    owner: 'the signed-in user, whatever the file says',
+    sourceRequests: 'a request for the exporting machine, applied or not; no machine acts on an import',
+  },
   shared_agents: { owner: 'the signed-in user, whatever the file says' },
   link_rules: { owner: 'the signed-in user, whatever the file says' },
   transcript_run: { owner: 'the signed-in user, whatever the file says' },
