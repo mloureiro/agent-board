@@ -331,6 +331,28 @@ test('init reads the token from a pipe with --token-file /dev/stdin, and writes 
   }
 });
 
+test('init without --machine names the machine as the board does', async () => {
+  const dir = emptyConfigDir();
+  const board = await fakeBoard('tnk_one');
+  try {
+    const keyFile = join(dir, 'datakey');
+    writeFileSync(keyFile, `${encodeDataKey(DATA_KEY)}\n`, { mode: 0o600 });
+    const tokenFile = join(dir, 'token');
+    writeFileSync(tokenFile, 'abm_piped\n', { mode: 0o600 });
+    const result = await run(
+      'board',
+      ['init', '--url', board.url, '--token-file', tokenFile, '--data-key-file', keyFile],
+      dir,
+    );
+    assert.equal(result.code, 0, result.stderr);
+    const config = JSON.parse(readFileSync(join(dir, 'config.json'), 'utf8')) as { machine: string };
+    assert.equal(config.machine, 'tnk_one');
+  } finally {
+    await board.close();
+    rmSync(dir, { recursive: true });
+  }
+});
+
 test('loopback goes on NO_PROXY, after what is there, once', () => {
   const env: Record<string, string | undefined> = { NO_PROXY: 'internal.example, localhost' };
   keepLoopbackOffProxy(env);
