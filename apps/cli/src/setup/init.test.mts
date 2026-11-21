@@ -1074,17 +1074,104 @@ test('init with a data key that is not the board’s writes nothing', async () =
   }
 });
 
-test('init warns when a kept config.json names another machine than the token’s', async () => {
+const viaCommand = (token = TOKEN) => ({
+  credentialsCommand: '/usr/local/bin/creds',
+  runCredentials: () => ({ AGENT_BOARD_TOKEN: token, AGENT_BOARD_DATA_KEY: KEY_TEXT }),
+});
+
+const OTHER_KEYS = { lanes: [{ name: 'main' }], dirs: [{ label: 'a' }], machine: 'mac' };
+
+async function withThreeFiles(run: (cfg: string) => Promise<void>): Promise<void> {
   const dir = tempDir();
   const cfg = join(dir, 'cfg');
   try {
-    await init(deps(cfg), FLAGS(dir));
-    const second = deps(cfg, { verifyServer: async () => board({ machine: 'tnk_one' }) });
-    await init(second, { ...FLAGS(dir), force: true });
-    assert.ok(second.printed.some((line) => /names the machine box|names the machine laptop/.test(line)));
+    mkdirSync(cfg);
+    writeFileSync(join(cfg, 'web.json'), `${JSON.stringify({ url: 'https://board.example.com' })}\n`);
+    writeFileSync(join(cfg, 'config.json'), `${JSON.stringify(OTHER_KEYS)}\n`, { mode: 0o640 });
+    await run(cfg);
   } finally {
     rmSync(dir, { recursive: true });
   }
+}
+
+test('init --force in credentials-command mode with nothing due still asks the board, and a refusal changes nothing', async () => {
+  await withThreeFiles(async (cfg) => {
+    const before = readdirSync(cfg).sort();
+    await assert.rejects(
+      init(
+        deps(cfg, {
+          ...viaCommand(),
+          verifyServer: async () => {
+            throw new BackendError('unauthorized', 401, true);
+          },
+        }),
+        { force: true },
+      ),
+      /refused the token.*nothing was written/,
+    );
+    assert.deepEqual(readdirSync(cfg).sort(), before);
+    assert.equal(readFileSync(join(cfg, 'config.json'), 'utf8'), `${JSON.stringify(OTHER_KEYS)}\n`);
+  });
+});
+
+test('init --force in credentials-command mode accepts a matching token and writes nothing when the name agrees', async () => {
+  await withThreeFiles(async (cfg) => {
+    const checked: string[] = [];
+    const run = deps(cfg, {
+      ...viaCommand(),
+      verifyServer: async (config) => {
+        checked.push(config.token);
+        return board({ machine: 'mac' });
+      },
+    });
+    const result = await init(run, { force: true });
+    assert.deepEqual(checked, [TOKEN]);
+    assert.deepEqual(result.written, []);
+  });
+});
+
+test('init without --force and nothing due does not ask the board', async () => {
+  await withThreeFiles(async (cfg) => {
+    const result = await init(
+      deps(cfg, {
+        ...viaCommand(),
+        verifyServer: async () => assert.fail('the board is not asked'),
+      }),
+      {},
+    );
+    assert.deepEqual(result.written, []);
+  });
+});
+
+test('init --force renames only the machine in config.json, with a backup, when the board names another', async () => {
+  await withThreeFiles(async (cfg) => {
+    const run = deps(cfg, { ...viaCommand(), verifyServer: async () => board({ machine: 'tnk_one' }) });
+    const result = await init(run, { force: true });
+    const config = JSON.parse(readFileSync(join(cfg, 'config.json'), 'utf8')) as Record<string, unknown>;
+    assert.deepEqual(config, { ...OTHER_KEYS, machine: 'tnk_one' });
+    assert.deepEqual(result.written, [join(cfg, 'config.json')]);
+    assert.equal(result.backedUp.length, 1);
+    assert.deepEqual(JSON.parse(readFileSync(result.backedUp[0] ?? '', 'utf8')), OTHER_KEYS);
+    assert.equal(mode(join(cfg, 'config.json')), 0o640);
+    assert.ok(run.printed.some((line) => line === `wrote ${join(cfg, 'config.json')}`));
+    assert.ok(!run.printed.some((line) => line.startsWith('warning:')));
+    assert.deepEqual(
+      readdirSync(cfg).filter((name) => name.includes('.tmp-')),
+      [],
+    );
+  });
+});
+
+test('init without --force only warns when the board names another machine than config.json', async () => {
+  await withThreeFiles(async (cfg) => {
+    rmSync(join(cfg, 'web.json'));
+    const run = deps(cfg, { ...viaCommand(), verifyServer: async () => board({ machine: 'tnk_one' }) });
+    await init(run, { url: 'https://board.example.com' });
+    assert.ok(
+      run.printed.some((line) => /warning: .*names the machine mac, but the token belongs to tnk_one/.test(line)),
+    );
+    assert.equal(readFileSync(join(cfg, 'config.json'), 'utf8'), `${JSON.stringify(OTHER_KEYS)}\n`);
+  });
 });
 
 test('init asks the board before writing a web.json that is the only file missing', async () => {

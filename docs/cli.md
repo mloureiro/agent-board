@@ -1352,7 +1352,10 @@ A file that exists is kept unless --force, which copies it to
 you do not give again: the URL, the token, the data key and any other line of
 env. An env that has the token but no data key (or the reverse) is completed
 without --force: init asks for the missing value only. config.json is never
-replaced.
+replaced. --force also checks the token and the data key with the board when no
+file is due, and when the board names another machine than config.json does,
+replaces only its `machine` key (after a backup); without --force that is a
+warning.
 
 With AGENT_BOARD_CREDENTIALS_COMMAND set to an executable, the token and the
 data key come from its output (the same two lines) and not from env: init
