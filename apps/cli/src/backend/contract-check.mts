@@ -8,6 +8,7 @@ import {
   parseVersionDirsIndex,
   parseVersionFeatures,
   parseVersionIdentity,
+  parseVersionMachine,
   parseVersionUsageIndex,
 } from '@agent-board/shared';
 import type { Keys } from '@agent-board/shared';
@@ -30,6 +31,8 @@ export const updateCliHint = (): string =>
 export interface ServerIdentity {
   owner: string;
   keyId: string | null;
+  // The machine the token belongs to; absent from a server that does not say.
+  machine?: string;
   // The API range the server speaks: its own break level and the oldest client level it serves.
   api: { version: number; minClient: number };
   // What the server can do beyond the range; the baseline for a server that names none.
@@ -79,12 +82,14 @@ export async function verifyContract(
     );
   try {
     const identity = parseVersionIdentity(version);
+    const machine = parseVersionMachine(version);
     const cli = parseVersionCli(version);
     const dirsIndex = parseVersionDirsIndex(version);
     const catalogIndex = parseVersionCatalogIndex(version);
     const usageIndex = parseVersionUsageIndex(version);
     return {
       ...identity,
+      ...(machine === null ? {} : { machine }),
       api: served,
       features: parseVersionFeatures(version),
       ...(cli === null ? {} : { cli }),

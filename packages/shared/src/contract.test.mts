@@ -17,6 +17,7 @@ import {
   parseVersion,
   parseVersionCli,
   parseVersionIdentity,
+  parseVersionMachine,
   parseWireAddScheduleResult,
   parseWireAsk,
   parseWireFailResult,
@@ -1173,4 +1174,17 @@ test('the run inbox answer and the acknowledgement are checked', () => {
   assert.throws(() => parseAckMessages({ ids: ['not an id!'] }), ContractError);
   assert.throws(() => parseAckMessages({ ids: Array.from({ length: 101 }, (_, i) => `n${i}`) }), ContractError);
   assert.throws(() => parseAckMessages({ ids: [], extra: 1 }), ContractError);
+});
+
+test('parseVersionMachine reads a machine name and treats anything else as unknown', () => {
+  const cases: [unknown, string | null][] = [
+    [{ machine: 'tnk_one' }, 'tnk_one'],
+    [{}, null],
+    [{ machine: 7 }, null],
+    [{ machine: null }, null],
+    [{ machine: 'has space' }, null],
+    [{ machine: '../etc' }, null],
+    [{ machine: '' }, null],
+  ];
+  for (const [answer, expected] of cases) assert.equal(parseVersionMachine(answer), expected, JSON.stringify(answer));
 });

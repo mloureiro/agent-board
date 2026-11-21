@@ -33,6 +33,7 @@ export const ADDED_SERVER_FEATURES = [
   'task.moved-by',
   'prompt.edit',
   'task.lane',
+  'version.machine',
 ] as const;
 
 export const SERVER_FEATURES = [...BASELINE_SERVER_FEATURES, ...ADDED_SERVER_FEATURES] as const;
@@ -67,6 +68,7 @@ export const SERVER_FEATURE_LABELS: Record<ServerFeature, string> = {
   'task.moved-by': 'who moved a task',
   'prompt.edit': 'editing a prompt',
   'task.lane': 'choosing the lane a task runs in',
+  'version.machine': 'naming the machine a token belongs to',
   wait: 'waiting',
 };
 

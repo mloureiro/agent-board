@@ -1481,6 +1481,12 @@ export function parseVersionIdentity(value: unknown): { owner: string; keyId: st
   return { owner, keyId };
 }
 
+// The machine the token belongs to; null from a server that does not say, or whose answer is not a machine name.
+export function parseVersionMachine(value: unknown): string | null {
+  const machine = record(value, 'version')['machine'];
+  return typeof machine === 'string' && isSafeMachineName(machine) ? machine : null;
+}
+
 /** The headers every machine API request carries: the CLI's version and the API level it speaks. */
 export const CLIENT_VERSION_HEADER = 'x-board-client';
 export const CLIENT_API_HEADER = 'x-board-client-api';

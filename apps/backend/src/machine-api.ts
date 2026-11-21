@@ -207,6 +207,7 @@ async function handleMachineCall(
         // A CLI up to 0.7.0 compares this exactly: once a break raises MIN_CLIENT above it, it must stop those CLIs too.
         contract: Math.max(LEGACY_CONTRACT, MIN_CLIENT),
         owner: identity.owner,
+        machine,
         keyId: (await getKeys(db))?.keyId ?? null,
         api: { version: API_VERSION, minClient: MIN_CLIENT },
         features: SERVER_FEATURES,

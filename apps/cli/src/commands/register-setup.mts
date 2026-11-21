@@ -82,7 +82,7 @@ export function registerSetupCommands(shared: ProgramShared): void {
     .description(
       paragraphs(
         "Set this machine up for the board: write web.json (the board's URL), env (the machine token and the data key, mode 600) and, if it is missing, config.json (from the example, with this machine's name). Then run the checks of `board doctor`.",
-        'Set up encryption in the browser first: init asks for the data key from the board\'s Settings page as well as the token. The page offers the env lines to copy (`AGENT_BOARD_TOKEN=…`, `AGENT_BOARD_DATA_KEY=…`). At a prompt paste one line: the bare value, or its own line (a prompt takes one line, so the other line is refused, naming which one it wants); a file or pipe given with --token-file or --data-key-file may hold both lines. Without flags it asks. For a script give --url, --token-file and --data-key-file: a secret never goes on the command line, where it would land in the shell history. A secret file must be mode 600 or 400 like env, which a pipe is: `printf %s "$TOKEN" | board init --url … --token-file /dev/stdin --data-key-file ~/key`; only one of the two can be /dev/stdin. --machine defaults to the host name.',
+        'Set up encryption in the browser first: init asks for the data key from the board\'s Settings page as well as the token. The page offers the env lines to copy (`AGENT_BOARD_TOKEN=…`, `AGENT_BOARD_DATA_KEY=…`). At a prompt paste one line: the bare value, or its own line (a prompt takes one line, so the other line is refused, naming which one it wants); a file or pipe given with --token-file or --data-key-file may hold both lines. Without flags it asks. For a script give --url, --token-file and --data-key-file: a secret never goes on the command line, where it would land in the shell history. A secret file must be mode 600 or 400 like env, which a pipe is: `printf %s "$TOKEN" | board init --url … --token-file /dev/stdin --data-key-file ~/key`; only one of the two can be /dev/stdin. The board names the machine: the token belongs to the name typed on the Settings page, and init writes that name to config.json. --machine is only a check against it. For a board that does not report the name, --machine (or the host name) is used.',
         'A file that exists is kept unless --force, which copies it to <name>.bak-<timestamp> first (an env backup is mode 600 at most) and keeps what you do not give again: the URL, the token, the data key and any other line of env. An env that has the token but no data key (or the reverse) is completed without --force: init asks for the missing value only. config.json is never replaced.',
         'With AGENT_BOARD_CREDENTIALS_COMMAND set to an executable, the token and the data key come from its output (the same two lines) and not from env: init refuses --token-file and --data-key-file, checks what the command prints, and writes web.json and config.json but no env.',
         'Not available inside a board run.',
@@ -97,13 +97,16 @@ export function registerSetupCommands(shared: ProgramShared): void {
       '--data-key-file <path>',
       'read the data key from this file: the bare key or the env line(s) the Settings page offers (mode 600 or 400, or a pipe)',
     )
-    .option('--machine <name>', "this machine's name on the board (default: the host name)")
+    .option(
+      '--machine <name>',
+      'fail unless the token belongs to this machine name (the board supplies the name; only a board that does not is told it)',
+    )
     .option('--force', 'replace web.json and env after backing them up')
     .addHelpText(
       'after',
       examples(
         'board init',
-        'printf %s "$TOKEN" | board init --url https://board.example.com --token-file /dev/stdin --data-key-file ~/key --machine laptop',
+        'printf %s "$TOKEN" | board init --url https://board.example.com --token-file /dev/stdin --data-key-file ~/key',
       ),
     )
     .action(async (flags: InitFlags) => {
@@ -117,6 +120,7 @@ export function registerSetupCommands(shared: ProgramShared): void {
           hostName: options.hostName ?? hostname().split('.')[0] ?? 'machine',
           now: options.now ?? (() => new Date()),
           print: out,
+          verifyServer: options.verifyServer ?? ((config) => verifyContract(config)),
           ...credentialsDeps(),
         },
         flags,
