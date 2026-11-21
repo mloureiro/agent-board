@@ -203,10 +203,12 @@ interface Pending {
   mode: number;
 }
 
-function readConfigMachine(path: string): string | undefined {
+function readConfigFile(path: string): Record<string, unknown> | undefined {
   try {
-    const machine: unknown = (JSON.parse(readFileSync(path, 'utf8')) as { machine?: unknown }).machine;
-    return typeof machine === 'string' ? machine : undefined;
+    const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'));
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : undefined;
   } catch {
     return undefined;
   }
@@ -418,14 +420,15 @@ export async function init(deps: InitDeps, flags: InitFlags): Promise<InitResult
     files.push({ path: envPath, content: `${content}\n`, mode: 0o600 });
   }
   // The board is asked before the first file is touched, whenever a file is about to be written.
-  const writing = files.length > 0 || writeConfig;
-  if (writing && (boardUrl === undefined || credentials === undefined))
+  const due = files.length > 0 || writeConfig;
+  if (due && (boardUrl === undefined || credentials === undefined))
     fail(
       'the board',
       `there is no ${boardUrl === undefined ? 'readable board URL (web.json is unreadable: give --url with --force)' : 'token and data key'} to check with; nothing was written`,
     );
+  // --force asks the board even when no file is due: rotated credentials must not be accepted unchecked.
   const board =
-    writing && boardUrl !== undefined && credentials !== undefined
+    (due || force) && boardUrl !== undefined && credentials !== undefined
       ? await verifyBoard(deps, boardUrl, credentials.token, credentials.dataKey)
       : undefined;
   if (board?.machine !== undefined && flags.machine !== undefined && flags.machine.trim() !== board.machine)
@@ -434,11 +437,26 @@ export async function init(deps: InitDeps, flags: InitFlags): Promise<InitResult
       `the token belongs to the machine ${board.machine}, not ${flags.machine.trim()}; nothing was written`,
     );
   if (!writeConfig && board?.machine !== undefined) {
-    const named = readConfigMachine(configPath);
-    if (named !== undefined && named !== board.machine)
-      deps.print(
-        `warning: ${configPath} names the machine ${named}, but the token belongs to ${board.machine}; every claim is refused until config.json says ${board.machine}`,
-      );
+    const current = readConfigFile(configPath);
+    const named = current?.['machine'];
+    if (typeof named === 'string' && named !== board.machine) {
+      if (force && current !== undefined) {
+        const existing = statSync(configPath);
+        files.push({
+          path: configPath,
+          content: `${JSON.stringify({ ...current, machine: board.machine }, null, 2)}\n`,
+          mode: existing.mode & 0o777,
+        });
+        result.skipped.splice(result.skipped.indexOf(configPath), 1);
+        kept.splice(
+          kept.findIndex((line) => line.startsWith(`kept ${configPath}`)),
+          1,
+        );
+      } else
+        deps.print(
+          `warning: ${configPath} names the machine ${named}, but the token belongs to ${board.machine}; every claim is refused until config.json says ${board.machine} (--force sets it)`,
+        );
+    }
   }
   if (writeConfig) {
     const fallback = deps.hostName;
