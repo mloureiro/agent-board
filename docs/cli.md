@@ -46,6 +46,8 @@ Scheduling:
   schedule <prompt...>       a task from a prompt, run here on this machine
   schedules [action...]      list, edit, pause, resume or delete repeating
                              schedules
+  sources [action...]        list, add, remove, run or pause the commands that
+                             make this machine's tasks from other tools
   delay <task>               delay a task in Todo, or make it due at once
 
 Setup:
@@ -966,6 +968,57 @@ Examples:
   board schedules edit s1b2c3d4 --after s9z8y7x6 --delay 10m --forever
   board schedules edit s1b2c3d4 --dir ~/workspace/agent-board --agent reviewer
   board schedules edit s1b2c3d4 --dir none --agent none --max-concurrent none
+```
+
+### board sources
+
+```
+Usage: board sources [options] [list | add <name> --every <dur> -- <command> | rm <name> | run <name> | pause <name> | resume <name>]
+
+A source is a command this machine runs on a timer, such as a script that asks
+GitHub for the PRs that wait for your review. It prints one JSON object per
+line, one per item that should have a task: `key`, `title` and `prompt`, and
+optionally `version` and `dir`. For each item the machine runs `board schedule
+--key` with the source's key prefix in front of the key, so the board keeps one
+task per item, and a new `version` sends a task that waits in Needs me or is
+Done back to Todo. A task of an earlier run whose item is no longer listed, and
+that still waits in Todo for its first start, is moved to Done.
+
+The watch unit runs every source that is due; `board sources` lists them with
+their last run. `add <name> --every <dur> -- <command>` writes `sources.<name>`
+to config.json (the command runs with `bash -c` in --dir, default the current
+directory, which must be listed in `dirs`); adding a name again replaces it. `rm
+<name>` removes it; the tasks it made stay. `run <name>` runs it now, here, and
+exits 1 when the run failed; `--later` leaves it to the watch unit's next look
+instead. `pause` and `resume` stop and restart its timer.
+
+A listing that fails (an exit other than 0, a time limit, a line that is not a
+valid item) schedules nothing and closes nothing. The key prefix defaults to
+`source:<name>:`.
+
+Arguments:
+  action                list, add, rm, run, pause or resume, the source name,
+                        and for add the command
+
+Options:
+  --every <duration>    add: how often it runs (at least 1m)
+  --dir <path>          add: where the command runs and the tasks are made
+                        (default: the current directory)
+  --agent <name>        add: the agent of this machine's config.json its tasks
+                        run as
+  --lane <name>         add: the lane its tasks ask for
+  --key-prefix <text>   add: put in front of every key (default: source:<name>:)
+  --timeout <duration>  add: the longest one run of the command may take
+                        (default 2m, at most 30m)
+  --later               run: leave it to the watch unit's next look
+  -h, --help            display help for command
+
+Examples:
+  board sources
+  board sources add github-reviews --every 10m --agent reviewer -- '~/bin/review-requests acme/app'
+  board sources run github-reviews
+  board sources pause github-reviews
+  board sources rm github-reviews
 ```
 
 ### board delay

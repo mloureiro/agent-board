@@ -527,6 +527,7 @@ Machine settings are in `~/.config/agent-board/config.json`. `AGENT_BOARD_CONFIG
 | `usageLimits`       | Holds Todo tasks back while Claude usage is high. See [usageLimits](#usagelimits).                                                                                                               | Absent.                            |
 | `agents`            | Named agents a task can run as. See [agents](#agents).                                                                                                                                           | Absent.                            |
 | `dirs`              | The directories workers may run in. See [dirs](#dirs).                                                                                                                                           | Absent.                            |
+| `sources`           | Commands that make this machine's tasks from other tools, on a timer. See [sources](#sources).                                                                                                   | Absent.                            |
 
 An `intake` key is ignored with a warning, and `board doctor` fails on it. See [The built-in intake is removed](#the-built-in-intake-is-removed-cli-0130).
 
@@ -552,6 +553,24 @@ An older token may carry a name outside that shape. It keeps working for what th
 Each agent has `description` and `tools`, and optionally `prompt`, `allowedTools`, `disallowedTools`, `mcpServers`, `env` and `model`. An unknown key inside an agent makes that agent unusable.
 
 An agent can also be a file in the `agents` directory beside `config.json`, which `board agents add` writes, or a definition the board holds for every machine, which `board agents push` puts there. A task names an agent with `board schedule --agent` or the New task form. [Agents](workers.md#agents) has the details.
+
+### sources
+
+An object keyed by source name (1 to 40 letters, digits, `.`, `-` and `_`):
+
+```json
+"sources": {
+  "github-reviews": { "command": "~/bin/review-requests acme/app", "every": "10m", "dir": "~/workspace/app", "agent": "reviewer" }
+}
+```
+
+- `command` (required) runs with `bash -c` in `dir`.
+- `every` (required) is a duration of at least `1m`.
+- `dir` (required) is where the command runs and where an item without a `dir` of its own makes its task. It must be listed in `dirs`.
+- `agent`, `lane` and `keyPrefix` (default `source:<name>:`) apply to every task it makes.
+- `timeout` is the longest one run may take: default `2m`, at most `30m`.
+
+A source with a bad setting is not run, and `board sources` says why. The other sources and the rest of the config are not affected. Manage it with `board sources add`, `rm`, `run`, `pause` and `resume` (see [Sources](usage.md#sources)).
 
 ### dirs
 

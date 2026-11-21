@@ -13,6 +13,7 @@ import type { ProgramOptions, ProgramShared } from './program-shared.mts';
 import { registerConfigCommand } from './register-config.mts';
 import { registerAgentsCommand } from './register-agents.mts';
 import { registerDirsCommand } from './register-dirs.mts';
+import { registerSourcesCommand } from './register-sources.mts';
 import { registerInternalCommands } from './register-internal.mts';
 import { registerDelayCommand, registerScheduleCommands } from './register-scheduling.mts';
 import { registerSetupCommands } from './register-setup.mts';
@@ -137,6 +138,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
   registerTaskSettingsCommand(shared);
   registerScheduleCommands(shared);
   registerDirsCommand(shared);
+  registerSourcesCommand(shared);
   registerConfigCommand(shared);
   registerAgentsCommand(shared);
   registerDelayCommand(shared);
