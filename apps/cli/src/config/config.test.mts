@@ -342,7 +342,7 @@ test('a misspelt key at any level is a warning naming the nearest known key, not
 
 test('an unknown key close to no known one lists the keys of its level', () => {
   assert.deepEqual(configWarnings({ backend: { command: ['/x'] } }), [
-    'unknown key "backend", ignored; known here: machine, lanes, defaultCwd, pauseAfterMinutes, inactivityMinutes, maxRunHours, autoUpdate, agents, repos, dirs, usageLimits',
+    'unknown key "backend", ignored; known here: machine, lanes, defaultCwd, pauseAfterMinutes, inactivityMinutes, maxRunHours, autoUpdate, agents, repos, dirs, usageLimits, sources',
   ]);
 });
 

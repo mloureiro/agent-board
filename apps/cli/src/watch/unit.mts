@@ -17,8 +17,14 @@ import { createWatchStore } from './store.mts';
 import type { WatchDef, WatchEvent, WatchStore } from './store.mts';
 import { publishWatches, PUBLISH_EVERY_MS, REFRESH_MS } from './publish.mts';
 import { forgetWakeTries, isRunLive, tryWake } from './wake.mts';
+import { getPaths, loadConfig } from '../config/config.mts';
+import { createSourceStore } from '../sources/store.mts';
+import { dueSourceJobs } from '../sources/scan.mts';
+import type { SourceJob } from '../sources/scan.mts';
 
 export const SCAN_MS = 2000;
+// Sources are looked at less often than watches: each look reads config.json and every source's state file.
+export const SOURCES_SCAN_MS = 15_000;
 
 export interface UnitDeps {
   store: WatchStore;
@@ -29,6 +35,8 @@ export interface UnitDeps {
   now: () => Date;
   isAlive: (pid: number) => boolean;
   log: (line: string) => void;
+  // The runs of the sources that are due (see sources/scan.mts).
+  sources?: (signal: AbortSignal) => SourceJob[];
 }
 
 export interface WatchUnit {
@@ -53,6 +61,7 @@ export function createWatchUnit(deps: UnitDeps): WatchUnit {
   const publishedAt = new Map<string, number>();
   // The running commands of the stream watches, by the key of their watch.
   const streams = new Map<string, { task: string; name: string; id: string; session: StreamSession }>();
+  let sourcesScannedAt = Number.NEGATIVE_INFINITY;
 
   const publish = async (task: string): Promise<void> => {
     stale.delete(task);
@@ -194,6 +203,10 @@ export function createWatchUnit(deps: UnitDeps): WatchUnit {
       store.touchHeartbeat(now());
       reapStreams();
       for (const task of store.tasks()) scanTask(task);
+      if (deps.sources !== undefined && now().getTime() - sourcesScannedAt >= SOURCES_SCAN_MS) {
+        sourcesScannedAt = now().getTime();
+        for (const { key, job } of deps.sources(abort.signal)) launch(key, job);
+      }
     },
     async settled() {
       while (flights.size > 0) await Promise.all([...flights.values()]);
@@ -245,9 +258,12 @@ export async function runWatchUnit(
 }
 
 export async function watchUnitMain(): Promise<void> {
-  const { backend } = buildContext(false);
+  const context = buildContext(false);
+  const { backend } = context;
   const stop = new AbortController();
   for (const name of ['SIGTERM', 'SIGINT'] as const) process.once(name, () => stop.abort());
+  const { configFile } = getPaths();
+  const sourceStore = createSourceStore(undefined, isProcessAlive);
   await runWatchUnit(
     {
       store: createWatchStore(),
@@ -257,6 +273,21 @@ export async function watchUnitMain(): Promise<void> {
       now: () => new Date(),
       isAlive: isProcessAlive,
       log: print,
+      sources: (signal) =>
+        dueSourceJobs(
+          {
+            backend,
+            machine: context.config.machine,
+            dirs: loadConfig(configFile).dirs,
+            store: sourceStore,
+            run: (spec) => runCommand(spec),
+            link: context.taskLink,
+            now: () => new Date(),
+            log: print,
+            signal,
+          },
+          configFile,
+        ),
     },
     stop.signal,
   );

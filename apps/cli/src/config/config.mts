@@ -687,6 +687,7 @@ export const TOP_KEYS = [
   'repos',
   'dirs',
   'usageLimits',
+  'sources',
 ] as const;
 const LANE_KEYS = ['slots', 'cwd', 'default', 'skills'] as const;
 

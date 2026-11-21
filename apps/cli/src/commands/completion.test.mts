@@ -32,6 +32,7 @@ const VISIBLE = [
   'schedule',
   'schedules',
   'dirs',
+  'sources',
   'config',
   'agents',
   'delay',
