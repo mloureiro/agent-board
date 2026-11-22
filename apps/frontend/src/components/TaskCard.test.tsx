@@ -1,5 +1,5 @@
 import { MantineProvider } from '@mantine/core';
-import { render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
@@ -42,6 +42,7 @@ const task = (overrides: Partial<ListedTask>): ListedTask =>
     skillLabels: [],
     labels: [],
     lastNote: null,
+    context: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     ...overrides,
@@ -305,5 +306,37 @@ describe('TaskCard labels', () => {
   it('offers to add labels on a card without any', () => {
     renderWithEditor({ labels: [] });
     expect(screen.getByRole('button', { name: 'Add labels' })).toBeInTheDocument();
+  });
+});
+
+describe('TaskCard context line', () => {
+  const reading = (window: number | null) => ({ used: 250_000, window, threshold: null, model: 'opus', at: 'now' });
+  const running = (context: ListedTask['context']) =>
+    renderCard({ status: 'running', context, lastActiveAt: new Date().toISOString() });
+
+  it('draws a thin line out of the card flow for a running task with a known window', () => {
+    running(reading(1_000_000));
+    const line = screen.getByTitle('25% used · 250K / 1M');
+    expect(line).toHaveStyle({ position: 'absolute', height: '2px', width: '25%' });
+    expect(line).toBeEmptyDOMElement();
+  });
+
+  it('adds nothing else to the card', () => {
+    const without = running(null).container.innerHTML;
+    cleanup();
+    const { container } = running(reading(1_000_000));
+    screen.getByTitle(/used/).remove();
+    expect(container.innerHTML).toBe(without);
+  });
+
+  it('draws no line without a window, without a reading, or for a task that is not running', () => {
+    running(reading(null));
+    expect(screen.queryByTitle(/used/)).not.toBeInTheDocument();
+    cleanup();
+    running(null);
+    expect(screen.queryByTitle(/used/)).not.toBeInTheDocument();
+    cleanup();
+    renderCard({ status: 'todo', context: reading(1_000_000) });
+    expect(screen.queryByTitle(/used/)).not.toBeInTheDocument();
   });
 });

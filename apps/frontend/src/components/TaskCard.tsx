@@ -3,6 +3,7 @@ import { ActionIcon, Card, Group, Stack, Text, Tooltip } from '@mantine/core';
 import { IconTerminal2, IconWand } from '@tabler/icons-react';
 import type { DragEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { describeContext } from '../lib/contextUsage';
 import { ago } from '../lib/time';
 import type { LastNote, ListedTask } from '../lib/trpc';
 import type { TaskHold } from '../lib/usageHold';
@@ -66,6 +67,7 @@ export function TaskCard({
 }: Props) {
   const prs = prsOf(task);
   const navigate = useNavigate();
+  const context = task.status === 'running' && task.context !== null ? describeContext(task.context) : null;
   return (
     <Card
       component={Link}
@@ -167,6 +169,21 @@ export function TaskCard({
           {lastNoteLine(task.lastNote, task)}
         </Text>
       </Stack>
+      {context !== null && context.percent !== null && (
+        <span
+          role="img"
+          title={context.label}
+          aria-label={context.label}
+          style={{
+            position: 'absolute',
+            left: 0,
+            bottom: 0,
+            height: 2,
+            width: `${context.percent}%`,
+            background: 'var(--mantine-color-dimmed)',
+          }}
+        />
+      )}
     </Card>
   );
 }

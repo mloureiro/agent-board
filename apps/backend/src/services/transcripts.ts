@@ -125,6 +125,31 @@ export async function latestContext(
   return row ?? null;
 }
 
+export async function latestContexts(
+  db: DbOrTx,
+  taskIds: string[],
+): Promise<Map<string, { runId: string; seq: number; at: Date; data: string }>> {
+  if (taskIds.length === 0) return new Map();
+  const newest = db
+    .selectDistinctOn([transcriptRuns.taskId], { taskId: transcriptRuns.taskId, runId: transcriptRuns.id })
+    .from(transcriptRuns)
+    .where(inArray(transcriptRuns.taskId, taskIds))
+    .orderBy(transcriptRuns.taskId, desc(transcriptRuns.startedAt))
+    .as('newest');
+  const latest = db
+    .select({ seq: transcriptEvents.seq, at: transcriptEvents.at, data: transcriptEvents.data })
+    .from(transcriptEvents)
+    .where(and(eq(transcriptEvents.runId, newest.runId), eq(transcriptEvents.kind, 'context')))
+    .orderBy(desc(transcriptEvents.seq))
+    .limit(1)
+    .as('latest');
+  const rows = await db
+    .select({ taskId: newest.taskId, runId: newest.runId, seq: latest.seq, at: latest.at, data: latest.data })
+    .from(newest)
+    .innerJoinLateral(latest, sql`true`);
+  return new Map(rows.map(({ taskId, ...context }) => [taskId, context]));
+}
+
 /** A tool result's sealed output; null for an event without one. */
 export async function eventOutput(db: DbOrTx, runId: string, seq: number): Promise<string | null> {
   const [row] = await db
