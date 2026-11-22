@@ -20,6 +20,7 @@ import {
   isSafeTaskId,
   isTaskCreator,
   isSharedAgentsVersion,
+  isTitleRulesVersion,
   isWireNoteAuthor,
   rejectUnknownKeys,
 } from './contract.mts';
@@ -43,6 +44,7 @@ import {
 } from './sealing.mts';
 import type { Binding, Opener, RowRef, Sealer } from './sealing.mts';
 import { isLinkRulesVersion, linkRulesBinding } from './linkRules.mts';
+import { titleRulesBinding } from './titleRules.mts';
 import { sharedAgentsBinding } from './sharedAgents.mts';
 
 export const EXPORT_FORMAT = 'agent-board-export';
@@ -57,6 +59,7 @@ export const EXPORT_TABLES = [
   'machine',
   'shared_agents',
   'link_rules',
+  'title_rules',
   'transcript_run',
   'transcript_event',
 ] as const;
@@ -189,6 +192,7 @@ export const SEALED_ROW_COLUMNS: Record<ExportTable, readonly string[]> = {
   machine: ['dirs', 'catalog', 'usage', 'sources'],
   shared_agents: ['document'],
   link_rules: ['document'],
+  title_rules: ['document'],
   transcript_run: [],
   transcript_event: ['data', 'output'],
 };
@@ -298,6 +302,10 @@ async function planOf(ctx: ResealContext, table: ExportTable, row: Record<string
     case 'link_rules': {
       const { version } = row;
       return isLinkRulesVersion(version) ? { document: [linkRulesBinding(version)] } : {};
+    }
+    case 'title_rules': {
+      const { version } = row;
+      return isTitleRulesVersion(version) ? { document: [titleRulesBinding(version)] } : {};
     }
     case 'transcript_run':
       return {};

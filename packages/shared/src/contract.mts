@@ -99,6 +99,10 @@ export const MAX_INT32 = 2_147_483_647;
 export const isSharedAgentsVersion = (value: unknown): value is number =>
   typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= MAX_INT32;
 
+/** A version of the title rules: a counter from 1 that only goes up. */
+export const isTitleRulesVersion = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= MAX_INT32;
+
 // The longest interval a schedule may repeat at; far beyond it, the date arithmetic of the next run breaks.
 export const MAX_INTERVAL_MS = 10 * 365 * 24 * 60 * 60_000;
 
@@ -885,6 +889,26 @@ export interface WireSetAgents {
   expectedVersion: number;
 }
 
+// Answer of get-title-rules: the sealed title rules ("titles") and the version they are sealed as.
+export interface WireTitleRules {
+  version: number;
+  document: string;
+}
+
+// Body of apply-title-rule: an icon and/or a title sealed for the run's task. `expectTitle` is the title envelope the caller
+// found to be the default; the title is stored only while the task still holds exactly that envelope.
+export interface WireTitleRuleApply {
+  icon?: string;
+  title?: string;
+  expectTitle?: string;
+}
+
+// Answer of apply-title-rule: whether each part was stored.
+export interface WireTitleRuleResult {
+  icon: boolean;
+  title: boolean;
+}
+
 // What the `version` answer says of the shared agent definitions.
 export interface WireAgentsState {
   supported: boolean;
@@ -995,6 +1019,7 @@ export const SEALED_LIMITS: Record<Field, number> = {
   'machine.sources': 64 * 1024,
   'agents.shared': 256 * 1024,
   links: 512 * 1024,
+  titles: 512 * 1024,
   'note.body': 4 * 100_000,
   'note.preview': 4 * 300,
   'note.suggestion': 4 * NOTE_SUGGESTION_CHARS,
@@ -1910,6 +1935,39 @@ export function parseWireSetAgents(value: unknown): WireSetAgents {
     throw new ContractError('agents.expectedVersion must be a whole number of 0 or more');
   if (version !== expectedVersion + 1) throw new ContractError('agents.version must be agents.expectedVersion + 1');
   return { document: sealedField(obj, 'document', 'agents', 'agents.shared'), version, expectedVersion };
+}
+
+// Answer of get-title-rules: the sealed document and its version, or null when the board holds none.
+export function parseWireTitleRules(value: unknown): WireTitleRules | null {
+  if (value === null) return null;
+  const obj = record(value, 'titleRules');
+  const version = obj['version'];
+  if (!isTitleRulesVersion(version)) throw new ContractError('titleRules.version must be a positive integer');
+  return { version, document: sealedField(obj, 'document', 'titleRules', 'titles') };
+}
+
+// Body of apply-title-rule: a sealed icon and/or a sealed title with the title envelope it expects to replace.
+export function parseWireTitleRuleApply(value: unknown): WireTitleRuleApply {
+  const obj = record(value, 'titleRule');
+  rejectUnknownKeys(obj, ['icon', 'title', 'expectTitle'], 'titleRule');
+  if (!('icon' in obj) && !('title' in obj)) throw new ContractError('titleRule needs an icon or a title');
+  if ('title' in obj !== 'expectTitle' in obj)
+    throw new ContractError('titleRule.title and titleRule.expectTitle go together');
+  return {
+    ...('icon' in obj ? { icon: sealedField(obj, 'icon', 'titleRule', 'icon') } : {}),
+    ...('title' in obj
+      ? {
+          title: sealedField(obj, 'title', 'titleRule', 'title'),
+          expectTitle: sealedField(obj, 'expectTitle', 'titleRule', 'title'),
+        }
+      : {}),
+  };
+}
+
+// Answer of apply-title-rule: which parts were stored.
+export function parseWireTitleRuleResult(value: unknown): WireTitleRuleResult {
+  const obj = record(value, 'titleRuleResult');
+  return { icon: boolean(obj, 'icon', 'titleRuleResult'), title: boolean(obj, 'title', 'titleRuleResult') };
 }
 
 // Body of add-task. `id`, `title` and `input` are required.

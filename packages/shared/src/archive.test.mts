@@ -17,6 +17,7 @@ import { deriveKeys, generateDataKey, open, seal, wrapDataKey } from './crypto.m
 import type { Keys } from './crypto.mts';
 import { serializePolish } from './polish.mts';
 import { linkRulesBinding, linkRulesJson, sealLinkRules } from './linkRules.mts';
+import { sealTitleRules, titleRulesBinding, titleRulesJson } from './titleRules.mts';
 import { sealSharedAgents, sharedAgentsBinding, sharedAgentsJson } from './sharedAgents.mts';
 import type { Question } from './questions.mts';
 import {
@@ -465,6 +466,15 @@ test('the link rules are sealed again under the version of the row; another vers
   const relabelled = await reseal('link_rules', { ...row, version: 3 });
   assert.deepEqual(relabelled.unreadable, ['document']);
   assert.deepEqual((await reseal('link_rules', { ...row, version: 'two' })).unreadable, ['document']);
+});
+
+test('the title rules are sealed again under the version of the row', async () => {
+  const document = { version: 3, rules: [{ pattern: 'review', icon: '🔎', instruction: 'Name the PR.' }] };
+  const row = { version: 3, document: await sealTitleRules(sealA, document), updatedAt: '2026-11-18T10:00:00Z' };
+  const { row: out, unreadable } = await reseal('title_rules', row);
+  assert.deepEqual(unreadable, []);
+  await assertMoved(row, out, 'document', titleRulesBinding(3), titleRulesJson(document));
+  assert.deepEqual((await reseal('title_rules', { ...row, version: 4 })).unreadable, ['document']);
 });
 
 test('a transcript run has nothing to seal', async () => {
