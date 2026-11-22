@@ -10,3 +10,4 @@ apps/cli/bin/.node
 apps/frontend/.vite/
 .playwright-mcp/
 .claude/worktrees/
+report.*.json
