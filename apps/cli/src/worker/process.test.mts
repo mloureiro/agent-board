@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import type { TestContext } from 'node:test';
 import { logPath } from './logs.mts';
 import { runProcess } from './process.mts';
 import type { RunChannel, Watch } from './process.mts';
@@ -26,6 +27,26 @@ async function waitUntilGone(pid: number, timeoutMs: number): Promise<boolean> {
   while (!isGone(pid) && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 20));
   return isGone(pid);
 }
+
+const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+function shortenEscalation(t: TestContext): { armed: number } {
+  const real = globalThis.setTimeout;
+  const counter = { armed: 0 };
+  t.mock.method(globalThis, 'setTimeout', (handler: () => void, ms?: number) => {
+    if (ms !== 10_000) return real(handler, ms);
+    counter.armed += 1;
+    return real(handler, 300);
+  });
+  return counter;
+}
+
+const killedGroup = (
+  kill: { mock: { calls: { arguments: unknown[] }[] } },
+  group: number,
+  from: number,
+  signal: string,
+) => kill.mock.calls.slice(from).filter((call) => call.arguments[0] === -group && call.arguments[1] === signal);
 
 const QUIET: Watch = { everyMs: 50, tick: async () => ({ kind: 'continue' }) };
 
@@ -331,4 +352,86 @@ test('stdin stays open while onTurnEnd is pending, and a stop meanwhile wins ove
   assert.equal(sent, false);
   assert.doesNotMatch(readFileSync(logPath('proc-turn-stop'), 'utf8'), /got-second/);
   assert.equal(result.exitCode, 0);
+});
+
+test('the escalation a stop armed is dropped once the agent has exited', async (t) => {
+  const shortened = shortenEscalation(t);
+  const kill = t.mock.method(process, 'kill');
+  let group = 0;
+  const result = await runProcess(
+    { command: 'sh', args: ['-c', 'sleep 30 & wait'], prompt: '', cwd: tmpdir() },
+    'proc-escalation-dropped',
+    {},
+    { ...QUIET, killGraceMs: 300, start: (live) => live.stop(), spawned: (pgid) => void (group = pgid) },
+  );
+  const resolvedAt = kill.mock.calls.length;
+  await pause(900);
+  assert.equal(result.signal, 'SIGTERM');
+  assert.equal(shortened.armed, 1);
+  assert.deepEqual(killedGroup(kill, group, resolvedAt, 'SIGKILL'), []);
+});
+
+test('an agent that ignores SIGTERM is still killed when the escalation delay runs out', async (t) => {
+  const shortened = shortenEscalation(t);
+  const started = Date.now();
+  const result = await runProcess(
+    { command: 'sh', args: ['-c', 'trap "" TERM; sleep 30 & wait'], prompt: '', cwd: tmpdir() },
+    'proc-escalation-kills',
+    {},
+    { ...QUIET, killGraceMs: 300, start: (live) => live.stop() },
+  );
+  assert.equal(result.signal, 'SIGKILL');
+  assert.ok(Date.now() - started < 5_000);
+  assert.equal(shortened.armed, 1);
+});
+
+test('a stop that comes after the agent exited sends nothing to its group', async (t) => {
+  const kill = t.mock.method(process, 'kill');
+  let channel: RunChannel | undefined;
+  let group = 0;
+  await runProcess(
+    { command: 'sh', args: ['-c', 'exit 0'], prompt: '', cwd: tmpdir() },
+    'proc-stop-after-exit',
+    {},
+    { ...QUIET, killGraceMs: 50, start: (live) => void (channel = live), spawned: (pgid) => void (group = pgid) },
+  );
+  const resolvedAt = kill.mock.calls.length;
+  channel?.stop();
+  await pause(300);
+  assert.deepEqual(
+    kill.mock.calls.slice(resolvedAt).filter((call) => call.arguments[0] === -group),
+    [],
+  );
+});
+
+test('a group that ended on SIGTERM is not sent SIGKILL', async (t) => {
+  const kill = t.mock.method(process, 'kill');
+  let group = 0;
+  await runProcess(
+    { command: 'sh', args: ['-c', 'sleep 30 >/dev/null & exit 0'], prompt: '', cwd: tmpdir() },
+    'proc-group-ended',
+    {},
+    { ...QUIET, spawned: (pgid) => void (group = pgid) },
+  );
+  assert.deepEqual(killedGroup(kill, group, 0, 'SIGKILL'), []);
+});
+
+test('what the agent left in its group and that ignores SIGTERM is killed once the group grace is up', async () => {
+  const pidFile = join(mkdtempSync(join(tmpdir(), 'agent-board-pid-')), 'leftover.pid');
+  const started = Date.now();
+  const result = await runProcess(
+    {
+      command: 'sh',
+      args: ['-c', `trap "" TERM; sleep 30 >/dev/null & echo $! > ${pidFile}; exit 0`],
+      prompt: '',
+      cwd: tmpdir(),
+    },
+    'proc-leftover-ignores-term',
+    {},
+    QUIET,
+  );
+  assert.equal(result.exitCode, 0);
+  assert.ok(Date.now() - started < 15_000);
+  const leftover = Number(readFileSync(pidFile, 'utf8').trim());
+  assert.ok(await waitUntilGone(leftover, 3_000), 'the leftover must be dead');
 });
