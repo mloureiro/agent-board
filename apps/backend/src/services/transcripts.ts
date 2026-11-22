@@ -1,5 +1,5 @@
 import { TRANSCRIPT_PAGE_SIZE, type WireTranscriptBatch, type WireTranscriptEventView } from '@agent-board/shared';
-import { and, asc, desc, eq, gt, inArray, lt, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, lt, ne, or, sql } from 'drizzle-orm';
 import type { DbOrTx } from '../db/client';
 import { tasks, transcriptEvents, transcriptRuns } from '../db/schema';
 import { AppError } from './errors';
@@ -48,11 +48,11 @@ export async function appendTranscript(
         })),
       )
       .onConflictDoNothing()
-      .returning({ seq: transcriptEvents.seq });
+      .returning({ seq: transcriptEvents.seq, kind: transcriptEvents.kind });
     await tx
       .update(transcriptRuns)
       .set({
-        eventCount: sql`${transcriptRuns.eventCount} + ${inserted.length}`,
+        eventCount: sql`${transcriptRuns.eventCount} + ${inserted.filter((row) => row.kind !== 'context').length}`,
         ...(last
           ? { lastEventAt: sql`greatest(${transcriptRuns.lastEventAt}, ${new Date(last).toISOString()}::timestamptz)` }
           : {}),
@@ -94,9 +94,35 @@ export async function listEvents(
       outputSize: transcriptEvents.outputSize,
     })
     .from(transcriptEvents)
-    .where(and(eq(transcriptEvents.runId, runId), gt(transcriptEvents.seq, afterSeq)))
+    .where(
+      and(eq(transcriptEvents.runId, runId), gt(transcriptEvents.seq, afterSeq), ne(transcriptEvents.kind, 'context')),
+    )
     .orderBy(asc(transcriptEvents.seq))
     .limit(limit);
+}
+
+export async function latestContext(
+  db: DbOrTx,
+  taskId: string,
+): Promise<{ runId: string; seq: number; at: Date; data: string } | null> {
+  const newestRun = db
+    .select({ id: transcriptRuns.id })
+    .from(transcriptRuns)
+    .where(eq(transcriptRuns.taskId, taskId))
+    .orderBy(desc(transcriptRuns.startedAt))
+    .limit(1);
+  const [row] = await db
+    .select({
+      runId: transcriptEvents.runId,
+      seq: transcriptEvents.seq,
+      at: transcriptEvents.at,
+      data: transcriptEvents.data,
+    })
+    .from(transcriptEvents)
+    .where(and(eq(transcriptEvents.runId, newestRun), eq(transcriptEvents.kind, 'context')))
+    .orderBy(desc(transcriptEvents.seq))
+    .limit(1);
+  return row ?? null;
 }
 
 /** A tool result's sealed output; null for an event without one. */

@@ -1,19 +1,19 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { MAX_BATCH_EVENTS } from '@agent-board/shared';
-import type { TranscriptEvent } from '@agent-board/shared';
+import type { RunEvent } from '@agent-board/shared';
 import { BackendError } from '../backend/backend.mts';
 import { boundBacklog, createTranscriptUploader, splitBatches } from './transcript-upload.mts';
 import type { TranscriptUploaderOptions } from './transcript-upload.mts';
 
-const event = (seq: number): TranscriptEvent => ({
+const event = (seq: number): RunEvent => ({
   kind: 'text',
   seq,
   at: '2026-01-01T00:00:00Z',
   parent: null,
   text: 'x'.repeat(100),
 });
-const output = (seq: number, size: number): TranscriptEvent => ({
+const output = (seq: number, size: number): RunEvent => ({
   kind: 'tool_result',
   seq,
   at: '2026-01-01T00:00:00Z',
@@ -22,13 +22,13 @@ const output = (seq: number, size: number): TranscriptEvent => ({
   output: 'o'.repeat(size),
   isError: false,
 });
-const seqs = (events: TranscriptEvent[]): number[] => events.map((e) => e.seq);
+const seqs = (events: RunEvent[]): number[] => events.map((e) => e.seq);
 const refused = (): BackendError => new BackendError('transcript: refused', 400);
 const down = (): BackendError => new BackendError('transcript: error from the board server (HTTP 503)', 503);
 
 // An uploader whose calls and log lines the test can read; `post` decides what each call does.
 function uploader(
-  post: (events: TranscriptEvent[], call: number) => Promise<void>,
+  post: (events: RunEvent[], call: number) => Promise<void>,
   options: Partial<TranscriptUploaderOptions> = {},
 ) {
   const posted: number[][] = [];

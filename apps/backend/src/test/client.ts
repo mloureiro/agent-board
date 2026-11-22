@@ -625,6 +625,17 @@ export function plainUi(db: Db, owner = 'jascha') {
             ) as Record<string, unknown>),
           })),
         ),
+      context: async ({ id }: { id: string }) => {
+        const row = await raw.transcript.context({ id });
+        if (row === null) return null;
+        const { data, ...rest } = row;
+        return {
+          ...rest,
+          ...(JSON.parse(
+            await sealing.openStrict(transcriptBinding('tr.data', id, row.runId, row.seq), data),
+          ) as Record<string, unknown>),
+        };
+      },
       output: async ({ taskId, ...input }: { taskId: string; runId: string; seq: number }) => {
         const output = await raw.transcript.output(input);
         return output === null

@@ -53,6 +53,7 @@ The operator can read, swap, replay and forge anything in the database and in AP
 | `note.answers`               | `note:<taskId>:user:answer`                                                                  | the user's browser                                                                                                                              |
 | `tr.data`, `tr.output`       | `<taskId>:<runId>:<seq>`                                                                     | the worker                                                                                                                                      |
 
+- The sealed `tr.data` of a `context` event is `{"seq","at","parent","kind":"context","used","window","threshold","model"}`: the tokens in the main agent's context, the model's window in tokens or `null`, the auto-compact threshold as a percentage of the window or `null`, and the model id. The server sees only the kind.
 - `<origin>` is `task:<id>` for a task. It is `schedule:<id>` for a schedule and for a task that is an occurrence of one. The server copies the schedule's ciphertext into each occurrence, so the occurrence opens against its schedule's id.
 - `<creator>` is `user`, `agent` or `intake`. `intake` exists only on tasks of the removed built-in intake. An occurrence's creator is `user`.
 - An `icon` that does not open, or opens as anything but one emoji, shows as no icon. It is not listed in a task's `unreadable` fields and never stops a task from running.

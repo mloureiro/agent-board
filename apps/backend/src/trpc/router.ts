@@ -45,7 +45,7 @@ import {
   updateSchedule,
 } from '../services/schedules';
 import { hasStarted } from '../services/taskRows';
-import { eventOutput, listEvents, listRuns } from '../services/transcripts';
+import { eventOutput, latestContext, listEvents, listRuns } from '../services/transcripts';
 import {
   addTask,
   answer,
@@ -665,6 +665,7 @@ const transcriptRouter = router({
   events: procedure
     .input(z.object({ runId: z.string().min(1), afterSeq: z.number().int().default(-1) }))
     .query(({ ctx, input }) => listEvents(ctx.db, input.runId, input.afterSeq)),
+  context: procedure.input(z.object({ id })).query(({ ctx, input }) => latestContext(ctx.db, input.id)),
   /** One tool result's output, when someone opens it. */
   output: procedure
     .input(z.object({ runId: z.string().min(1), seq: z.number().int() }))

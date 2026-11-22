@@ -30,12 +30,24 @@ export type TranscriptEvent = EventBase &
     | { kind: 'note'; text: string }
   );
 
+export type ContextEvent = EventBase & {
+  kind: 'context';
+  used: number;
+  window: number | null;
+  threshold: number | null;
+  model: string;
+};
+
+export type RunEvent = TranscriptEvent | ContextEvent;
+
 // An event without its position: one member of the union per kind.
 export type TranscriptEventBody = TranscriptEvent extends infer E
   ? E extends TranscriptEvent
     ? Omit<E, keyof EventBase>
     : never
   : never;
+
+export type RunEventBody = RunEvent extends infer E ? (E extends RunEvent ? Omit<E, keyof EventBase> : never) : never;
 
 // An event as the board lists it: a tool result without its output, with the output's length instead.
 export type TranscriptEventView = TranscriptEvent extends infer E
@@ -48,7 +60,7 @@ export type TranscriptEventView = TranscriptEvent extends infer E
 export interface WireTranscriptEvent {
   seq: number;
   at: string;
-  kind: TranscriptEvent['kind'];
+  kind: RunEvent['kind'];
   parent: string | null;
   // Sealed ("tr.data", context `<taskId>:<runId>:<seq>`): the JSON of the whole event but its output.
   data: string;
@@ -82,7 +94,7 @@ export interface TranscriptBatch {
   startedAt: string;
   sessionId: string | null;
   resumed: boolean;
-  events: TranscriptEvent[];
+  events: RunEvent[];
 }
 
 // A tool result past this is cut, with a note; the full one stays in the session file on the machine.
@@ -130,7 +142,7 @@ const capId = (id: string | null): string | null => {
 
 // Every string of an event is bounded, so that its sealed JSON stays under the board's limit for `tr.data` whatever the
 // stream holds: one event past it would be refused for good.
-function capBody(body: TranscriptEventBody): TranscriptEventBody {
+function capBody(body: RunEventBody): RunEventBody {
   switch (body.kind) {
     case 'text':
     case 'note':
@@ -141,6 +153,8 @@ function capBody(body: TranscriptEventBody): TranscriptEventBody {
       return { ...body, toolUseId: body.toolUseId.slice(0, MAX_ID_CHARS), name: body.name.slice(0, MAX_ID_CHARS) };
     case 'tool_result':
       return { ...body, toolUseId: body.toolUseId.slice(0, MAX_ID_CHARS) };
+    case 'context':
+      return { ...body, model: body.model.slice(0, MAX_ID_CHARS) };
     case 'result':
       return {
         ...body,
@@ -174,7 +188,7 @@ export class StreamCondenser {
     return this.make(null, { kind: 'note', text });
   }
 
-  line(raw: string): TranscriptEvent[] {
+  line(raw: string): RunEvent[] {
     let event: unknown;
     try {
       event = JSON.parse(raw);
@@ -274,13 +288,15 @@ export class StreamCondenser {
     return [];
   }
 
-  private make(parent: string | null, body: TranscriptEventBody): TranscriptEvent {
+  private make(parent: string | null, body: TranscriptEventBody): TranscriptEvent;
+  private make(parent: string | null, body: RunEventBody): RunEvent;
+  private make(parent: string | null, body: RunEventBody): RunEvent {
     return {
       seq: this.seq++,
       at: this.now().toISOString(),
       parent: capId(parent),
       ...capBody(body),
-    } as TranscriptEvent;
+    } as RunEvent;
   }
 }
 
@@ -314,7 +330,7 @@ export function toolSummary(name: string, input: unknown): string {
 }
 
 // The line the worker writes to the local log for an event; undefined for events the log does not need.
-export function logLine(event: TranscriptEvent): string | undefined {
+export function logLine(event: RunEvent): string | undefined {
   const indent = event.parent ? '    ' : '';
   switch (event.kind) {
     case 'text':
@@ -332,6 +348,7 @@ export function logLine(event: TranscriptEvent): string | undefined {
     case 'note':
       return `${indent}· ${event.text}`;
     case 'thinking':
+    case 'context':
       return undefined;
   }
 }
@@ -350,6 +367,8 @@ const KINDS = [
   'result',
   'note',
 ] as const satisfies readonly TranscriptEvent['kind'][];
+
+const WIRE_KINDS = [...KINDS, 'context'] as const satisfies readonly RunEvent['kind'][];
 
 function sealedOrBust(value: unknown, field: 'tr.data' | 'tr.output', what: string): string {
   try {
@@ -423,7 +442,7 @@ export function parseWireTranscriptBatch(value: unknown): WireTranscriptBatch {
     throw new TranscriptError(`transcript events must be a list of at most ${MAX_BATCH_EVENTS}`);
   const events = rawEvents.map((event: unknown): WireTranscriptEvent => {
     if (!isRecord(event)) throw new TranscriptError('transcript event must be an object');
-    const kind = KINDS.find((candidate) => candidate === event['kind']);
+    const kind = WIRE_KINDS.find((candidate) => candidate === event['kind']);
     if (kind === undefined) throw new TranscriptError('transcript event needs a known kind');
     const { seq, at, parent } = event;
     if (typeof seq !== 'number' || !Number.isInteger(seq) || seq < 0 || seq > MAX_INT32)

@@ -947,6 +947,44 @@ describe('transcripts', () => {
     );
   });
 
+  it('keeps context readings out of the event list and count, and serves the newest run’s latest one', async () => {
+    const ui = plainUi(db);
+    const task = await ui.tasks.create({ input: '/grill' });
+    const reading = (seq: number, used: number) => ({
+      seq,
+      at: at(seq + 1),
+      parent: null,
+      kind: 'context',
+      used,
+      window: 1_000_000,
+      threshold: null,
+      model: 'claude-opus-4-7',
+    });
+    const first = batch('run-ctx-00001', [
+      { seq: 0, at: at(1), parent: null, kind: 'text', text: 'hello' },
+      reading(1, 1000),
+      reading(3, 3000),
+    ]);
+    expect((await ctx.call('laptop', 'transcript', { id: task.id, body: first })).status).toBe(200);
+    expect((await ui.transcript.runs({ id: task.id }))[0]).toMatchObject({ id: 'run-ctx-00001', eventCount: 1 });
+    expect((await ui.transcript.events({ taskId: task.id, runId: 'run-ctx-00001' })).map((e) => e.kind)).toEqual([
+      'text',
+    ]);
+    expect(await ui.transcript.context({ id: task.id })).toMatchObject({
+      runId: 'run-ctx-00001',
+      seq: 3,
+      kind: 'context',
+      used: 3000,
+    });
+    expect(await plainUi(db, 'other').transcript.context({ id: task.id })).toBeNull();
+    const second = {
+      ...batch('run-ctx-00002', [{ seq: 0, at: at(20), parent: null, kind: 'text', text: 'again' }]),
+      startedAt: at(10),
+    };
+    await ctx.call('laptop', 'transcript', { id: task.id, body: second });
+    expect(await ui.transcript.context({ id: task.id })).toBeNull();
+  });
+
   it('refuses an event with a bad seq or date instead of failing in the database', async () => {
     const task = await plainUi(db).tasks.create({ input: '/grill' });
     for (const bad of [{ seq: -1 }, { seq: 1.5 }, { seq: 2 ** 31 }, { at: 'soon' }, { parent: 'a b' }]) {

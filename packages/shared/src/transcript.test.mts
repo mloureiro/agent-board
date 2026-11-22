@@ -120,6 +120,17 @@ test('a batch is checked for shape', () => {
   );
 });
 
+test('a context event is a wire kind with no output, and not a transcript event', () => {
+  const context = { seq: 2, at: at.toISOString(), parent: null, kind: 'context', data: DATA };
+  assert.deepEqual(parseWireTranscriptBatch({ ...batch, events: [context] }).events, [context]);
+  assert.throws(
+    () => parseWireTranscriptBatch({ ...batch, events: [{ ...context, output: OUTPUT, outputSize: 3 }] }),
+    /only a tool result carries an output/,
+  );
+  const value = { seq: 2, at: at.toISOString(), parent: null, kind: 'context', used: 5, window: null, threshold: null };
+  assert.equal(parseTranscriptEvent({ ...value, model: 'm' }), undefined);
+});
+
 test('a parent the board would refuse is dropped, not sent', () => {
   const condenser = new StreamCondenser(() => at);
   const text = (parent: string) =>

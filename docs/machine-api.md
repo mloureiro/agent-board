@@ -131,6 +131,7 @@ Capabilities and vocabulary have names. An additive change then needs no version
 | `machine.catalog`         | The `set-catalog` command and `catalogIndex` in the `version` answer.                                                                           |          |
 | `machine.usage`           | The `set-usage` command and `usageIndex` in the `version` answer.                                                                               |          |
 | `machine.sources`         | The `set-sources` and `ack-source-requests` commands, and `sourcesIndex` and `sourceRequests` in the `version` answer.                          |          |
+| `transcript.context`      | The `context` event kind in `transcript`, see [`transcript`](#transcript).                                                                      |          |
 | `task.agent`              | The sealed `agent` key of `add-task` and `add-schedule`, and of a task and a schedule.                                                          |          |
 | `task.run`                | The task's `run` field and the `run` key of a request, see [Runs](#runs).                                                                       |          |
 | `task.configure`          | The `configure-task` command.                                                                                                                   |          |
@@ -1163,6 +1164,7 @@ Appends a run's condensed events (see `packages/shared/src/transcript.mts`). An 
 | `output`, `outputSize` | Only on a `tool_result`: the sealed output and its length in characters. Any other event carries neither. |
 
 - A value outside these rules fails the call with 400. The CLI drops a `parent` of any other shape to `null` before sending.
+- A `context` event is the main agent's context window usage after an API message. A client sends it only to a server whose `features` has `transcript.context`: any other server refuses a batch holding an unknown kind. It carries no `output` or `outputSize`. The board's transcript view does not list it and a run's `eventCount` does not count it.
 - The client counts `outputSize`. The server cannot read the output, so the number is bounded and nothing more.
 - An event already stored, with the same run and `seq`, stays as it is. So a retried batch is harmless.
 

@@ -4,7 +4,7 @@
  * run back or make the worker's memory grow without end.
  */
 import { MAX_BATCH_EVENTS } from '@agent-board/shared';
-import type { TranscriptEvent } from '@agent-board/shared';
+import type { RunEvent } from '@agent-board/shared';
 import { isPermanentRefusal } from '../backend/backend.mts';
 import { errorText } from '../output/text.mts';
 
@@ -20,10 +20,10 @@ const MAX_UPLOAD_MS = 60_000;
 const BATCH_MAX_BYTES = 8 * 1024 * 1024;
 
 // Events never change once the condenser made them (an emptied output is a new event), so each is serialised once.
-const sizes = new WeakMap<TranscriptEvent, number>();
+const sizes = new WeakMap<RunEvent, number>();
 
 // The size of one event as it would be sent.
-export function eventBytes(event: TranscriptEvent): number {
+export function eventBytes(event: RunEvent): number {
   let size = sizes.get(event);
   if (size === undefined) {
     size = Buffer.byteLength(JSON.stringify(event));
@@ -32,16 +32,16 @@ export function eventBytes(event: TranscriptEvent): number {
   return size;
 }
 
-const bytesOf = (events: TranscriptEvent[]): number => events.reduce((sum, event) => sum + eventBytes(event), 0);
+const bytesOf = (events: RunEvent[]): number => events.reduce((sum, event) => sum + eventBytes(event), 0);
 
 /**
  * A transcript backlog held to a count and a size: past either, the oldest tool outputs go first (the event stays, its output
  * empties), then, when that is not enough, the oldest events. Says how many of each it dropped, so the transcript can note it.
  */
 export function boundBacklog(
-  events: TranscriptEvent[],
+  events: RunEvent[],
   { maxEvents, maxBytes }: { maxEvents: number; maxBytes: number },
-): { events: TranscriptEvent[]; droppedOutputs: number; droppedEvents: number } {
+): { events: RunEvent[]; droppedOutputs: number; droppedEvents: number } {
   let kept = events.length > maxEvents ? events.slice(events.length - maxEvents) : events;
   let droppedEvents = events.length - kept.length;
   let droppedOutputs = 0;
@@ -70,10 +70,10 @@ export function boundBacklog(
 // Events as the board takes them: batches of at most `maxEvents` events and about `maxBytes` of JSON, so a backlog
 // stays under the server's limits. One event larger than `maxBytes` goes alone.
 export function splitBatches(
-  events: TranscriptEvent[],
+  events: RunEvent[],
   { maxEvents = MAX_BATCH_EVENTS, maxBytes = BATCH_MAX_BYTES }: { maxEvents?: number; maxBytes?: number } = {},
-): TranscriptEvent[][] {
-  const batches: TranscriptEvent[][] = [];
+): RunEvent[][] {
+  const batches: RunEvent[][] = [];
   let bytes = 0;
   for (const event of events) {
     const size = eventBytes(event);
@@ -91,12 +91,12 @@ export function splitBatches(
 
 export interface TranscriptUploaderOptions {
   // Sends one batch to the board.
-  post: (events: TranscriptEvent[]) => Promise<void>;
+  post: (events: RunEvent[]) => Promise<void>;
   now: () => Date;
   // A line in the run's log.
   log: (text: string) => void;
   // A note event at the transcript's next position, for what the backlog had to drop.
-  note: (text: string) => TranscriptEvent;
+  note: (text: string) => RunEvent;
   // The backlog's budget: past either, it is trimmed to 90% of both.
   maxEvents?: number | undefined;
   maxBytes?: number | undefined;
@@ -107,7 +107,7 @@ export interface TranscriptUploaderOptions {
 
 export interface TranscriptUploader {
   // Queues events, trimming the backlog when it is over its budget.
-  add: (events: TranscriptEvent[]) => void;
+  add: (events: RunEvent[]) => void;
   // Starts an upload pass unless one is in flight, and returns the pass in flight.
   start: () => Promise<void>;
   // The end of the run: what is in flight, then what is left, then once more what a pass left over, each bounded like any other.
@@ -125,7 +125,7 @@ export function createTranscriptUploader(options: TranscriptUploaderOptions): Tr
     maxCalls = MAX_UPLOAD_CALLS,
     maxMs = MAX_UPLOAD_MS,
   } = options;
-  let pending: TranscriptEvent[] = [];
+  let pending: RunEvent[] = [];
   let pendingBytes = 0;
 
   // Holds the backlog to its count and byte budget, and says in the transcript what it had to drop.
@@ -155,7 +155,7 @@ export function createTranscriptUploader(options: TranscriptUploaderOptions): Tr
   // Sends `events`; returns the ones to try again later (all, or none). A batch the board refuses for good is halved until the
   // event it cannot take is alone and dropped, so one bad event never holds the transcript back. `spend` says whether this pass
   // may make another call.
-  const sendEvents = async (events: TranscriptEvent[], spend: () => boolean): Promise<TranscriptEvent[]> => {
+  const sendEvents = async (events: RunEvent[], spend: () => boolean): Promise<RunEvent[]> => {
     if (!spend()) return events;
     try {
       await post(events);

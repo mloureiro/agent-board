@@ -38,6 +38,7 @@ export const ADDED_SERVER_FEATURES = [
   'task.effort',
   'task.icon',
   'machine.sources',
+  'transcript.context',
 ] as const;
 
 export const SERVER_FEATURES = [...BASELINE_SERVER_FEATURES, ...ADDED_SERVER_FEATURES] as const;
@@ -77,6 +78,7 @@ export const SERVER_FEATURE_LABELS: Record<ServerFeature, string> = {
   'task.effort': 'choosing an effort level',
   'task.icon': 'task icons',
   'machine.sources': 'sources on the board',
+  'transcript.context': 'context usage in transcripts',
   wait: 'waiting',
 };
 

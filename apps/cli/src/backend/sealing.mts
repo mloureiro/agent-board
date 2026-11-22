@@ -49,13 +49,13 @@ import type {
   PromptEdit,
   Question,
   RowRef,
+  RunEvent,
   Schedule,
   Sealer,
   Task,
   TaskDraft,
   TaskPatch,
   TranscriptBatch,
-  TranscriptEvent,
   WireBackend,
   WireNote,
   WireNoteInput,
@@ -266,7 +266,7 @@ export function sealingBackend(inner: WireBackend, keys: Keys | (() => Promise<K
     };
   };
 
-  const sealEvent = async (taskId: string, runId: string, event: TranscriptEvent): Promise<WireTranscriptEvent> => {
+  const sealEvent = async (taskId: string, runId: string, event: RunEvent): Promise<WireTranscriptEvent> => {
     const { seq, at, kind, parent } = event;
     const dataBinding = transcriptBinding('tr.data', taskId, runId, seq);
     if (event.kind !== 'tool_result')
