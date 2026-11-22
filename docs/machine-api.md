@@ -285,13 +285,15 @@ The machine fence (`machine`) cannot tell two runs on the same machine apart. Wh
 - The agent's `board` sends it with its calls for that task, and not for any other.
 - Both send it only to a server whose `features` name `task.run`.
 
-**Commands that act only in their run.** `heartbeat`, `pause`, `wait`, `fail`, `ask`, `stopped`, `run-inbox`, `ack-messages` and `apply-title-rule` with `run` act only while the task runs in that run. Another run gets the answer the command gives a task that is not running:
+**Commands that act only in their run.** `heartbeat`, `pause`, `wait`, `fail`, `ask`, `stopped`, `run-inbox`, `ack-messages` with `run` act only while the task runs in that run. Another run gets the answer the command gives a task that is not running:
 
 - 409 `the task is running in a later run, not in this one`,
 - `applied: false` for `fail`,
 - or no change for `heartbeat`.
 
 The machine is checked first, so another machine still gets its own answer. That is 403 for `run-inbox`, `ack-messages` and `stopped`.
+
+`apply-title-rule` is fenced the same way, with one difference: it is also accepted after its run ended, because a short run can end before the title is written. It is refused only once a later run holds the task.
 
 **`update-task` with `run`.**
 
