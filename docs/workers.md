@@ -210,6 +210,17 @@ What waits for a board that is down is bounded at 20,000 events and 32 MB of JSO
 
 The board loads a run's events in pages of 2000, and afterwards only those after the last one it has. Long runs show in full, and a live run costs one small request per poll.
 
+### Context usage
+
+The worker also reads how full the agent's context window is, and sends it as a `context` event the board never lists in the transcript. Only the main agent counts: a subagent has its own context.
+
+- **The figure** is the input, cache read, cache creation and output tokens of the main agent's latest assistant message. A message that streams as several lines replaces its earlier reading. After a compaction the next message's figure is smaller, and that is what shows.
+- **The window** comes from the run's own result (`modelUsage`) once it has one. Before that it comes from `context-windows.json` in the state directory, which every finished run fills with the windows its result reported. A model this machine has never finished a run with shows only the used tokens until that run ends.
+- **The auto-compact threshold** is drawn only when `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` is set to a percentage from 1 to 100. The worker looks at its own environment, the variables the run is given, the user settings `env` (`~/.claude/settings.json`) and, for a run that loads the checkout's settings, the checkout's `env`, and the last one that sets it wins. Managed settings and `--settings` files are not seen, and then no marker is drawn. Claude Code applies the percentage to its effective window and never above 13,000 tokens short of it, so a value near 100 puts the marker slightly right of where compaction starts, and so does a smaller window set with `CLAUDE_CODE_AUTO_COMPACT_WINDOW` or `--autocompact`.
+- **A server without the `transcript.context` feature** gets no context events.
+
+The stream fields this reads (`usage`, `modelUsage`, `parent_tool_use_id`) are not documented by Claude Code. They were checked against Claude Code 2.1.302, and a shape the worker does not know counts as no reading.
+
 ### What they hold and how long
 
 Transcripts can hold whatever the agent saw: file contents, `gh` output, now and then an environment value. The worker seals each event, and each tool output separately, before it sends it, so the server stores only ciphertext.

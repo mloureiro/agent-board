@@ -56,3 +56,7 @@ export function readMcpServers(
   }
   return { config, missing };
 }
+
+export function autoCompactSetting(layers: Record<string, string | undefined>[]): string | undefined {
+  return layers.map((layer) => layer['CLAUDE_AUTOCOMPACT_PCT_OVERRIDE']).findLast((value) => value !== undefined);
+}

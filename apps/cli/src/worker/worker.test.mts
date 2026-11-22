@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { MAX_BATCH_EVENTS } from '@agent-board/shared';
-import type { Note, Task, WireBackend } from '@agent-board/shared';
+import type { Note, RunEvent, Task, WireBackend } from '@agent-board/shared';
 import type { AgentConfig } from '../config/config.mts';
 import { BackendError } from '../backend/backend.mts';
 import { sealingBackend } from '../backend/sealing.mts';
@@ -701,6 +701,100 @@ test('recording the skills of a run can fail without touching the run, and is lo
   await runWorker(deps, 'w1');
   assert.ok(calls.includes("append w1: the run's skills were not recorded: disk full"));
   assert.ok(!backend.writes.some((w) => w.startsWith('fail w1')));
+});
+
+const MAIN_LINE = (used: number) =>
+  JSON.stringify({
+    type: 'assistant',
+    parent_tool_use_id: null,
+    message: {
+      id: `msg_${used}`,
+      model: 'claude-haiku-5-5',
+      content: [{ type: 'text', text: 'hi' }],
+      usage: { input_tokens: used - 10, output_tokens: 10 },
+    },
+  });
+const RESULT_WITH_WINDOW = JSON.stringify({
+  type: 'result',
+  result: 'done',
+  is_error: false,
+  modelUsage: { 'claude-haiku-5-5': { contextWindow: 1_000_000 } },
+});
+
+const contextEvents = (events: RunEvent[]) => events.flatMap((event) => (event.kind === 'context' ? [event] : []));
+
+function transcriptEvents(backend: ReturnType<typeof fakeBackend>) {
+  const sent: RunEvent[] = [];
+  const original = backend.transcript.bind(backend);
+  backend.transcript = async (id, batch) => {
+    sent.push(...batch.events);
+    await original(id, batch);
+  };
+  return sent;
+}
+
+test("a run's result hands its context windows to the store, and the run's main agent lines become context events", async () => {
+  const { deps, backend } = setup({ exitCode: 0, signal: null });
+  const recorded: Record<string, number>[] = [];
+  deps.contextWindows = {
+    read: () => ({ 'claude-haiku-5-5': 200_000 }),
+    record: (windows) => void recorded.push(windows),
+  };
+  const sent = transcriptEvents(backend);
+  deps.run = async (_invocation, _taskId, _env, _watch, onLine) => {
+    onLine(MAIN_LINE(5000));
+    onLine(RESULT_WITH_WINDOW);
+    backend.tasks[0]!.status = 'needs-me';
+    return { exitCode: 0, signal: null };
+  };
+  await runWorker(deps, 'w1');
+  assert.deepEqual(recorded, [{ 'claude-haiku-5-5': 1_000_000 }]);
+  const readings = contextEvents(sent);
+  assert.deepEqual(
+    readings.map((event) => [event.used, event.window]),
+    [
+      [5000, 200_000],
+      [5000, 1_000_000],
+    ],
+  );
+});
+
+test('recording the context windows can fail without touching the run, and is logged', async () => {
+  const { deps, backend, calls } = setup({ exitCode: 0, signal: null });
+  deps.contextWindows = {
+    read: () => {
+      throw new Error('unreadable');
+    },
+    record: () => {
+      throw new Error('disk full');
+    },
+  };
+  deps.run = async (_invocation, _taskId, _env, _watch, onLine) => {
+    onLine(RESULT_WITH_WINDOW);
+    backend.tasks[0]!.status = 'needs-me';
+    return { exitCode: 0, signal: null };
+  };
+  await runWorker(deps, 'w1');
+  assert.ok(calls.includes("append w1: the machine's context windows were not read: unreadable"));
+  assert.ok(calls.includes("append w1: the run's context windows were not recorded: disk full"));
+  assert.ok(!backend.writes.some((w) => w.startsWith('fail w1')));
+});
+
+test('the auto-compact variable in the settings the run loads becomes the threshold of its context events', async () => {
+  const { deps, backend } = setup({ exitCode: 0, signal: null });
+  deps.settingsEnv = (dir): Record<string, string> =>
+    dir === deps.home ? { CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '80' } : {};
+  const sent = transcriptEvents(backend);
+  deps.run = async (_invocation, _taskId, _env, _watch, onLine) => {
+    onLine(MAIN_LINE(5000));
+    backend.tasks[0]!.status = 'needs-me';
+    return { exitCode: 0, signal: null };
+  };
+  await runWorker(deps, 'w1');
+  assert.deepEqual(
+    contextEvents(sent).map((event) => event.threshold),
+    [80],
+  );
 });
 
 const USAGE_LINE = (utilization: number) =>
@@ -1810,7 +1904,7 @@ test('a task that names an agent runs as it: its file, its lists, its variables 
   assert.deepEqual(JSON.parse(seen.agentsFile ?? ''), {
     reviewer: { description: 'Reviews a PR.', prompt: 'You review.', tools: ['Read', 'Bash'] },
   });
-  assert.deepEqual(read, ['/tmp']);
+  assert.deepEqual(read, ['/tmp', '/h']);
   assert.deepEqual(seen.env, {
     CIRCLECI_TOKEN: 'ci-secret',
     AGENT_BOARD_TASK: 'w1',

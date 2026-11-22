@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
+import type { RunEvent } from './transcript.mts';
 import {
   logLine,
   MAX_BATCH_EVENTS,
@@ -12,6 +13,7 @@ import {
   toolSummary,
   TranscriptError,
 } from './transcript.mts';
+import { parseContextEvent } from './context.mts';
 import { deriveKeys, generateDataKey, seal } from './crypto.mts';
 
 // A real `claude -p --output-format stream-json --verbose` run (Claude Code 2.1.325): thinking, two Bash calls (one
@@ -248,7 +250,10 @@ test('every event the condenser makes reads back as itself, through JSON like th
   const condenser = new StreamCondenser(() => at);
   const events = lines.flatMap((line) => condenser.line(line));
   assert.ok(new Set(events.map((e) => e.kind)).size >= 5, 'the fixture covers most kinds');
-  for (const event of events) assert.deepEqual(parseTranscriptEvent(JSON.parse(JSON.stringify(event))), event);
+  for (const event of events) {
+    const stored: unknown = JSON.parse(JSON.stringify(event));
+    assert.deepEqual(event.kind === 'context' ? parseContextEvent(stored) : parseTranscriptEvent(stored), event);
+  }
 });
 
 test('an event read back fills what an older worker left out and refuses what does not fit its kind', () => {
@@ -290,4 +295,96 @@ test('an event read back fills what an older worker left out and refuses what do
     { ...base, kind: 'result', text: 'x' },
   ])
     assert.equal(parseTranscriptEvent(bad), undefined, JSON.stringify(bad));
+});
+
+const contextLines = readFileSync(new URL('./__tests__/fixtures/context-stream.jsonl', import.meta.url), 'utf8')
+  .split('\n')
+  .filter((line) => line !== '');
+
+const mainLine = (usage: unknown, id = 'm1', parent: string | null = null, model = 'claude-haiku-5-5') =>
+  JSON.stringify({
+    type: 'assistant',
+    parent_tool_use_id: parent,
+    message: { id, model, content: [{ type: 'text', text: 'hi' }], usage },
+  });
+const contextOf = (events: RunEvent[]) => events.flatMap((e) => (e.kind === 'context' ? [e] : []));
+
+test('a real stream gives one context reading per changed main agent message, the result window last, before the result', () => {
+  const condenser = new StreamCondenser(() => at, { autoCompactPct: 80 });
+  const events = contextLines.flatMap((line) => condenser.line(line));
+  assert.deepEqual(
+    contextOf(events).map((e) => [e.used, e.window, e.threshold, e.model, e.parent]),
+    [
+      [31520, null, 80, 'claude-haiku-5-5', null],
+      [31989, null, 80, 'claude-haiku-5-5', null],
+      [31989, 1_000_000, 80, 'claude-haiku-5-5', null],
+    ],
+  );
+  const kinds = events.map((e) => e.kind);
+  assert.equal(kinds.at(-1), 'result');
+  assert.equal(kinds.at(-2), 'context');
+});
+
+test('the window comes from knownWindow until the result reports one, and the threshold is null unless the run sets it', () => {
+  const condenser = new StreamCondenser(() => at, { knownWindow: (model) => (model === 'known' ? 200_000 : null) });
+  const events = [
+    ...condenser.line(mainLine({ input_tokens: 10, output_tokens: 5 }, 'a', null, 'known')),
+    ...condenser.line(mainLine({ input_tokens: 10, output_tokens: 5 }, 'b', null, 'other')),
+  ];
+  assert.deepEqual(
+    contextOf(events).map((e) => [e.window, e.threshold]),
+    [
+      [200_000, null],
+      [null, null],
+    ],
+  );
+});
+
+test('a repeated message id emits only when its usage changed', () => {
+  const condenser = new StreamCondenser(() => at);
+  const usage = { input_tokens: 10, output_tokens: 5 };
+  assert.equal(contextOf(condenser.line(mainLine(usage))).length, 1);
+  assert.equal(contextOf(condenser.line(mainLine(usage))).length, 0);
+  const grown = contextOf(condenser.line(mainLine({ input_tokens: 10, output_tokens: 9 })));
+  assert.deepEqual(
+    grown.map((e) => e.used),
+    [19],
+  );
+});
+
+test('a subagent line gives no context reading', () => {
+  const condenser = new StreamCondenser(() => at);
+  assert.deepEqual(contextOf(condenser.line(mainLine({ input_tokens: 10, output_tokens: 5 }, 's', 'toolu_1'))), []);
+});
+
+test('a malformed usage gives no reading and leaves the last one to compare against', () => {
+  const condenser = new StreamCondenser(() => at);
+  const usage = { input_tokens: 10, output_tokens: 5 };
+  assert.equal(contextOf(condenser.line(mainLine(usage))).length, 1);
+  assert.equal(contextOf(condenser.line(mainLine({ input_tokens: 'many', output_tokens: 5 }))).length, 0);
+  assert.equal(contextOf(condenser.line(mainLine(usage, 'm2'))).length, 0);
+});
+
+test('a smaller reading after a compaction is emitted', () => {
+  const condenser = new StreamCondenser(() => at);
+  condenser.line(mainLine({ input_tokens: 90_000, output_tokens: 10 }));
+  const after = contextOf(condenser.line(mainLine({ input_tokens: 4_000, output_tokens: 10 }, 'm2')));
+  assert.deepEqual(
+    after.map((e) => e.used),
+    [4_010],
+  );
+});
+
+test('a result whose window is the one already shown adds no reading', () => {
+  const condenser = new StreamCondenser(() => at, { knownWindow: () => 1_000_000 });
+  condenser.line(mainLine({ input_tokens: 10, output_tokens: 5 }));
+  const result = JSON.stringify({
+    type: 'result',
+    result: 'done',
+    modelUsage: { 'claude-haiku-5-5': { contextWindow: 1_000_000 } },
+  });
+  assert.deepEqual(
+    condenser.line(result).map((e) => e.kind),
+    ['result'],
+  );
 });
