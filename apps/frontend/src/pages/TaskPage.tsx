@@ -35,6 +35,7 @@ import {
   LanePicker,
   ModelPicker,
   TaskIconPicker,
+  TaskLabelsPicker,
   TitleSetting,
   WorkdirSetting,
 } from '../components/TaskSettings';
@@ -153,7 +154,9 @@ function TaskView({ id }: { id: string }) {
                 Agent: {task.agent}
               </Badge>
             ) : null}
-            <TaskBadges task={task} withPriority={false} hold={heldTask(task, machines.data ?? [], now)} />
+            <TaskBadges task={task} withPriority={false} hold={heldTask(task, machines.data ?? [], now)}>
+              <TaskLabelsPicker task={task} />
+            </TaskBadges>
             <Text size="xs" c="dimmed" title={stamp(task.createdAt)}>
               created by {task.createdBy} {ago(task.createdAt)}
             </Text>

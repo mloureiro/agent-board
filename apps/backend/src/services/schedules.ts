@@ -142,6 +142,7 @@ export function toSchedule(row: ScheduleView): WireSchedule {
     workdir: row.workdir,
     ...(row.agent === null ? {} : { agent: row.agent }),
     icon: row.icon,
+    labels: row.labels,
     everyMs: row.everyMs,
     cron: row.cron,
     ...(row.moreCrons.length === 0 ? {} : { moreCrons: row.moreCrons }),
@@ -187,6 +188,7 @@ async function insertOccurrence(tx: DbOrTx, schedule: ScheduleRow, at: Date | nu
       input: schedule.input,
       ...(schedule.agent === null ? {} : { agent: schedule.agent }),
       ...(schedule.icon === null ? {} : { icon: schedule.icon }),
+      ...(schedule.labels === null ? {} : { labels: schedule.labels }),
       status: 'todo',
       priority: schedule.priority,
       ...(schedule.model === null ? {} : { model: schedule.model }),
@@ -290,6 +292,7 @@ export async function addSchedule(
         workdir: draft.workdir ?? null,
         agent: draft.agent ?? null,
         icon: draft.icon ?? null,
+        labels: draft.labels ?? null,
         everyMs: draft.everyMs ?? null,
         cron: draft.cron ?? null,
         moreCrons: draft.moreCrons ?? [],
@@ -536,6 +539,7 @@ export interface ScheduleUpdate {
   /** A lane name, or null for the default lane; absent keeps the schedule's. */
   lane?: string | null;
   icon?: string | null;
+  labels?: string | null;
   autoDone: boolean;
   rule: Pick<WireScheduleDraft, 'everyMs' | 'cron' | 'moreCrons' | 'timezone' | 'after'>;
   /** The first run of a rule of its own; absent keeps the schedule's. */
@@ -613,6 +617,7 @@ export async function updateSchedule(
       input: update.input,
       agent: update.agent ?? null,
       icon: update.icon === undefined ? schedule.icon : update.icon,
+      labels: update.labels === undefined ? schedule.labels : update.labels,
       machine: place?.machine ?? null,
       workdir: place?.workdir ?? null,
       priority: update.priority,
@@ -662,6 +667,7 @@ export async function updateSchedule(
           input: update.input,
           agent: update.agent ?? null,
           icon: update.icon === undefined ? schedule.icon : update.icon,
+          labels: update.labels === undefined ? schedule.labels : update.labels,
           priority: update.priority,
           model: update.model,
           effort: update.effort === undefined ? schedule.effort : update.effort,

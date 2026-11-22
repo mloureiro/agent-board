@@ -139,6 +139,7 @@ export const tasks = pgTable(
     /** The sealed name of the agent the task runs as; null runs as the user's config says. Written once, at creation. */
     agent: text('agent'),
     icon: text('icon'),
+    labels: text('labels'),
     /** The sealed watches the task's machine runs for it (one JSON document); null for none. Cleared when the task goes to Done or Backlog, is closed or re-run fresh. */
     watches: text('watches'),
     /** Ids of watches the user asked to stop that the machine has not acknowledged; clear text, ids only. */
@@ -205,6 +206,7 @@ export const tasks = pgTable(
     check('task_home_workdir_sealed', isEnvelope(t.homeWorkdir)),
     check('task_agent_sealed', isEnvelope(t.agent)),
     check('task_icon_sealed', isEnvelope(t.icon)),
+    check('task_labels_sealed', isEnvelope(t.labels)),
     check('task_watches_sealed', isEnvelope(t.watches)),
     check('task_dedupe_key_blind', isBlindIndex(t.dedupeKey)),
     check('task_head_blind', isBlindIndex(t.head)),
@@ -238,6 +240,7 @@ export const schedules = pgTable(
     /** The sealed name of the agent every occurrence runs as; null for none. */
     agent: text('agent'),
     icon: text('icon'),
+    labels: text('labels'),
     /** An interval on the grid `anchor_at + k * every_ms`, or a 5-field cron expression in `timezone`. */
     everyMs: bigint('every_ms', { mode: 'number' }),
     cron: text('cron'),
@@ -270,6 +273,7 @@ export const schedules = pgTable(
     check('schedule_workdir_sealed', isEnvelope(t.workdir)),
     check('schedule_agent_sealed', isEnvelope(t.agent)),
     check('schedule_icon_sealed', isEnvelope(t.icon)),
+    check('schedule_labels_sealed', isEnvelope(t.labels)),
     check(
       'schedule_one_rule',
       sql`(${t.everyMs} is not null)::int + (${t.cron} is not null)::int + (${t.afterScheduleId} is not null)::int = 1`,

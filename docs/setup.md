@@ -224,6 +224,12 @@ The CLI alone changes: `--ignore <pattern>` on `board watch --ci`, and the `ciIg
 - An older CLI refuses a config that has `ciIgnore`: `parseConfig` throws `has no setting "ciIgnore"`, and every command that reads the config stops with that error. That includes each dispatch tick (the timer's and the ones the listener starts), every worker, `board watch`, `board dirs` and `board doctor`, so a machine with a stale CLI stops dispatching. The listener and the watch unit themselves do not read config.json, so they keep running, but the ticks the listener starts fail. Add `ciIgnore` only after every CLI on the machine runs the new version: `board self-update`, or on a checkout install `git pull`, `pnpm install` and `board restart`.
 - `--ignore` alone needs no config change.
 
+### A task carries labels
+
+A new server feature, `task.labels`. A task and a schedule take a list of labels, sealed like the title, that the board shows as badges on the card and the task page (see [Labels](usage.md#labels)). The card, the task page and the New task form can change them, and `board schedule --label`, `board add --label`, `board schedules edit --label` and `board task <task> set labels` set them. A migration adds a `labels` column to `task` and `schedule`. Nothing changes for the tasks you have, and no version number is raised.
+
+Update the server first. A server without `task.labels` makes the flags refuse with "the board server does not support task labels yet; update the board server", and nothing else changes. A machine on an older CLI ignores the field, and labels never change how a task runs.
+
 ### A task shows an icon
 
 A new server feature, `task.icon`. A task and a schedule take one emoji, sealed like the title, that the board shows at the left of the card's title (see [Icon](usage.md#icon)). The board, the task page and the New task form have a picker for it, and `board schedule --icon`, `board add --icon`, `board schedules edit --icon` and `board task <task> set icon` set it. A migration adds an `icon` column to `task` and `schedule`. Nothing changes for the tasks you have, and no version number is raised.

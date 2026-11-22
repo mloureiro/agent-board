@@ -91,6 +91,7 @@ export function toTask(
     workdir: row.workdir,
     ...(row.agent === null ? {} : { agent: row.agent }),
     icon: row.icon,
+    labels: row.labels,
     ...(row.forkOf === null ? {} : { forkOf: row.forkOf }),
     ...(row.movedBy === null ? {} : { movedBy: row.movedBy }),
     pr: newest?.pr ?? null,
@@ -1002,12 +1003,13 @@ export interface TaskConfig {
   lane?: string | null | undefined;
   autoDone?: boolean | undefined;
   icon?: string | null | undefined;
+  labels?: string | null | undefined;
   place?: { machine: string; workdir: string } | null | undefined;
   title?: string | undefined;
 }
 
 /**
- * The user's edit of a task's settings, in one step. A priority works as `setPriority`. A model or an effort applies from the next run. An icon applies at once, in any status. A lane is refused while the task runs, which keeps the lane it started in. `autoDone` and a sealed `title` apply at once, in any status; a title is refused on a schedule's occurrence. A
+ * The user's edit of a task's settings, in one step. A priority works as `setPriority`. A model or an effort applies from the next run. An icon or labels apply at once, in any status. A lane is refused while the task runs, which keeps the lane it started in. `autoDone` and a sealed `title` apply at once, in any status; a title is refused on a schedule's occurrence. A
  * new place (the machine and the sealed directory, or null for none) replaces the directory the task was created with and
  * drops the session: Claude Code keeps a session under its working directory, so it cannot be resumed from another one, and
  * the next run starts fresh there and reads the thread. A running or waiting task keeps its place, since a run holds it.
@@ -1015,7 +1017,7 @@ export interface TaskConfig {
 export async function configureTask(db: DbOrTx, taskId: string, config: TaskConfig, by: string): Promise<TaskRow> {
   return db.transaction(async (tx) => {
     const task = await lockTask(tx, taskId);
-    const { priority, model, effort, lane, autoDone, icon, place, title } = config;
+    const { priority, model, effort, lane, autoDone, icon, labels, place, title } = config;
     if (title !== undefined) {
       requireSealed(title, 'the title');
       if (task.scheduleId !== null)
@@ -1037,6 +1039,7 @@ export async function configureTask(db: DbOrTx, taskId: string, config: TaskConf
     if (lane !== undefined) set.requestedLane = lane;
     if (autoDone !== undefined) set.autoDone = autoDone;
     if (icon !== undefined) set.icon = icon;
+    if (labels !== undefined) set.labels = labels;
     if (title !== undefined) set.title = title;
     if (place !== undefined) {
       const workdir = place?.workdir ?? null;

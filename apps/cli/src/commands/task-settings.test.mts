@@ -76,6 +76,7 @@ test('board task prints the settings: null model and directory read as the defau
     '  lane        default',
     '  auto-done   off',
     '  icon        none',
+    '  labels      none',
     '  agent       none',
     '  created by  user',
     '  machine     any',
@@ -254,6 +255,25 @@ test('set icon and unset icon change the icon at once, in any status, and only o
   assert.equal(writes(run).length, 2);
 });
 
+test('set labels replaces the labels at once, in any status, and unset labels removes them', async (context) => {
+  const run = runner(context, [task({ id: 'abc12345', status: 'running' })]);
+  await run.go(['task', 'abc12345', 'set', 'labels', 'bug', 'needs review', 'Bug']);
+  assert.equal(said(run), 'abc12345 has the labels bug, needs review now');
+  assert.deepEqual(run.backend.tasks[0]?.labels, ['bug', 'needs review']);
+  run.printed.length = 0;
+  await run.go(['task', 'abc12345', 'set', 'labels', 'bug', 'needs review']);
+  assert.equal(said(run), 'abc12345 already has the labels bug, needs review');
+  await run.go(['task', 'abc12345']);
+  assert.match(said(run), /labels {6}bug, needs review/);
+  await run.go(['task', 'abc12345', 'unset', 'labels']);
+  assert.deepEqual(run.backend.tasks[0]?.labels, []);
+  assert.deepEqual(writes(run), ['labels abc12345: bug,needs review', 'labels abc12345: none']);
+  await assert.rejects(run.go(['task', 'abc12345', 'set', 'labels', 'a,b']), /not a label/);
+  await assert.rejects(run.go(['task', 'abc12345', 'set', 'labels']), /takes one or more labels/);
+  await assert.rejects(run.go(['task', 'abc12345', 'unset', 'labels', 'bug']), UsageError);
+  assert.equal(writes(run).length, 2);
+});
+
 test('set auto-done on and off, unset auto-done: from the next look on, in any status, with a note on a schedule’s card', async (context) => {
   const run = runner(context, [task({ id: 'abc12345', status: 'running', scheduleId: 'sched001' })]);
   await run.go(['task', 'abc12345', 'set', 'auto-done', 'on']);
@@ -261,7 +281,7 @@ test('set auto-done on and off, unset auto-done: from the next look on, in any s
   assert.match(said(run), /abc12345: its agent may move it to Done when it judges every acceptance criterion met/);
   assert.match(
     said(run),
-    /next occurrence takes priority, model, effort, lane, auto-done, icon, machine and directory/,
+    /next occurrence takes priority, model, effort, lane, auto-done, icon, labels, machine and directory/,
   );
   await run.go(['task', 'abc12345']);
   assert.match(said(run), /auto-done {3}on: the agent may move it to Done/);
@@ -316,7 +336,7 @@ test('a card of a schedule gets a note that the change is for it only, on priori
   );
   assert.match(
     said(run),
-    /next occurrence takes priority, model, effort, lane, auto-done, icon, machine and directory from the schedule again/,
+    /next occurrence takes priority, model, effort, lane, auto-done, icon, labels, machine and directory from the schedule again/,
   );
   const plain = runner(context, [task({ id: 'def12345' })]);
   await plain.go(['task', 'def12345', 'set', 'priority', 'high']);
@@ -477,7 +497,7 @@ test('unknown actions and keys are usage errors', async (context) => {
   await assert.rejects(run.go(['task', 'abc12345', 'frob']), /takes nothing, or set or unset/);
   await assert.rejects(
     run.go(['task', 'abc12345', 'set', 'colour', 'red']),
-    /takes priority, model, effort, lane, auto-done, icon, dir or prompt/,
+    /takes priority, model, effort, lane, auto-done, icon, labels, dir or prompt/,
   );
   await assert.rejects(run.go(['task', 'abc12345', 'set', 'dir', 'a', 'b']), /takes one path/);
   await assert.rejects(run.go(['task', 'abc12345', 'unset', 'model', 'x']), UsageError);

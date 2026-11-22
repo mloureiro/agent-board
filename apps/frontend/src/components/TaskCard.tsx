@@ -7,6 +7,7 @@ import { ago } from '../lib/time';
 import type { LastNote, ListedTask } from '../lib/trpc';
 import type { TaskHold } from '../lib/usageHold';
 import { EmojiPicker } from './EmojiPicker';
+import { LabelsEditor } from './LabelsEditor';
 import { LivenessText } from './LivenessText';
 import { PrStateIcon } from './PrStateIcon';
 import { TaskBadges } from './TaskBadges';
@@ -42,6 +43,8 @@ interface Props {
   /** Queues a polish of this Backlog task's prompt; absent when it cannot be polished. */
   onPolish?: () => void;
   onIconChange?: (icon: string | null) => void;
+  onLabelsChange?: (labels: string[]) => void;
+  labelSuggestions?: readonly string[];
   polishDisabled?: boolean;
   /** Why the task has not started for usage; absent when it is not held. */
   hold?: TaskHold | undefined;
@@ -56,6 +59,8 @@ export function TaskCard({
   onDragOver,
   onPolish,
   onIconChange,
+  onLabelsChange,
+  labelSuggestions,
   polishDisabled = false,
   hold,
 }: Props) {
@@ -146,7 +151,17 @@ export function TaskCard({
             </Tooltip>
           )}
         </Group>
-        <TaskBadges task={task} hold={hold} />
+        <TaskBadges task={task} hold={hold}>
+          {onLabelsChange && (
+            <LabelsEditor
+              value={task.labels}
+              onChange={onLabelsChange}
+              {...(labelSuggestions === undefined ? {} : { suggestions: labelSuggestions })}
+              size={12}
+              revealOnHover
+            />
+          )}
+        </TaskBadges>
         {task.status === 'running' && <LivenessText size="xs" lastActiveAt={task.lastActiveAt} />}
         <Text size="xs" c="dimmed" lineClamp={1} className="wrap-anywhere">
           {lastNoteLine(task.lastNote, task)}

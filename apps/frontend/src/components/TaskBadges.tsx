@@ -15,7 +15,9 @@ import {
   IconRoute,
   IconUsers,
   IconSparkles,
+  IconTag,
 } from '@tabler/icons-react';
+import type { ReactNode } from 'react';
 import { startsIn, wakesIn } from '../lib/startsIn';
 import { isStopping } from '../lib/stopping';
 import { clock, stamp } from '../lib/time';
@@ -35,12 +37,14 @@ export function TaskBadges({
   withLabels = true,
   withPriority = true,
   hold,
+  children,
 }: {
   task: BoardTask;
   withLabels?: boolean;
   withPriority?: boolean;
   /** Why the task has not started for usage (`heldTask`); absent when it is not held. */
   hold?: TaskHold | undefined;
+  children?: ReactNode;
 }) {
   const now = useNow(30_000);
   const waiting = task.status === 'todo' && task.notBefore !== null ? startsIn(task.notBefore, now) : undefined;
@@ -202,11 +206,26 @@ export function TaskBadges({
         </Badge>
       )}
       {withLabels &&
-        task.labels.map((label) => (
-          <Badge key={label} size="sm" variant="default" tt="none">
+        task.skillLabels.map((label) => (
+          <Badge key={`skill:${label}`} size="sm" variant="default" tt="none">
             {label}
           </Badge>
         ))}
+      {withLabels &&
+        task.labels.map((label) => (
+          <Badge
+            key={`label:${label}`}
+            size="sm"
+            variant="light"
+            color="indigo"
+            tt="none"
+            leftSection={<IconTag size={10} />}
+            aria-label={`Label ${label}`}
+          >
+            {label}
+          </Badge>
+        ))}
+      {children}
     </Group>
   );
 }

@@ -242,10 +242,11 @@ const tasksRouter = router({
         /** The sealed name of the agent the task, or each occurrence of its schedule, runs as; the prompt is sealed under it too. */
         agent: sealed('agent', 'agent').optional(),
         icon: sealed('icon', 'icon').optional(),
+        labels: sealed('labels', 'labels').optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const { title, when, place, agent, icon } = input;
+      const { title, when, place, agent, icon, labels } = input;
       if (typeof when === 'object' && ('every' in when || 'cron' in when || 'after' in when)) {
         const { task } = await addSchedule(ctx.db, {
           id: input.id,
@@ -259,6 +260,7 @@ const tasksRouter = router({
           ...(place === undefined ? {} : { machine: place.machine, workdir: place.workdir }),
           ...(agent === undefined ? {} : { agent }),
           ...(icon === undefined ? {} : { icon }),
+          ...(labels === undefined ? {} : { labels }),
           ...ruleOf(when),
           ...('at' in when && when.at ? { startAt: when.at } : {}),
           ...(when.times ? { times: when.times } : {}),
@@ -283,6 +285,7 @@ const tasksRouter = router({
         ...(place === undefined ? {} : { machine: place.machine, workdir: place.workdir }),
         ...(agent === undefined ? {} : { agent }),
         ...(icon === undefined ? {} : { icon }),
+        ...(labels === undefined ? {} : { labels }),
       });
       return boardTask(ctx.db, row);
     }),
@@ -450,6 +453,7 @@ const tasksRouter = router({
           lane: lane.nullable().optional(),
           autoDone: z.boolean().optional(),
           icon: sealed('icon', 'icon').nullable().optional(),
+          labels: sealed('labels', 'labels').nullable().optional(),
           place: z
             .object({ machine: machineName, workdir: sealed('workdir', 'directory') })
             .nullable()
@@ -457,16 +461,17 @@ const tasksRouter = router({
           title: sealed('title', 'title').optional(),
         })
         .refine(
-          ({ priority: p, model: m, effort: e, lane: l, autoDone, icon, place, title }) =>
+          ({ priority: p, model: m, effort: e, lane: l, autoDone, icon, labels, place, title }) =>
             p !== undefined ||
             m !== undefined ||
             e !== undefined ||
             l !== undefined ||
             autoDone !== undefined ||
             icon !== undefined ||
+            labels !== undefined ||
             place !== undefined ||
             title !== undefined,
-          'change at least one of priority, model, effort, lane, autoDone, icon, place and title',
+          'change at least one of priority, model, effort, lane, autoDone, icon, labels, place and title',
         ),
     )
     .mutation(async ({ ctx, input: { id: taskId, ...config } }) =>
@@ -559,6 +564,7 @@ const schedulesRouter = router({
           /** A lane name, or null for the default lane; absent keeps the schedule's. */
           lane: lane.nullable().optional(),
           icon: sealed('icon', 'icon').nullable().optional(),
+          labels: sealed('labels', 'labels').nullable().optional(),
           autoDone: z.boolean(),
           repeat: z.union([
             z.object({ everyMs: intervalRule.every }),
@@ -589,6 +595,7 @@ const schedulesRouter = router({
         ...(input.effort === undefined ? {} : { effort: input.effort }),
         ...(input.lane === undefined ? {} : { lane: input.lane }),
         ...(input.icon === undefined ? {} : { icon: input.icon }),
+        ...(input.labels === undefined ? {} : { labels: input.labels }),
         autoDone: input.autoDone,
         rule: 'everyMs' in input.repeat ? { everyMs: input.repeat.everyMs } : ruleOf(input.repeat),
         ...(input.at === undefined ? {} : { startAt: input.at }),

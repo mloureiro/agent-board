@@ -101,6 +101,7 @@ const task = (overrides: Partial<BoardTask>): BoardTask =>
     borrowed: false,
     unreadable: [],
     invalid: [],
+    skillLabels: [],
     labels: [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),

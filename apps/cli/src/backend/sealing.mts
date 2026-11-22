@@ -13,6 +13,7 @@ import {
   open,
   openFields,
   openIcon,
+  openLabels,
   openNote,
   openPrs,
   openSharedAgents,
@@ -24,6 +25,7 @@ import {
   sealChecked,
   sealFields,
   sealIcon,
+  sealLabels,
   sealInput,
   sealMachineCatalog,
   sealMachineDirs,
@@ -129,9 +131,10 @@ function promptPrState(wire: WireTask): PrState | null {
 
 async function openTask(keys: Keys, wire: WireTask): Promise<Task> {
   const opener = openerFor(keys);
-  const [{ title, input, workdir, agent, unreadable }, icon, prs, opened] = await Promise.all([
+  const [{ title, input, workdir, agent, unreadable }, icon, labels, prs, opened] = await Promise.all([
     openFields(opener, taskRef(wire), wire),
     openIcon(opener, taskRef(wire), wire.icon),
+    openLabels(opener, taskRef(wire), wire.labels),
     openPrs(opener, wire.id, reportedPrs(wire)),
     openWatches(opener, wire.id, wire.watches),
   ]);
@@ -148,7 +151,8 @@ async function openTask(keys: Keys, wire: WireTask): Promise<Task> {
     watches: opened.watches,
     watchEvents: opened.pendingEvents,
     watchStops: watchStops ?? [],
-    labels: taskLabels({ input, createdBy: wire.createdBy }),
+    skillLabels: taskLabels({ input, createdBy: wire.createdBy }),
+    labels,
     unreadable: opened.unreadable ? [...unreadable, 'watches'] : unreadable,
   };
 }
@@ -156,8 +160,12 @@ async function openTask(keys: Keys, wire: WireTask): Promise<Task> {
 async function openSchedule(keys: Keys, wire: WireSchedule): Promise<Schedule> {
   const row: RowRef = { kind: 'schedule', id: wire.id };
   const opener = openerFor(keys);
-  const [fields, icon] = await Promise.all([openFields(opener, row, wire), openIcon(opener, row, wire.icon)]);
-  return { ...wire, ...fields, icon };
+  const [fields, icon, labels] = await Promise.all([
+    openFields(opener, row, wire),
+    openIcon(opener, row, wire.icon),
+    openLabels(opener, row, wire.labels),
+  ]);
+  return { ...wire, ...fields, icon, labels };
 }
 
 /**
@@ -215,7 +223,7 @@ export function sealingBackend(inner: WireBackend, keys: Keys | (() => Promise<K
     const title = draft.title.trim();
     if (title === '') throw invalid('add-task', 'draft.title must not be empty');
     requireAbsolute('add-task', draft.workdir);
-    const { dedupeKey, workdir, head, agent, icon, id: chosen, ...rest } = draft;
+    const { dedupeKey, workdir, head, agent, icon, labels, id: chosen, ...rest } = draft;
     const id = chosen ?? newTaskId();
     const row: RowRef = {
       kind: 'task',
@@ -227,12 +235,14 @@ export function sealingBackend(inner: WireBackend, keys: Keys | (() => Promise<K
     };
     const sealed = await checked('add-task', () => sealFields(sealer, row, { title, input: draft.input, workdir }));
     const sealedIcon = icon === undefined ? undefined : await checked('add-task', () => sealIcon(sealer, row, icon));
+    const sealedLabels = labels === undefined ? null : await checked('add-task', () => sealLabels(sealer, row, labels));
     const keysNow = await getKeys();
     return {
       ...rest,
       id,
       ...sealed,
       ...(sealedIcon === undefined ? {} : { icon: sealedIcon }),
+      ...(sealedLabels === null ? {} : { labels: sealedLabels }),
       ...(dedupeKey === undefined ? {} : { dedupeKey: await dedupeKeyIndex(keysNow, dedupeKey) }),
       ...(head === undefined ? {} : { head: await headIndex(keysNow, head) }),
     };
@@ -317,12 +327,16 @@ export function sealingBackend(inner: WireBackend, keys: Keys | (() => Promise<K
       return opened(await inner.updateTask(id, await sealPatch(id, patch)), openTask);
     },
     async configureTask(id, change) {
-      const { place, icon, seal: writer, ...rest } = change;
+      const { place, icon, labels, seal: writer, ...rest } = change;
       requireAbsolute('configure-task', place?.workdir);
-      if (writer === undefined && ((place !== undefined && place !== null) || (icon !== undefined && icon !== null)))
+      const sealsSomething =
+        (place !== undefined && place !== null) ||
+        (icon !== undefined && icon !== null) ||
+        (labels !== undefined && labels.length > 0);
+      if (writer === undefined && sealsSomething)
         throw invalid(
           'configure-task',
-          'sealing a directory or an icon needs the task creator and schedule (change.seal)',
+          'sealing a directory, an icon or labels needs the task creator and schedule (change.seal)',
         );
       const row: RowRef = {
         kind: 'task',
@@ -337,6 +351,7 @@ export function sealingBackend(inner: WireBackend, keys: Keys | (() => Promise<K
           ? {}
           : { place: place === null ? null : { workdir: await sealWorkdir(sealer, row, place.workdir) } }),
         ...(icon === undefined ? {} : { icon: icon === null ? null : await sealIcon(sealer, row, icon) }),
+        ...(labels === undefined ? {} : { labels: await sealLabels(sealer, row, labels) }),
       }));
       return opened(await inner.configureTask(id, { ...rest, ...sealed }), openTask);
     },
@@ -494,13 +509,17 @@ export function sealingBackend(inner: WireBackend, keys: Keys | (() => Promise<K
       if (title === '') throw invalid('add-schedule', 'schedule draft.title must not be empty');
       if (draft.input.trim() === '') throw invalid('add-schedule', 'schedule draft.input must not be empty');
       requireAbsolute('add-schedule', draft.workdir);
-      const { workdir, agent, icon, id: chosen, ...rest } = draft;
+      const { workdir, agent, icon, labels, id: chosen, ...rest } = draft;
       const id = chosen ?? newTaskId();
       const row: RowRef = { kind: 'schedule', id, agent: agent ?? null };
-      const sealed = await checked('add-schedule', async () => ({
-        ...(await sealFields(sealer, row, { title, input: draft.input, workdir })),
-        ...(icon === undefined ? {} : { icon: await sealIcon(sealer, row, icon) }),
-      }));
+      const sealed = await checked('add-schedule', async () => {
+        const sealedLabels = labels === undefined ? null : await sealLabels(sealer, row, labels);
+        return {
+          ...(await sealFields(sealer, row, { title, input: draft.input, workdir })),
+          ...(icon === undefined ? {} : { icon: await sealIcon(sealer, row, icon) }),
+          ...(sealedLabels === null ? {} : { labels: sealedLabels }),
+        };
+      });
       const { schedule, task } = await inner.addSchedule({ ...rest, id, ...sealed });
       return {
         schedule: await opened(schedule, openSchedule),
@@ -523,7 +542,7 @@ export function sealingBackend(inner: WireBackend, keys: Keys | (() => Promise<K
           const row: RowRef = { kind: 'schedule', id, agent: current.agent ?? null };
           return { title: await sealTitle(sealer, row, title), input: await sealInput(sealer, row, input) };
         }
-        const { agent, place, icon, ...rest } = settings;
+        const { agent, place, icon, labels, ...rest } = settings;
         const row: RowRef = { kind: 'schedule', id, agent: agent ?? null };
         const sealed = await sealFields(sealer, row, { title, input, workdir: place?.workdir });
         return {
@@ -533,6 +552,7 @@ export function sealingBackend(inner: WireBackend, keys: Keys | (() => Promise<K
             ...rest,
             ...(sealed.agent === undefined ? {} : { agent: sealed.agent }),
             ...(icon === undefined ? {} : { icon: icon === null ? null : await sealIcon(sealer, row, icon) }),
+            ...(labels === undefined ? {} : { labels: await sealLabels(sealer, row, labels) }),
             place:
               place === null || sealed.workdir === undefined
                 ? null

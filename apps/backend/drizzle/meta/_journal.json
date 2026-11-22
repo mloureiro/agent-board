@@ -344,6 +344,13 @@
       "when": 1795388016084,
       "tag": "0048_title-rules",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1795389484236,
+      "tag": "0049_task-labels",
+      "breakpoints": true
     }
   ]
 }
