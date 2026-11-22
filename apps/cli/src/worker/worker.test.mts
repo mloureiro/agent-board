@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -1476,7 +1477,8 @@ test('an agent that ends its turn during the grace but lingers is killed when th
 test('SIGUSR2 reaches an agent that ended its turn and still runs background work: it is stopped and the task paused', async () => {
   process.env['AGENT_BOARD_STATE_DIR'] = mkdtempSync(join(tmpdir(), 'agent-board-shutdown-'));
   const { deps, backend } = shutdownHarness({ graceMs: 5_000 });
-  deps.watchShutdown = latchShutdownSignal();
+  const signals = new EventEmitter();
+  deps.watchShutdown = latchShutdownSignal(signals);
   const pidFile = join(mkdtempSync(join(tmpdir(), 'agent-board-lingering-')), 'pgid');
   const lingeringAgent = [
     'read -r prompt',
@@ -1494,7 +1496,7 @@ test('SIGUSR2 reaches an agent that ended its turn and still runs background wor
         ...watch,
         start: (live) => {
           watch.start?.(live);
-          setTimeout(() => process.kill(process.pid, 'SIGUSR2'), 300);
+          setTimeout(() => signals.emit('SIGUSR2'), 300);
         },
       },
       onLine,
@@ -1555,7 +1557,8 @@ test('a board that refuses the pause report is logged and the worker still ends'
 test('SIGUSR2 on the real process path ends the agent turn, and the task is reported paused', async () => {
   process.env['AGENT_BOARD_STATE_DIR'] = mkdtempSync(join(tmpdir(), 'agent-board-shutdown-'));
   const { deps, backend } = shutdownHarness({ graceMs: 5_000 });
-  deps.watchShutdown = latchShutdownSignal();
+  const signals = new EventEmitter();
+  deps.watchShutdown = latchShutdownSignal(signals);
   const fakeAgent = [
     'read -r prompt',
     'while IFS= read -r line; do',
@@ -1573,7 +1576,7 @@ test('SIGUSR2 on the real process path ends the agent turn, and the task is repo
         ...watch,
         start: (live) => {
           watch.start?.(live);
-          setTimeout(() => process.kill(process.pid, 'SIGUSR2'), 50);
+          setTimeout(() => signals.emit('SIGUSR2'), 50);
         },
       },
       onLine,

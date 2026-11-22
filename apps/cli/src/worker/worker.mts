@@ -8,6 +8,7 @@
  * agent's liveness on to the board.
  */
 import { randomUUID } from 'node:crypto';
+import type { EventEmitter } from 'node:events';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { BackendError, isVocabularyRefusal } from '../backend/backend.mts';
@@ -811,10 +812,10 @@ export function hookCommand(runDir: string, id: string): string {
 }
 
 // A SIGUSR2 that arrives before the run listens would kill the worker by default, so the latch holds it.
-export function latchShutdownSignal(): (onRequest: () => void) => () => void {
+export function latchShutdownSignal(source: Pick<EventEmitter, 'on'> = process): (onRequest: () => void) => () => void {
   let requested = false;
   const listeners = new Set<() => void>();
-  process.on('SIGUSR2', () => {
+  source.on('SIGUSR2', () => {
     if (requested) return;
     requested = true;
     for (const listener of listeners) listener();
