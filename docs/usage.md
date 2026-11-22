@@ -717,6 +717,12 @@ If the run ends before your message was delivered, say because the agent finishe
 
 Other tasks have no Stop.
 
+### Context usage
+
+Once the latest run has reported how full the agent's context window is, the task page shows a bar above **Transcript** with the percentage used and the figures, for example "13% used · 133.6K / 1M". Hovering the label shows the model and when it was read. Until a run reports, and for runs from a CLI that does not report it, nothing is shown.
+
+The bar follows a running task about every 15 seconds and keeps the last value after the run ends. A line on the bar marks where auto-compaction starts, but only when the run sets that threshold itself; see [Context usage](workers.md#context-usage). When the worker does not know the model's window yet, the bar is empty and the label shows only the tokens used.
+
 ### The other buttons
 
 | Button                     | Effect                                                                                         |

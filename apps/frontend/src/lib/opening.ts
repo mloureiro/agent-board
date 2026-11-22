@@ -26,6 +26,7 @@ import {
   openPreview,
   isWatchId,
   openWatches,
+  parseContextEvent,
   parseTranscriptEvent,
   taskLabels,
   transcriptBinding,
@@ -67,6 +68,7 @@ type WireLastNote = NonNullable<WireListedTask['lastNote']>;
 type WireThreadNote = RouterOutputs['tasks']['get']['thread'][number];
 type WireSchedule = RouterOutputs['schedules']['list'][number];
 type WireEvent = RouterOutputs['transcript']['events'][number];
+type WireContext = RouterOutputs['transcript']['context'];
 
 interface SealedFields {
   title: string;
@@ -510,4 +512,31 @@ export async function openSources(keys: Keys, wire: RouterOutputs['sources']['li
       };
     }),
   );
+}
+
+export interface ContextReading {
+  used: number;
+  window: number | null;
+  threshold: number | null;
+  model: string;
+  at: string;
+}
+
+export async function openContext(
+  keys: Keys,
+  taskId: string,
+  wire: WireContext,
+): Promise<ContextReading | null | 'unreadable'> {
+  if (wire === null) return null;
+  if (!isSafeNoteId(wire.runId)) return 'unreadable';
+  const text = await tryOpen(keys, transcriptBinding('tr.data', taskId, wire.runId, wire.seq), wire.data);
+  let event: ReturnType<typeof parseContextEvent>;
+  try {
+    event = text === undefined ? undefined : parseContextEvent(JSON.parse(text));
+  } catch {
+    return 'unreadable';
+  }
+  if (event === undefined || event.seq !== wire.seq) return 'unreadable';
+  const { used, window, threshold, model } = event;
+  return { used, window, threshold, model, at: String(wire.at) };
 }
