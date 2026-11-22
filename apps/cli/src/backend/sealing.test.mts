@@ -132,6 +132,7 @@ function fakeWire(): FakeWire {
         workdir: sent.workdir ?? null,
         ...(sent.agent === undefined ? {} : { agent: sent.agent }),
         ...(sent.icon === undefined ? {} : { icon: sent.icon }),
+        ...(sent.labels === undefined ? {} : { labels: sent.labels }),
         head: sent.head ?? null,
         createdBy: sent.createdBy ?? 'user',
       };
@@ -152,6 +153,7 @@ function fakeWire(): FakeWire {
       const found = state.tasks.find((t) => t.id === id)!;
       if (sent.place !== undefined) Object.assign(found, { workdir: sent.place?.workdir ?? null });
       if (sent.icon !== undefined) found.icon = sent.icon;
+      if (sent.labels !== undefined) found.labels = sent.labels;
       return found;
     },
     async editPrompt(id, body) {
@@ -285,6 +287,7 @@ function fakeWire(): FakeWire {
         workdir: sent.workdir ?? null,
         ...(sent.agent === undefined ? {} : { agent: sent.agent }),
         ...(sent.icon === undefined ? {} : { icon: sent.icon }),
+        ...(sent.labels === undefined ? {} : { labels: sent.labels }),
       };
       state.schedules.push(added);
       return { schedule: added, task: await wireTask({ id: 'pending' }) };
@@ -302,6 +305,7 @@ function fakeWire(): FakeWire {
       if (settings !== undefined) {
         found.agent = settings.agent ?? null;
         if (settings.icon !== undefined) found.icon = settings.icon;
+        if (settings.labels !== undefined) found.labels = settings.labels;
         found.machine = settings.place?.machine ?? null;
         found.workdir = settings.place?.workdir ?? null;
         found.priority = settings.priority;
@@ -358,7 +362,7 @@ test('a task round-trips and the server only ever sees envelopes and a blind ind
   });
   assert.equal(isNew, true);
   assert.deepEqual(
-    [created.title, created.input, created.workdir, created.labels, created.unreadable],
+    [created.title, created.input, created.workdir, created.skillLabels, created.unreadable],
     [TITLE, INPUT, WORKDIR, ['review-pr'], []],
   );
   const sent = wire.added[0]!;
@@ -371,7 +375,7 @@ test('a task round-trips and the server only ever sees envelopes and a blind ind
     seal: { createdBy: 'intake', scheduleId: null, agent: null, forkOf: null },
   });
   assert.deepEqual([patched.input, patched.workdir], [`${INPUT} more`, '/home/me/wt']);
-  assert.deepEqual((await board.getTask(created.id)).labels, ['review-pr']);
+  assert.deepEqual((await board.getTask(created.id)).skillLabels, ['review-pr']);
   assert.deepEqual(
     (await board.listTasks()).map((t) => t.id),
     [created.id],
@@ -395,11 +399,11 @@ test('labels derive from the opened prompt and the creator', async () => {
   const wire = fakeWire();
   const board = sealingBackend(wire, KEYS);
   const user = await board.addTask({ title: 't', input: '/grill the plan' });
-  assert.deepEqual(user.task.labels, ['grill']);
+  assert.deepEqual(user.task.skillLabels, ['grill']);
   const plain = await board.addTask({ title: 't', input: 'find out why' });
-  assert.deepEqual(plain.task.labels, []);
+  assert.deepEqual(plain.task.skillLabels, []);
   const intake = await board.addTask({ title: 't', input: 'review it', createdBy: 'intake' });
-  assert.deepEqual(intake.task.labels, ['review']);
+  assert.deepEqual(intake.task.skillLabels, ['review']);
 });
 
 test('a draft is validated before anything is sent: empty title, relative workdir', async () => {
@@ -1374,6 +1378,39 @@ test('an icon is sealed for its task or schedule, never reaches the board in cle
     wire.requests.some((request) => /🐛|🚀|🧹/u.test(request)),
     false,
   );
+});
+
+test('labels are sealed for their task or schedule, never reach the board in clear, and open on the occurrences', async () => {
+  const wire = fakeWire();
+  const board = sealingBackend(wire, KEYS);
+  const { task } = await board.addTask({ title: 'Fix', input: '/fix', labels: ['MARKERbug', 'MARKERui'] });
+  assert.deepEqual(task.labels, ['MARKERbug', 'MARKERui']);
+  assert.equal(await open(KEYS, 'labels', `task:${task.id}`, wire.tasks[0]!.labels!), '["MARKERbug","MARKERui"]');
+  await assert.rejects(board.addTask({ title: 'Fix', input: '/fix', labels: ['-x'] }), /not a label/);
+  const bare = await board.addTask({ title: 'Fix', input: '/fix', labels: [' '] });
+  assert.equal(wire.tasks.find((t) => t.id === bare.task.id)!.labels, undefined);
+
+  const writer = { createdBy: 'user' as const, scheduleId: null, agent: null, forkOf: null };
+  await assert.rejects(board.configureTask(task.id, { labels: ['MARKERnew'] }), /change\.seal/);
+  assert.deepEqual((await board.configureTask(task.id, { labels: ['MARKERnew'], seal: writer })).labels, ['MARKERnew']);
+  assert.deepEqual((await board.configureTask(task.id, { labels: [] })).labels, []);
+  assert.equal(wire.tasks[0]!.labels, null);
+
+  const { schedule: made } = await board.addSchedule({
+    title: 'Sweep',
+    input: '/sweep',
+    everyMs: 7_200_000,
+    labels: ['MARKERchore'],
+  });
+  assert.deepEqual(made.labels, ['MARKERchore']);
+  const copied = { ...(await wireTask({ id: 'occ1', scheduleId: made.id })), labels: wire.schedules[0]!.labels! };
+  assert.deepEqual((await sealingBackend({ ...wire, getTask: async () => copied }, KEYS).getTask('occ1')).labels, [
+    'MARKERchore',
+  ]);
+  const elsewhere = { ...(await wireTask({ id: 'other' })), labels: wire.schedules[0]!.labels! };
+  const notOpened = await sealingBackend({ ...wire, getTask: async () => elsewhere }, KEYS).getTask('other');
+  assert.deepEqual([notOpened.labels, notOpened.unreadable], [[], []]);
+  noMarkers(wire);
 });
 
 test('an edited prompt is sealed as the user’s under the task’s row, and the old text is kept in a note of the user’s', async () => {

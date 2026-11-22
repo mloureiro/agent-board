@@ -23,7 +23,10 @@ import {
   agentBinding,
   iconBinding,
   openIcon,
+  openLabels,
+  labelsBinding,
   sealIcon,
+  sealLabels,
   inputBinding,
   machineCatalogBinding,
   machineCatalogIndex,
@@ -741,6 +744,33 @@ test('an icon is bound to the origin, opens on the occurrences of its schedule, 
   assert.equal(await openIcon(opens, userTask, await seal(keys, 'icon', iconBinding(userTask).context, 'ab')), null);
   for (const bad of ['', 'a', '🚀🚀', '🚀 ', 'x🚀'])
     await assert.rejects(sealIcon(seals, userTask, bad), ContractError, JSON.stringify(bad));
+});
+
+test('labels are bound to the origin, open on the occurrences of their schedule, and only as a list of labels', async () => {
+  assert.deepEqual(labelsBinding(userTask), { field: 'labels', context: `task:${TASK}` });
+  assert.deepEqual(labelsBinding(occurrence), labelsBinding(schedule));
+  const sealed = await sealLabels(seals, schedule, [' bug ', 'UI', 'ui', '']);
+  assert.ok(sealed !== null);
+  assert.deepEqual(await openLabels(opens, occurrence, sealed), ['bug', 'UI']);
+  assert.deepEqual(await openLabels(opens, schedule, sealed), ['bug', 'UI']);
+  assert.deepEqual(await openLabels(opens, userTask, sealed), []);
+  assert.deepEqual(await openLabels(opens, userTask, null), []);
+  assert.deepEqual(await openLabels(opens, userTask, undefined), []);
+  assert.equal(await sealLabels(seals, userTask, []), null);
+  assert.equal(await sealLabels(seals, userTask, ['  ']), null);
+  const context = labelsBinding(userTask).context;
+  for (const text of [
+    'bug',
+    '{}',
+    '[1]',
+    '["-x"]',
+    '["a","A"]',
+    JSON.stringify(Array.from({ length: 17 }, (_, i) => `l${i}`)),
+  ])
+    assert.deepEqual(await openLabels(opens, userTask, await seal(keys, 'labels', context, text)), [], text);
+  assert.deepEqual(await openLabels(opens, userTask, await seal(keys, 'title', context, '["bug"]')), []);
+  for (const bad of [['-x'], ['a\nb'], ['x'.repeat(33)], Array.from({ length: 17 }, (_, i) => `l${i}`)])
+    await assert.rejects(sealLabels(seals, userTask, bad), ContractError, JSON.stringify(bad));
 });
 
 const PR_URL = 'https://github.com/o/r/pull/7';

@@ -13,6 +13,7 @@ import { errorMessage, useTRPC } from '../lib/trpc';
 import { useNow } from '../lib/useNow';
 import { DirectorySelect } from './DirectorySelect';
 import { EmojiPicker } from './EmojiPicker';
+import { LabelsInput } from './LabelsEditor';
 import { MarkdownEditor } from './MarkdownEditor';
 import { RepeatFields, limitError, timesError } from './RepeatFields';
 import {
@@ -61,6 +62,7 @@ export function NewTaskModal({ opened, onClose, initial, onCreated }: Props) {
   const [directory, setDirectory] = useState<string | null>(readLastDirectory);
   const [agent, setAgent] = useState('');
   const [icon, setIcon] = useState<string | null>(null);
+  const [labels, setLabels] = useState<string[]>([]);
   const directories = useDirectoryChoices();
   const catalogs = useQuery(trpc.machines.catalogs.queryOptions());
   const create = useMutation(trpc.tasks.create.mutationOptions());
@@ -124,6 +126,7 @@ export function NewTaskModal({ opened, onClose, initial, onCreated }: Props) {
         ...(place === undefined ? {} : { place: { machine: place.machine, workdir: place.path } }),
         ...(agentName === '' ? {} : { agent: agentName }),
         ...(icon === null ? {} : { icon }),
+        ...(labels.length === 0 ? {} : { labels }),
       },
       {
         onSuccess: (task) => {
@@ -140,6 +143,7 @@ export function NewTaskModal({ opened, onClose, initial, onCreated }: Props) {
           setDirectory(place?.value ?? null);
           setAgent('');
           setIcon(null);
+          setLabels([]);
           setAt('');
           setRuleLines(['']);
           setTimes('');
@@ -193,6 +197,7 @@ export function NewTaskModal({ opened, onClose, initial, onCreated }: Props) {
           value={title}
           onChange={(e) => setTitle(e.currentTarget.value)}
         />
+        <LabelsInput label="Labels" value={labels} onChange={setLabels} />
         <PriorityField value={priority} onChange={setPriority} />
         <ModelField value={model} onChange={setModel} models={models} />
         <EffortField value={effort} onChange={setEffort} />

@@ -1,6 +1,6 @@
 {
-  "id": "5f240abf-5a1e-4f90-abd1-1362d23bc9f4",
-  "prevId": "d0941e23-156e-40a0-993a-c29404d6da23",
+  "id": "db612a7e-7ddf-4258-b2af-e55da9111b4d",
+  "prevId": "55314c46-5416-477f-98f3-ef937642d8f8",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -331,26 +331,26 @@
           "primaryKey": false,
           "notNull": false
         },
-        "feeds": {
-          "name": "feeds",
+        "sources": {
+          "name": "sources",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "feeds_index": {
-          "name": "feeds_index",
+        "sources_index": {
+          "name": "sources_index",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "feeds_updated_at": {
-          "name": "feeds_updated_at",
+        "sources_updated_at": {
+          "name": "sources_updated_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
-        "feed_requests": {
-          "name": "feed_requests",
+        "source_requests": {
+          "name": "source_requests",
           "type": "text[]",
           "primaryKey": false,
           "notNull": true,
@@ -428,13 +428,13 @@
           "name": "machine_usage_index_blind",
           "value": "\"machine\".\"usage_index\" ~ '^abh1[.][A-Za-z0-9_-]{43}$'"
         },
-        "machine_feeds_sealed": {
-          "name": "machine_feeds_sealed",
-          "value": "\"machine\".\"feeds\" ~ '^abe1[.][A-Za-z0-9_-]{38,}$'"
+        "machine_sources_sealed": {
+          "name": "machine_sources_sealed",
+          "value": "\"machine\".\"sources\" ~ '^abe1[.][A-Za-z0-9_-]{38,}$'"
         },
-        "machine_feeds_index_blind": {
-          "name": "machine_feeds_index_blind",
-          "value": "\"machine\".\"feeds_index\" ~ '^abh1[.][A-Za-z0-9_-]{43}$'"
+        "machine_sources_index_blind": {
+          "name": "machine_sources_index_blind",
+          "value": "\"machine\".\"sources_index\" ~ '^abh1[.][A-Za-z0-9_-]{43}$'"
         }
       },
       "isRLSEnabled": true
@@ -838,6 +838,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "labels": {
+          "name": "labels",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "every_ms": {
           "name": "every_ms",
           "type": "bigint",
@@ -1020,6 +1026,10 @@
         "schedule_icon_sealed": {
           "name": "schedule_icon_sealed",
           "value": "\"schedule\".\"icon\" ~ '^abe1[.][A-Za-z0-9_-]{38,}$'"
+        },
+        "schedule_labels_sealed": {
+          "name": "schedule_labels_sealed",
+          "value": "\"schedule\".\"labels\" ~ '^abe1[.][A-Za-z0-9_-]{38,}$'"
         },
         "schedule_one_rule": {
           "name": "schedule_one_rule",
@@ -1465,6 +1475,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "labels": {
+          "name": "labels",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "watches": {
           "name": "watches",
           "type": "text",
@@ -1767,6 +1783,10 @@
           "name": "task_icon_sealed",
           "value": "\"task\".\"icon\" ~ '^abe1[.][A-Za-z0-9_-]{38,}$'"
         },
+        "task_labels_sealed": {
+          "name": "task_labels_sealed",
+          "value": "\"task\".\"labels\" ~ '^abe1[.][A-Za-z0-9_-]{38,}$'"
+        },
         "task_watches_sealed": {
           "name": "task_watches_sealed",
           "value": "\"task\".\"watches\" ~ '^abe1[.][A-Za-z0-9_-]{38,}$'"
@@ -1778,6 +1798,79 @@
         "task_head_blind": {
           "name": "task_head_blind",
           "value": "\"task\".\"head\" ~ '^abh1[.][A-Za-z0-9_-]{43}$'"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.title_rules": {
+      "name": "title_rules",
+      "schema": "",
+      "columns": {
+        "owner": {
+          "name": "owner",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "current_setting('app.owner', true)"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "document": {
+          "name": "document",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "title_rules_owner_app_user_username_fk": {
+          "name": "title_rules_owner_app_user_username_fk",
+          "tableFrom": "title_rules",
+          "tableTo": "app_user",
+          "columnsFrom": [
+            "owner"
+          ],
+          "columnsTo": [
+            "username"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "tenant": {
+          "name": "tenant",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "board_app"
+          ],
+          "using": "owner = (select current_setting('app.owner', true))",
+          "withCheck": "owner = (select current_setting('app.owner', true))"
+        }
+      },
+      "checkConstraints": {
+        "title_rules_document_sealed": {
+          "name": "title_rules_document_sealed",
+          "value": "\"title_rules\".\"document\" ~ '^abe1[.][A-Za-z0-9_-]{38,}$'"
+        },
+        "title_rules_version_positive": {
+          "name": "title_rules_version_positive",
+          "value": "\"title_rules\".\"version\" >= 1"
         }
       },
       "isRLSEnabled": true

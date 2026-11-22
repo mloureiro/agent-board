@@ -11,6 +11,7 @@ const task = (overrides: Partial<BoardTask>) =>
     id: 'a',
     status: 'todo',
     priority: 'normal',
+    skillLabels: [],
     labels: [],
     next: 'fresh',
     paused: false,

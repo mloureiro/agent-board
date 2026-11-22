@@ -78,6 +78,7 @@ export const taskRowSchema = z.object({
   homeWorkdir: nullable(sealed('workdir', 'homeWorkdir')),
   agent: nullable(sealed('agent', 'agent')),
   icon: nullable(sealed('icon', 'icon')),
+  labels: nullable(sealed('labels', 'labels')),
   watches: nullable(sealed('watches', 'watches')),
   watchStops: z.array(z.string().refine(isWatchId, 'not a watch id')).max(256).default([]),
   prState: nullable(z.enum(prState.enumValues)),
@@ -121,6 +122,7 @@ const scheduleRowShape = z.object({
   workdir: nullable(sealed('workdir', 'workdir')),
   agent: nullable(sealed('agent', 'agent')),
   icon: nullable(sealed('icon', 'icon')),
+  labels: nullable(sealed('labels', 'labels')),
   everyMs: nullable(z.number().int().positive().max(MAX_INTERVAL_MS)),
   cron: nullable(plainText(256)),
   moreCrons: z
@@ -237,6 +239,12 @@ export const sharedAgentsRowSchema = z.object({
 export const linkRulesRowSchema = z.object({
   version: z.number().int().min(1).max(MAX_INT32),
   document: sealed('links', 'document'),
+  updatedAt: timestamp,
+});
+
+export const titleRulesRowSchema = z.object({
+  version: z.number().int().min(1).max(MAX_INT32),
+  document: sealed('titles', 'document'),
   updatedAt: timestamp,
 });
 

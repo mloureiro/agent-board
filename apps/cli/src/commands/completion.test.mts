@@ -88,8 +88,10 @@ test('task completes its id, then set or unset, then the setting', () => {
     'task-key',
   ]);
   assert.ok(script('bash').includes('compgen -W "set unset"'));
-  assert.ok(script('bash').includes('compgen -W "priority model effort lane auto-done icon dir prompt"'));
-  assert.ok(script('fish').includes("'__board_at 3 task' -a 'priority model effort lane auto-done icon dir prompt'"));
+  assert.ok(script('bash').includes('compgen -W "priority model effort lane auto-done icon labels dir prompt"'));
+  assert.ok(
+    script('fish').includes("'__board_at 3 task' -a 'priority model effort lane auto-done icon labels dir prompt'"),
+  );
 });
 
 for (const shell of SHELLS) {

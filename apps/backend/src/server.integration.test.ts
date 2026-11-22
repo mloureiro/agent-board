@@ -888,7 +888,7 @@ describe('prompts', () => {
       machine: null,
       workdir: null,
     });
-    expect(review).not.toHaveProperty('labels');
+    expect(review.labels ?? null).toBeNull();
     const pinned = await ctx.call('laptop', 'add-task', {
       body: { title: 't', input: '/grill', machine: 'laptop', workdir: '/home/me/repo' },
     });

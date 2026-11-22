@@ -5,6 +5,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { Fragment, useState, type DragEvent } from 'react';
 import { moveConfirmed } from '../components/confirmStart';
 import { IncompatibleMachinesBanner } from '../components/IncompatibleMachinesBanner';
+import { labelSuggestions } from '../components/LabelsEditor';
 import { QueryStatus } from '../components/QueryStatus';
 import { TaskCard } from '../components/TaskCard';
 import { usePolish } from '../components/usePolish';
@@ -59,6 +60,7 @@ const COLLAPSIBLE = new Set<Status>(['backlog', 'done']);
 function BoardColumns({ only }: { only?: Status }) {
   const trpc = useTRPC();
   const tasks = useQuery({ ...trpc.tasks.list.queryOptions(), refetchInterval: POLL_MS });
+  const suggestions = labelSuggestions(tasks.data ?? []);
   const machines = useQuery({ ...trpc.machines.list.queryOptions(), refetchInterval: POLL_MS });
   const now = useNow(30_000);
   const move = useMutation(trpc.tasks.move.mutationOptions());
@@ -159,6 +161,8 @@ function BoardColumns({ only }: { only?: Status }) {
                   hold={heldTask(task, machines.data ?? [], now)}
                   {...(canPolish(task) ? { onPolish: () => polish.polish(task) } : {})}
                   onIconChange={(icon) => configure.mutate({ task, icon })}
+                  onLabelsChange={(labels) => configure.mutate({ task, labels })}
+                  labelSuggestions={suggestions}
                   polishDisabled={
                     polish.isPending || (tasks.data ?? []).some((child) => isOpenPolishOf(child, task.id))
                   }

@@ -4,7 +4,7 @@ How tasks move through the board, and what you and the agent can do with them.
 
 ## Tasks
 
-A task is a prompt, written as you would type it into Claude Code: `/review-pr 17741`, `/grill the plan in docs/x.md`, or plain instructions. The worker runs it as written. If the prompt starts with a slash command, that is the task's skill, and it shows as the task's label. The task's [lane](workers.md#lanes) is a setting of its own: you pick it in the **Lane** field or with `--lane`, and the prompt does not decide it.
+A task is a prompt, written as you would type it into Claude Code: `/review-pr 17741`, `/grill the plan in docs/x.md`, or plain instructions. The worker runs it as written. If the prompt starts with a slash command, that is the task's skill, and it shows as the task's first label, before any [labels](#labels) you give it. The task's [lane](workers.md#lanes) is a setting of its own: you pick it in the **Lane** field or with `--lane`, and the prompt does not decide it.
 
 ### Statuses
 
@@ -54,7 +54,7 @@ board schedules
 ### `board schedule`
 
 ```text
-board schedule [--priority p] [--model m] [--effort e] [--icon i] [--lane l] [--auto-done] [--agent a] [--title t] [--hold | --backlog]
+board schedule [--priority p] [--model m] [--effort e] [--icon i] [--label l]... [--lane l] [--auto-done] [--agent a] [--title t] [--hold | --backlog]
                [--in <dur> | --at <time>] [--every <dur> | --cron "<expr>" ... | --after <schedule> [--delay <dur>]]
                [--times <n> | --until <time>] [--max-concurrent <n>] [--polish] [--new]
                [--key <key> [--version <v>]] <prompt...>
@@ -70,6 +70,7 @@ The board's flags come first. Everything from the first other word on is the pro
 | `--model`                      | The Claude model of the task's runs. See [Model](#model).                                                                   |
 | `--effort`                     | The effort level of the task's runs. See [Effort](#effort).                                                                 |
 | `--icon`                       | One emoji at the left of the card's title. See [Icon](#icon).                                                               |
+| `--label`                      | A label shown on the card; give it once for each label. See [Labels](#labels).                                              |
 | `--lane`                       | The lane of the machine that runs the task. See [Lane](#lane).                                                              |
 | `--auto-done`                  | Lets the agent move the task to Done itself. See [Letting the agent mark a task done](#letting-the-agent-mark-a-task-done). |
 | `--agent`                      | Runs the task as a named agent. See [Choosing an agent](#choosing-an-agent).                                                |
@@ -112,6 +113,26 @@ A task can show one emoji at the left of its title on the board card, before its
 The picker lists every emoji by group with a search box, and the ones you picked last on top under **Recently used** (up to 24, kept in this browser). **Remove icon** takes the icon off.
 
 From a terminal, `board schedule --icon <emoji>` and `board add --icon <emoji>` set it on a new task, `board task <task> set icon <emoji>` and `unset icon` change it later, and `board schedules edit <id> --icon <emoji>` (`none` removes it) changes a schedule's. Anything but exactly one emoji is refused. The icon is sealed like the title. One that cannot be decrypted shows as no icon and does not stop the task from running.
+
+### Labels
+
+A task can carry labels of your own, shown as small tag badges on the board card and on the task page, after the label of its skill. They are yours to choose: nothing reads them to decide how a task runs. With a repeat, every task the schedule makes carries them.
+
+- **On the board.** A tag button at the end of the card's badges shows while you hover the card or focus the button. It opens a field that lists the card's labels and offers the ones other cards on the board use, without opening the task.
+- **On the task page.** The same tag button sits after the badges under the title.
+- **In the New task form.** A **Labels** field.
+
+In the field, Enter or a comma adds a label, and its ✕ or Backspace removes one. Every change is saved at once.
+
+A label is up to 32 letters, digits, spaces and the characters `- _ . : / # +`, and starts with a letter or a digit. A task takes up to 16. Spaces around a label are dropped, and a label that differs from another only in case is kept once.
+
+From a terminal:
+
+- `board schedule --label <label>` and `board add --label <label>`, once for each label, set them on a new task.
+- `board task <task> set labels <label...>` replaces a task's labels. `unset labels` removes them.
+- `board schedules edit <id> --label <label>` replaces a schedule's labels. `--label none` removes them.
+
+`board tasks` lists a task's labels in brackets after its title, with the label of its skill first. The labels are sealed like the title. Ones that cannot be decrypted show as no labels and do not stop the task from running.
 
 ### Lane
 
@@ -177,6 +198,7 @@ When you requeue the existing task:
 
 - status, priority, model and effort (`default` for claude's)
 - its icon (`none` without one)
+- its labels (`none` without any)
 - the lane it asks for (`default` for none), and the lane it runs in while it runs
 - whether its agent may mark it done (`auto-done`)
 - agent and who made it
@@ -200,10 +222,12 @@ A directory on this machine that the `dirs` list does not cover is marked "not l
 | `board task <task> unset auto-done`                          | Same as `off`.                                                                                           |
 | `board task <task> set icon <emoji>`                         | One emoji at the left of the card's title. Applies at once, in every status.                             |
 | `board task <task> unset icon`                               | Removes the icon.                                                                                        |
+| `board task <task> set labels <label...>`                    | Replaces the task's labels; quote a label with spaces. Applies at once, in every status.                 |
+| `board task <task> unset labels`                             | Removes the labels.                                                                                      |
 | `board task <task> set dir [path]`                           | Pins the task to this machine and a directory. The default is the current one.                           |
 | `board task <task> unset dir`                                | Removes the directory and the pin. Any machine takes the task in its default directory.                  |
 
-Priority, model, effort, auto-done and icon changes work in every status; a lane change works in every status but Running. A model, effort, lane, auto-done, icon or directory change writes no note.
+Priority, model, effort, auto-done, icon and labels changes work in every status; a lane change works in every status but Running. A model, effort, lane, auto-done, icon, labels or directory change writes no note.
 
 `set dir` accepts relative paths and `~`, and resolves symlinks. With a `dirs` list on this machine the directory must be listed, as for `board schedule`.
 
@@ -212,7 +236,7 @@ Priority, model, effort, auto-done and icon changes work in every status; a lane
 - A running or waiting task refuses a directory change. Stop it first.
 - The new directory also becomes the one **Re-run fresh** goes back to.
 
-On a card of a repeating schedule, a change applies to that card only. The next occurrence takes priority, model, effort, lane, auto-done setting, icon, machine and directory from the schedule again. The command says so, and so does the task page.
+On a card of a repeating schedule, a change applies to that card only. The next occurrence takes priority, model, effort, lane, auto-done setting, icon, labels, machine and directory from the schedule again. The command says so, and so does the task page.
 
 `set` and `unset` are refused inside a board run, because an agent does not move a task, pick its model or grant itself the permission to finish it. Viewing works there.
 
@@ -322,6 +346,7 @@ The confirmation names the schedule and says its first task is made when a task 
 | `--lane <name>`                                                                  | The lane of the machine that runs the tasks; `default` is that machine's default lane. Needs the server feature `task.lane` besides `schedule.update`.                                                            |
 | `--auto-done on\|off`                                                            | Whether the agent may move the cards to Done itself.                                                                                                                                                              |
 | `--icon <emoji>`                                                                 | One emoji for the cards of the schedule; `none` removes it. Needs the server feature `task.icon` besides `schedule.update`.                                                                                       |
+| `--label <label>`                                                                | A label for the cards of the schedule; give it once for each, and the ones given replace the old ones. `--label none` removes them. Needs the server feature `task.labels` besides `schedule.update`.             |
 | `--agent <name>`                                                                 | The agent, from this machine's `config.json` when the schedule runs here; `none` clears it.                                                                                                                       |
 | `--dir <path>`                                                                   | Pins the schedule to this machine and that directory, which must be listed in `board dirs` (as `board task <id> set dir` does); `none` is no machine and no directory.                                            |
 | `--every <duration>`, `--cron <expr>`, `--after <schedule> [--delay <duration>]` | The repeat; give at most one, and it replaces the old repeat. `--cron` can be given up to 10 times, in this machine's time zone. `--delay` alone changes the delay of a schedule that already runs after another. |
@@ -787,7 +812,7 @@ The dispatcher of every machine where `gh` is installed looks the state up on Gi
 An agent can propose follow-up work:
 
 ```text
-board add --title <t> --file <path> --parent <task> [--priority <p>] [--lane <name>] [--icon <emoji>] [--here]
+board add --title <t> --file <path> --parent <task> [--priority <p>] [--lane <name>] [--icon <emoji>] [--label <label>]... [--here]
 ```
 
 The file is the new task's prompt. Without `--priority` a proposal takes its parent's priority. It runs on the proposing agent's machine, in the working directory of its parent: the directory the parent's run started in when the parent is the proposing run's own task, else the parent's directory on the board. So a proposal made from a worktree runs in the checkout the parent belongs to. `--here` proposes in the agent's current directory instead, and so does a proposal without `--parent`, or one whose parent has no directory on this machine, one that no longer exists or one outside the machine's `dirs` list. Without `--lane` it asks for no lane, so it runs in the default lane once you start it: it does not take the lane of the task that proposed it.

@@ -155,13 +155,15 @@ function dryTask(draft: TaskDraft): Task {
     model,
     effort,
     icon,
+    labels,
     lane,
     autoDone,
     ...fields
   } = draft;
   return {
     ...fields,
-    labels: taskLabels({ input: draft.input, createdBy: createdBy ?? 'user' }),
+    skillLabels: taskLabels({ input: draft.input, createdBy: createdBy ?? 'user' }),
+    labels: labels ?? [],
     unreadable: [],
     status: createdBy === 'agent' ? 'needs-me' : (draft.status ?? 'todo'),
     priority: draft.priority ?? 'normal',
@@ -220,6 +222,7 @@ export function dryRunBackend(inner: Backend, print: (line: string) => void): Ba
               ...(draft.autoDone === undefined ? {} : { autoDone: draft.autoDone }),
               ...(draft.agent === undefined ? {} : { agent: draft.agent }),
               ...(draft.icon === undefined ? {} : { icon: draft.icon }),
+              ...(draft.labels === undefined ? {} : { labels: draft.labels }),
               ...(draft.machine !== undefined && draft.workdir !== undefined
                 ? { machine: draft.machine, workdir: draft.workdir }
                 : {}),
@@ -239,6 +242,7 @@ export function dryRunBackend(inner: Backend, print: (line: string) => void): Ba
         workdir: draft.workdir ?? null,
         ...(draft.agent === undefined ? {} : { agent: draft.agent }),
         icon: draft.icon ?? null,
+        labels: draft.labels ?? [],
         everyMs: draft.everyMs ?? null,
         cron: draft.cron ?? null,
         ...(draft.moreCrons === undefined || draft.moreCrons.length === 0 ? {} : { moreCrons: draft.moreCrons }),
@@ -283,7 +287,7 @@ export function dryRunBackend(inner: Backend, print: (line: string) => void): Ba
     async configureTask(id, change) {
       const { seal: _seal, ...fields } = change;
       print(`DRY configure-task ${id} ${oneLine(JSON.stringify(fields), 160)}`);
-      const { priority, model, effort, autoDone, icon, place } = change;
+      const { priority, model, effort, autoDone, icon, labels, place } = change;
       const task = await inner.getTask(id);
       return {
         ...task,
@@ -292,6 +296,7 @@ export function dryRunBackend(inner: Backend, print: (line: string) => void): Ba
         ...(effort === undefined ? {} : { effort }),
         ...(autoDone === undefined ? {} : { autoDone }),
         ...(icon === undefined ? {} : { icon }),
+        ...(labels === undefined ? {} : { labels }),
         ...(place === undefined ? {} : { workdir: place?.workdir ?? null, sessionId: null, next: 'fresh' as const }),
       };
     },

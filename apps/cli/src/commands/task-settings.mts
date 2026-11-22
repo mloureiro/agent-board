@@ -1,5 +1,5 @@
 // `board task <task> [set <key> <value> | unset <key>]`: the settings of a task after it was made. Without an action it prints
-// them; `set` and `unset` change the priority, the model, the effort, the lane, whether the agent may mark it done, the icon and the directory the task runs in (which pins it to this machine).
+// them; `set` and `unset` change the priority, the model, the effort, the lane, whether the agent may mark it done, the icon, the labels and the directory the task runs in (which pins it to this machine).
 import { resolve } from 'node:path';
 import {
   defaultTitle,
@@ -21,9 +21,19 @@ import type { Config } from '../config/config.mts';
 import { isAllowedDir, isDirectory, tryRealpath } from '../config/dirs.mts';
 import { pinnedMachine } from '../dispatch/decide.mts';
 import { plainLine } from '../output/terminal.mts';
-import { localTime } from './schedule.mts';
+import { checkedLabels, localTime } from './schedule.mts';
 
-export const SETTING_KEYS = ['priority', 'model', 'effort', 'lane', 'auto-done', 'icon', 'dir', 'prompt'] as const;
+export const SETTING_KEYS = [
+  'priority',
+  'model',
+  'effort',
+  'lane',
+  'auto-done',
+  'icon',
+  'labels',
+  'dir',
+  'prompt',
+] as const;
 export type SettingKey = (typeof SETTING_KEYS)[number];
 
 export interface TaskSettingsDeps {
@@ -77,6 +87,7 @@ export function formatSettings(deps: TaskSettingsDeps, task: Task): string[] {
     ['lane', laneLine(task)],
     ['auto-done', task.autoDone ? 'on: the agent may move it to Done' : 'off'],
     ['icon', task.icon ?? 'none'],
+    ['labels', task.labels.length === 0 ? 'none' : plainLine(task.labels.join(', '))],
     ['agent', isUnreadable(task, 'agent') ? UNREADABLE : task.agent == null ? 'none' : plainLine(task.agent)],
     ['created by', task.createdBy],
     ['machine', machineLine(task)],
@@ -114,7 +125,7 @@ function confirmed(deps: TaskSettingsDeps, line: string): void {
 function noteSchedule(deps: TaskSettingsDeps, task: Task): void {
   if (task.scheduleId !== null)
     deps.print(
-      'note: this card belongs to a schedule; the change applies to it only, and the next occurrence takes priority, model, effort, lane, auto-done, icon, machine and directory from the schedule again',
+      'note: this card belongs to a schedule; the change applies to it only, and the next occurrence takes priority, model, effort, lane, auto-done, icon, labels, machine and directory from the schedule again',
     );
 }
 
@@ -173,6 +184,26 @@ export async function setIcon(deps: TaskSettingsDeps, id: string, icon: string |
   });
   noteSchedule(deps, task);
   confirmed(deps, icon === undefined ? `${id} has no icon now` : `${id} has the icon ${icon} now`);
+}
+
+/** The whole list of labels, replacing the task's; an empty list removes them. */
+export async function setLabels(deps: TaskSettingsDeps, id: string, values: readonly string[]): Promise<void> {
+  const labels = checkedLabels(values);
+  const task = await deps.backend.getTask(id);
+  const shown = plainLine(labels.join(', '));
+  if (task.labels.join('\n') === labels.join('\n'))
+    return deps.print(labels.length === 0 ? `${id} already has no labels` : `${id} already has the labels ${shown}`);
+  await deps.backend.configureTask(id, {
+    labels,
+    seal: {
+      createdBy: task.createdBy,
+      scheduleId: task.scheduleId,
+      agent: task.agent ?? null,
+      forkOf: task.forkOf ?? null,
+    },
+  });
+  noteSchedule(deps, task);
+  confirmed(deps, labels.length === 0 ? `${id} has no labels now` : `${id} has the labels ${shown} now`);
 }
 
 /** A lane name, or undefined for the default lane. A running task keeps the lane it started in, so it is refused. */

@@ -18,4 +18,5 @@ export * from './watches.mts';
 export * from './archive.mts';
 export * from './sharedAgents.mts';
 export * from './linkRules.mts';
+export * from './titleRules.mts';
 export * from './agentGrants.mts';

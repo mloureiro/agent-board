@@ -39,6 +39,7 @@ const task = (overrides: Partial<ListedTask>): ListedTask =>
     borrowed: false,
     unreadable: [],
     invalid: [],
+    skillLabels: [],
     labels: [],
     lastNote: null,
     createdAt: new Date().toISOString(),
@@ -251,5 +252,58 @@ describe('TaskCard icon', () => {
     renderCard({ icon: '🐛' });
     expect(screen.getByRole('img', { name: 'Task icon' })).toHaveTextContent('🐛');
     expect(screen.queryByRole('button', { name: /icon/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('TaskCard labels', () => {
+  const renderWithEditor = (overrides: Partial<ListedTask>, onLabelsChange = vi.fn()) => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <MantineProvider>
+          <Routes>
+            <Route
+              path="/"
+              element={
+                <TaskCard
+                  task={task(overrides)}
+                  draggable={false}
+                  dragging={false}
+                  onDragStart={() => {}}
+                  onDragEnd={() => {}}
+                  onDragOver={() => {}}
+                  onLabelsChange={onLabelsChange}
+                  labelSuggestions={[]}
+                />
+              }
+            />
+            <Route path="/t/:id" element={<p>Task page</p>} />
+          </Routes>
+        </MantineProvider>
+      </MemoryRouter>,
+    );
+    return { onLabelsChange };
+  };
+
+  it('shows the user’s labels as badges after the derived ones', () => {
+    renderCard({ skillLabels: ['review-pr'], labels: ['bug', 'ui'] });
+    expect(screen.getByText('review-pr')).toBeInTheDocument();
+    expect(screen.getByLabelText('Label bug')).toHaveTextContent('bug');
+    expect(screen.getByLabelText('Label ui')).toHaveTextContent('ui');
+    expect(screen.queryByRole('button', { name: /labels/i })).not.toBeInTheDocument();
+  });
+
+  it('opens the editor without opening the task', async () => {
+    renderWithEditor({ labels: ['bug'] });
+    const trigger = screen.getByRole('button', { name: 'Edit labels' });
+    expect(trigger).toHaveClass('labels-add');
+    await userEvent.click(trigger);
+    expect(screen.queryByText('Task page')).not.toBeInTheDocument();
+    expect(await screen.findByRole('combobox', { name: 'Labels', hidden: true })).toBeInTheDocument();
+    expect(screen.queryByText('Task page')).not.toBeInTheDocument();
+  });
+
+  it('offers to add labels on a card without any', () => {
+    renderWithEditor({ labels: [] });
+    expect(screen.getByRole('button', { name: 'Add labels' })).toBeInTheDocument();
   });
 });

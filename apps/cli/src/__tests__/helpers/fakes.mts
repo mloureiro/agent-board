@@ -22,12 +22,13 @@ import {
   seal,
   SERVER_FEATURES,
   sealFields,
+  sealLabels,
   sealPr,
   sealWatches,
   taskLabels,
   textBeforeEdit,
 } from '@agent-board/shared';
-import type { Sealer } from '@agent-board/shared';
+import type { RowRef, Sealer } from '@agent-board/shared';
 import type {
   Backend,
   MachineCatalog,
@@ -46,6 +47,7 @@ export function task(overrides: Partial<Task> & { id: string }): Task {
   return {
     title: `task ${overrides.id}`,
     input: '',
+    skillLabels: [],
     labels: [],
     status: 'todo',
     priority: 'normal',
@@ -103,6 +105,7 @@ export function schedule(overrides: Partial<Schedule> & { id: string }): Schedul
     model: null,
     effort: null,
     icon: null,
+    labels: [],
     requestedLane: null,
     autoDone: false,
     machine: null,
@@ -298,7 +301,7 @@ export function fakeBackend(tasks: Task[]): FakeBackend {
     async configureTask(id, change) {
       const found = state.tasks.find((t) => t.id === id);
       if (!found) throw new BackendError(`configure-task: no task ${id}`, 404, true);
-      const { priority, model, effort, lane, autoDone, icon, place } = change;
+      const { priority, model, effort, lane, autoDone, icon, labels, place } = change;
       if (lane !== undefined && found.status === 'running') {
         state.writes.push(`configure ${id} refused: running`);
         throw new BackendError('the task is running: it keeps its lane until its next start.', 409, true);
@@ -311,6 +314,7 @@ export function fakeBackend(tasks: Task[]): FakeBackend {
       if (model !== undefined) state.writes.push(`model ${id}: ${model ?? 'default'}`);
       if (effort !== undefined) state.writes.push(`effort ${id}: ${effort ?? 'default'}`);
       if (icon !== undefined) state.writes.push(`icon ${id}: ${icon ?? 'none'}`);
+      if (labels !== undefined) state.writes.push(`labels ${id}: ${labels.length === 0 ? 'none' : labels.join(',')}`);
       if (lane !== undefined) state.writes.push(`lane ${id}: ${lane ?? 'default'}`);
       if (autoDone !== undefined) state.writes.push(`auto-done ${id}: ${autoDone ? 'on' : 'off'}`);
       if (place !== undefined) state.writes.push(`place ${id}: ${place === null ? 'none' : place.workdir}`);
@@ -319,6 +323,7 @@ export function fakeBackend(tasks: Task[]): FakeBackend {
         ...(model === undefined ? {} : { model }),
         ...(effort === undefined ? {} : { effort }),
         ...(icon === undefined ? {} : { icon }),
+        ...(labels === undefined ? {} : { labels }),
         ...(lane === undefined ? {} : { requestedLane: lane }),
         ...(autoDone === undefined ? {} : { autoDone }),
         ...(place === undefined
@@ -569,7 +574,7 @@ export function fakeBackend(tasks: Task[]): FakeBackend {
         `add-schedule ${draft.title} | ${draft.input} | ${draft.everyMs ?? (draft.after ? 'after' : `${draft.cron} ${draft.timezone}`)}` +
           `${draft.startAt ? ` | start ${draft.startAt.toISOString()}` : ''}${draft.times ? ` | times ${draft.times}` : ''}` +
           `${draft.until ? ` | until ${draft.until.toISOString()}` : ''}${draft.machine ? ` | ${draft.machine}:${draft.workdir}` : ''}` +
-          `${draft.model ? ` | model ${draft.model}` : ''}${draft.effort ? ` | effort ${draft.effort}` : ''}${draft.icon ? ` | icon ${draft.icon}` : ''}${draft.lane ? ` | lane ${draft.lane}` : ''}${draft.agent ? ` | agent ${draft.agent}` : ''}${draft.autoDone ? ' | auto-done' : ''}` +
+          `${draft.model ? ` | model ${draft.model}` : ''}${draft.effort ? ` | effort ${draft.effort}` : ''}${draft.icon ? ` | icon ${draft.icon}` : ''}${draft.labels?.length ? ` | labels ${draft.labels.join(',')}` : ''}${draft.lane ? ` | lane ${draft.lane}` : ''}${draft.agent ? ` | agent ${draft.agent}` : ''}${draft.autoDone ? ' | auto-done' : ''}` +
           `${draft.moreCrons ? ` | more ${draft.moreCrons.join(' ; ')}` : ''}` +
           `${draft.after ? ` | after ${draft.after.scheduleId} +${draft.after.delayMs ?? 0}` : ''}` +
           `${draft.maxConcurrent ? ` | max ${draft.maxConcurrent}` : ''}`,
@@ -583,6 +588,7 @@ export function fakeBackend(tasks: Task[]): FakeBackend {
             model: draft.model ?? null,
             effort: draft.effort ?? null,
             icon: draft.icon ?? null,
+            labels: draft.labels ?? [],
             requestedLane: draft.lane ?? null,
             autoDone: draft.autoDone ?? false,
             agent: draft.agent ?? null,
@@ -598,6 +604,7 @@ export function fakeBackend(tasks: Task[]): FakeBackend {
         model: draft.model ?? null,
         effort: draft.effort ?? null,
         icon: draft.icon ?? null,
+        labels: draft.labels ?? [],
         requestedLane: draft.lane ?? null,
         autoDone: draft.autoDone ?? false,
         agent: draft.agent ?? null,
@@ -722,7 +729,8 @@ const seals: Sealer = async ({ field, context }, text) => seal(KEYS, field, cont
 // for its schedule).
 export async function wireTask(overrides: Partial<Task> & { id: string }): Promise<WireTask> {
   const {
-    labels: _labels,
+    skillLabels: _skillLabels,
+    labels,
     unreadable: _unreadable,
     title,
     input,
@@ -733,18 +741,15 @@ export async function wireTask(overrides: Partial<Task> & { id: string }): Promi
     watchEvents,
     ...rest
   } = task(overrides);
-  const sealed = await sealFields(
-    seals,
-    {
-      kind: 'task',
-      id: rest.id,
-      createdBy: rest.createdBy,
-      scheduleId: rest.scheduleId,
-      agent: agent ?? null,
-      forkOf: rest.forkOf ?? null,
-    },
-    { title, input, workdir: workdir ?? undefined },
-  );
+  const taskRef: RowRef = {
+    kind: 'task',
+    id: rest.id,
+    createdBy: rest.createdBy,
+    scheduleId: rest.scheduleId,
+    agent: agent ?? null,
+    forkOf: rest.forkOf ?? null,
+  };
+  const sealed = await sealFields(seals, taskRef, { title, input, workdir: workdir ?? undefined });
   const wirePrs = await Promise.all(
     prs.map(async ({ id, url, state }) => ({ id, pr: await sealPr(seals, rest.id, url), state })),
   );
@@ -759,17 +764,24 @@ export async function wireTask(overrides: Partial<Task> & { id: string }): Promi
     prs: wirePrs,
     promptPrState,
     watches: watches === null ? null : await sealWatches(seals, rest.id, watches, watchEvents),
+    ...(labels.length === 0 ? {} : { labels: await sealLabels(seals, taskRef, labels) }),
   };
 }
 
 export async function wireSchedule(overrides: Partial<Schedule> & { id: string }): Promise<WireSchedule> {
-  const { unreadable: _unreadable, title, input, workdir, agent, ...rest } = schedule(overrides);
+  const { unreadable: _unreadable, title, input, workdir, agent, labels, ...rest } = schedule(overrides);
   const sealed = await sealFields(
     seals,
     { kind: 'schedule', id: rest.id, agent: agent ?? null },
     { title, input, workdir: workdir ?? undefined },
   );
-  return { ...rest, ...sealed, workdir: sealed.workdir ?? null };
+  const row: RowRef = { kind: 'schedule', id: rest.id, agent: agent ?? null };
+  return {
+    ...rest,
+    ...sealed,
+    workdir: sealed.workdir ?? null,
+    ...(labels.length === 0 ? {} : { labels: await sealLabels(seals, row, labels) }),
+  };
 }
 
 // The logs and session records of tasks on this machine, in memory.

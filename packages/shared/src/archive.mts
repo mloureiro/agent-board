@@ -20,6 +20,7 @@ import {
   isSafeTaskId,
   isTaskCreator,
   isSharedAgentsVersion,
+  isTitleRulesVersion,
   isWireNoteAuthor,
   rejectUnknownKeys,
 } from './contract.mts';
@@ -29,6 +30,7 @@ import type { KeySlot } from './keys.mts';
 import {
   agentBinding,
   iconBinding,
+  labelsBinding,
   inputBinding,
   machineCatalogBinding,
   machineDirsBinding,
@@ -43,6 +45,7 @@ import {
 } from './sealing.mts';
 import type { Binding, Opener, RowRef, Sealer } from './sealing.mts';
 import { isLinkRulesVersion, linkRulesBinding } from './linkRules.mts';
+import { titleRulesBinding } from './titleRules.mts';
 import { sharedAgentsBinding } from './sharedAgents.mts';
 
 export const EXPORT_FORMAT = 'agent-board-export';
@@ -57,6 +60,7 @@ export const EXPORT_TABLES = [
   'machine',
   'shared_agents',
   'link_rules',
+  'title_rules',
   'transcript_run',
   'transcript_event',
 ] as const;
@@ -182,13 +186,14 @@ type Plan = Record<string, Binding[]>;
 
 /** The sealed (envelope) columns of each table, which a re-seal opens; the server's `SEALED_COLUMNS` must list the same ones. */
 export const SEALED_ROW_COLUMNS: Record<ExportTable, readonly string[]> = {
-  task: ['title', 'input', 'workdir', 'homeWorkdir', 'agent', 'icon', 'watches'],
-  schedule: ['title', 'input', 'workdir', 'agent', 'icon'],
+  task: ['title', 'input', 'workdir', 'homeWorkdir', 'agent', 'icon', 'labels', 'watches'],
+  schedule: ['title', 'input', 'workdir', 'agent', 'icon', 'labels'],
   note: ['body', 'preview', 'suggestion', 'questions', 'answers'],
   task_pr: ['pr'],
   machine: ['dirs', 'catalog', 'usage', 'feeds'],
   shared_agents: ['document'],
   link_rules: ['document'],
+  title_rules: ['document'],
   transcript_run: [],
   transcript_event: ['data', 'output'],
 };
@@ -216,7 +221,7 @@ function taskRef(row: Record<string, unknown>): Extract<RowRef, { kind: 'task' }
   return { kind: 'task', id, createdBy, scheduleId, forkOf };
 }
 
-/** Title, input, directories, agent and icon: the columns tasks and schedules share, bound to the row's origin. */
+/** Title, input, directories, agent, icon and labels: the columns tasks and schedules share, bound to the row's origin. */
 async function contentPlan(ctx: ResealContext, row: Record<string, unknown>, ref: RowRef | undefined): Promise<Plan> {
   if (ref === undefined) return {};
   const agentWire = textOrNull(row['agent']);
@@ -224,6 +229,7 @@ async function contentPlan(ctx: ResealContext, row: Record<string, unknown>, ref
   const plan: Plan = {
     title: bindingsOf(() => [titleBinding(ref)]),
     icon: [iconBinding(ref)],
+    labels: [labelsBinding(ref)],
     workdir: bindingsOf(() => workdirOpenBindings(ref)),
     homeWorkdir: bindingsOf(() => workdirOpenBindings(ref)),
   };
@@ -298,6 +304,10 @@ async function planOf(ctx: ResealContext, table: ExportTable, row: Record<string
     case 'link_rules': {
       const { version } = row;
       return isLinkRulesVersion(version) ? { document: [linkRulesBinding(version)] } : {};
+    }
+    case 'title_rules': {
+      const { version } = row;
+      return isTitleRulesVersion(version) ? { document: [titleRulesBinding(version)] } : {};
     }
     case 'transcript_run':
       return {};

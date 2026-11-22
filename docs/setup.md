@@ -211,7 +211,7 @@ The listener checks the API range each time it connects. When the server no long
 
 ### Feeds and the Feeds page
 
-The CLI adds `board feeds` and a `feeds` key in `config.json` (see [Feeds](usage.md#feeds)). The server adds the feature `machine.feeds`, migrations `0047_machine-sources`, `0048_drop-machine-sources` and `0049_machine-feeds`, and the **Feeds** page. Additive: deploy and release in any order.
+The CLI adds `board feeds` and a `feeds` key in `config.json` (see [Feeds](usage.md#feeds)). The server adds the feature `machine.feeds`, migrations `0047_machine-sources`, `0050_drop-machine-sources` and `0051_machine-feeds`, and the **Feeds** page. Additive: deploy and release in any order.
 
 - Until a machine runs a CLI with feeds, it sends none and the page lists nothing for it.
 - After `board self-update`, restart the watch unit as well as the listener (`board restart watch`), since the watch unit runs the feeds.
@@ -223,6 +223,12 @@ The CLI alone changes: `--ignore <pattern>` on `board watch --ci`, and the `ciIg
 - A watch with ignore patterns is a watch file with one more key. A watch unit that still runs the older CLI reads it and ignores the key, so its `--ci` watch counts the ignored checks again, and it writes the watch back without the key. Restart the unit after updating a checkout install: `board restart watch`. `board self-update` restarts it.
 - An older CLI refuses a config that has `ciIgnore`: `parseConfig` throws `has no setting "ciIgnore"`, and every command that reads the config stops with that error. That includes each dispatch tick (the timer's and the ones the listener starts), every worker, `board watch`, `board dirs` and `board doctor`, so a machine with a stale CLI stops dispatching. The listener and the watch unit themselves do not read config.json, so they keep running, but the ticks the listener starts fail. Add `ciIgnore` only after every CLI on the machine runs the new version: `board self-update`, or on a checkout install `git pull`, `pnpm install` and `board restart`.
 - `--ignore` alone needs no config change.
+
+### A task carries labels
+
+A new server feature, `task.labels`. A task and a schedule take a list of labels, sealed like the title, that the board shows as badges on the card and the task page (see [Labels](usage.md#labels)). The card, the task page and the New task form can change them, and `board schedule --label`, `board add --label`, `board schedules edit --label` and `board task <task> set labels` set them. A migration adds a `labels` column to `task` and `schedule`. Nothing changes for the tasks you have, and no version number is raised.
+
+Update the server first. A server without `task.labels` makes the flags refuse with "the board server does not support task labels yet; update the board server", and nothing else changes. A machine on an older CLI ignores the field, and labels never change how a task runs.
 
 ### A task shows an icon
 
