@@ -74,7 +74,8 @@ function recorder(answer: (call: Call) => string | Error = () => '') {
   return { calls, run };
 }
 
-const failed = (message: string, stdout?: string): Error => Object.assign(new Error(message), { stdout, stderr: '' });
+const failed = (message: string, stdout?: string, stderr = ''): Error =>
+  Object.assign(new Error(message), { stdout, stderr });
 
 test('the unit queries run systemctl --user with the arguments they need', async () => {
   const { calls, run } = recorder(({ args }) => {
@@ -218,12 +219,22 @@ test('startWorker gives no PID when systemctl show fails or reports none, and fa
   assert.equal(calls.length, 1, 'no PID is asked for a unit that did not start');
 });
 
+const killArgs = (option: string): string[] => ['--user', 'kill', option, '--signal=SIGUSR2', 'agent-board-Ab3dEf9x'];
+
+const unitNotLoaded =
+  'Failed to kill unit agent-board-Ab3dEf9x.service: Unit agent-board-Ab3dEf9x.service not loaded.\n';
+
+const refusedOption = (): Error =>
+  failed(
+    'Command failed: systemctl --user kill --kill-whom=main --signal=SIGUSR2 agent-board-Ab3dEf9x',
+    '',
+    "systemctl: unrecognized option '--kill-whom=main'\n",
+  );
+
 test('signalWorker sends the signal to the unit main process only, and a dry run only prints the line', async () => {
-  const { calls, run } = recorder(() => failed('not loaded'));
+  const { calls, run } = recorder();
   await createSystem({ dryRun: false, print: () => undefined, run }).signalWorker('agent-board-Ab3dEf9x', 'SIGUSR2');
-  assert.deepEqual(calls, [
-    { file: 'systemctl', args: ['--user', 'kill', '--kill-whom=main', '--signal=SIGUSR2', 'agent-board-Ab3dEf9x'] },
-  ]);
+  assert.deepEqual(calls, [{ file: 'systemctl', args: killArgs('--kill-whom=main') }]);
   const lines: string[] = [];
   const dry = recorder();
   await createSystem({ dryRun: true, print: (line) => void lines.push(line), run: dry.run }).signalWorker(
@@ -232,4 +243,44 @@ test('signalWorker sends the signal to the unit main process only, and a dry run
   );
   assert.deepEqual(lines, ['DRY systemctl --user kill --kill-whom=main --signal=SIGUSR2 agent-board-x']);
   assert.deepEqual(dry.calls, []);
+});
+
+test('signalWorker repeats the call with --kill-who when systemctl refuses --kill-whom', async () => {
+  let first = true;
+  const { calls, run } = recorder(() => {
+    if (!first) return '';
+    first = false;
+    return refusedOption();
+  });
+  await createSystem({ dryRun: false, print: () => undefined, run }).signalWorker('agent-board-Ab3dEf9x', 'SIGUSR2');
+  assert.deepEqual(calls, [
+    { file: 'systemctl', args: killArgs('--kill-whom=main') },
+    { file: 'systemctl', args: killArgs('--kill-who=main') },
+  ]);
+});
+
+test('signalWorker does not retry a failure that is not the refused option', async () => {
+  const { calls, run } = recorder(() =>
+    failed(
+      'Command failed: systemctl --user kill --kill-whom=main --signal=SIGUSR2 agent-board-Ab3dEf9x',
+      '',
+      unitNotLoaded,
+    ),
+  );
+  await createSystem({ dryRun: false, print: () => undefined, run }).signalWorker('agent-board-Ab3dEf9x', 'SIGUSR2');
+  assert.deepEqual(calls, [{ file: 'systemctl', args: killArgs('--kill-whom=main') }]);
+});
+
+test('signalWorker resolves when the --kill-who fallback fails too', async () => {
+  let first = true;
+  const { calls, run } = recorder(() => {
+    if (!first) return failed('Command failed', '', 'Failed to connect to bus: No medium found\n');
+    first = false;
+    return refusedOption();
+  });
+  await createSystem({ dryRun: false, print: () => undefined, run }).signalWorker('agent-board-Ab3dEf9x', 'SIGUSR2');
+  assert.deepEqual(calls, [
+    { file: 'systemctl', args: killArgs('--kill-whom=main') },
+    { file: 'systemctl', args: killArgs('--kill-who=main') },
+  ]);
 });
