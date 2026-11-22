@@ -16,6 +16,7 @@ import {
   openNote,
   openPrs,
   openSharedAgents,
+  openTitleRules,
   openWatches,
   headIndex,
   parsePolish,
@@ -35,6 +36,7 @@ import {
   sealSharedAgents,
   sealWatches,
   sealTitle,
+  titleBinding,
   sealWorkdir,
   taskLabels,
   textBeforeEdit,
@@ -449,6 +451,31 @@ export function sealingBackend(inner: WireBackend, keys: Keys | (() => Promise<K
         throw invalid('set-agents', 'the version must be one more than the version it replaces');
       const sealed = await checked('set-agents', () => sealSharedAgents(sealer, document));
       await inner.setAgents({ document: sealed, version: document.version, expectedVersion });
+    },
+    async getTitleRules() {
+      const wire = await inner.getTitleRules();
+      if (wire === null) return null;
+      const document = await openTitleRules(openerFor(await getKeys()), wire.version, wire.document);
+      return document === undefined
+        ? { version: wire.version, unreadable: true }
+        : { version: wire.version, rules: document.rules };
+    },
+    async applyTitleRule(id, change) {
+      const wire = await inner.getTask(id);
+      const row = taskRef(wire);
+      const opener = openerFor(await getKeys());
+      const stillDefault =
+        change.title !== undefined && (await opener(titleBinding(row), wire.title)) === change.title.expect;
+      const sealed = await checked('apply-title-rule', async () => ({
+        ...(change.icon === undefined || (wire.icon ?? null) !== null
+          ? {}
+          : { icon: await sealIcon(sealer, row, change.icon) }),
+        ...(change.title === undefined || !stillDefault
+          ? {}
+          : { title: await sealTitle(sealer, row, change.title.text), expectTitle: wire.title }),
+      }));
+      if (sealed.icon === undefined && sealed.title === undefined) return { icon: false, title: false };
+      return inner.applyTitleRule(id, sealed);
     },
     async pause(id, note) {
       return opened(await inner.pause(id, await noteInput('pause', id, 'system', note.trim())), openTask);

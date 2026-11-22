@@ -13,6 +13,8 @@ import {
   parseWireSchedule,
   parseWireSchedules,
   parseWireSharedAgents,
+  parseWireTitleRuleResult,
+  parseWireTitleRules,
   parseWireTask,
   parseWireTasks,
   SERVER_FEATURE_LABELS,
@@ -98,6 +100,8 @@ const COMMAND_FEATURES: Partial<Record<string, ServerFeature>> = {
   'ack-source-requests': 'machine.sources',
   'get-agents': 'agents.shared',
   'set-agents': 'agents.shared',
+  'get-title-rules': 'task.title-rules',
+  'apply-title-rule': 'task.title-rules',
 };
 
 // The commands a run makes for its own task that the server checks against the task's current run (`task.run`).
@@ -111,6 +115,7 @@ const RUN_COMMANDS: ReadonlySet<string> = new Set([
   'run-inbox',
   'ack-messages',
   'stopped',
+  'apply-title-rule',
 ]);
 
 export function createWebBackend(options: WebBackendOptions): WebBackend {
@@ -346,6 +351,8 @@ export function createWebBackend(options: WebBackendOptions): WebBackend {
     ackSourceRequests: async (body) => send('ack-source-requests', { body }),
     getAgents: async () => call('get-agents', {}, parseWireSharedAgents),
     setAgents: async (body) => send('set-agents', { body }),
+    getTitleRules: async () => call('get-title-rules', {}, parseWireTitleRules),
+    applyTitleRule: async (id, body) => call('apply-title-rule', { id: taskId(id), body }, parseWireTitleRuleResult),
     agentsState: async () => {
       const { features, agentsVersion } = await connect();
       return { supported: features.has('agents.shared'), version: agentsVersion };
