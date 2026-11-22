@@ -25,6 +25,7 @@ const SUMMARY = {
   machines: 2,
   sharedAgents: 1,
   linkRules: 1,
+  titleRules: 0,
   transcriptRuns: 7,
   transcriptEvents: 900,
   running: 0,

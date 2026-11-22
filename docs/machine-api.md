@@ -150,6 +150,7 @@ Capabilities and vocabulary have names. An additive change then needs no version
 | `agents.shared`           | The `get-agents` and `set-agents` commands and `agentsVersion` in the `version` answer, see [Shared agents](#shared-agents).                    |          |
 | `task.effort`             | The `effort` key of `add-task`, `add-schedule`, `configure-task` and the `settings` of `edit-schedule`, and the field of a task and a schedule. |          |
 | `task.icon`               | The `icon` key of `add-task`, `add-schedule`, `configure-task` and the `settings` of `edit-schedule`, and the field of a task and a schedule.   |          |
+| `task.title-rules`        | The `get-title-rules` and `apply-title-rule` commands, see [Title rules](#title-rules).                                                         |          |
 
 - The baseline (`BASELINE_SERVER_FEATURES`) is what the server of contract 9 has. A server that answers no `features` key is taken to have exactly the baseline.
 - A new server capability appends its name to `ADDED_SERVER_FEATURES` in the same commit that implements it.
@@ -230,6 +231,7 @@ The stream says "look at the board again" and carries no data. The CLI then read
 **What sends an event.** `event: tasks` with an empty `data:` follows a committed change to a task or a schedule:
 
 - these commands: `add-task`, `update-task`, `configure-task`, `claim-task`, `add-note`, `add-pr`, `remove-pr`, `set-pr`, `ask`, `pause`, `stopped`, `fail`, `wait`, `wake`, `edit-prompt`, `add-schedule`, `update-schedule`, `edit-schedule` and `remove-schedule`;
+- `apply-title-rule`, only when it stored an icon or a title;
 - `set-agents`, so that every machine's listener ticks and applies the new version at once;
 - any change to a task or schedule from the UI.
 
@@ -240,7 +242,7 @@ A failed or rolled back call sends nothing.
 - `heartbeat` and `transcript`, which every running task sends every 15 seconds.
 - `set-dirs`, `set-catalog`, `set-usage`, `set-sources` and `ack-source-requests`, which change no dispatch decision.
 - `set-pr-states` and `set-pr-state`, `run-inbox` and `ack-messages`.
-- The reads: `version`, `list-tasks`, `get-task`, `attach-session`, `read-notes`, `list-schedules` and `get-agents`.
+- The reads: `version`, `list-tasks`, `get-task`, `attach-session`, `read-notes`, `list-schedules`, `get-agents` and `get-title-rules`.
 - The UI's changes to machines and keys.
 - The hourly cleanup that closes old Done tasks and deletes old transcripts. The 2-minute timer covers those.
 
@@ -283,7 +285,7 @@ The machine fence (`machine`) cannot tell two runs on the same machine apart. Wh
 - The agent's `board` sends it with its calls for that task, and not for any other.
 - Both send it only to a server whose `features` name `task.run`.
 
-**Commands that act only in their run.** `heartbeat`, `pause`, `wait`, `fail`, `ask`, `stopped`, `run-inbox` and `ack-messages` with `run` act only while the task runs in that run. Another run gets the answer the command gives a task that is not running:
+**Commands that act only in their run.** `heartbeat`, `pause`, `wait`, `fail`, `ask`, `stopped`, `run-inbox`, `ack-messages` and `apply-title-rule` with `run` act only while the task runs in that run. Another run gets the answer the command gives a task that is not running:
 
 - 409 `the task is running in a later run, not in this one`,
 - `applied: false` for `fail`,
@@ -675,6 +677,8 @@ A resume prompt is built from the `user` notes after the last `agent` note. Two 
 | `ack-source-requests` | `body`: `{"requests"}`, at most 150                                                                                                                                                                                                           | `null`                                                                                                  |
 | `get-agents`          | -                                                                                                                                                                                                                                             | `{"version", "document"}`, or `null`                                                                    |
 | `set-agents`          | `body`: `{"document", "version", "expectedVersion"}`                                                                                                                                                                                          | `null`, or 409                                                                                          |
+| `get-title-rules`     | -                                                                                                                                                                                                                                             | `{"version", "document"}`, or `null`                                                                    |
+| `apply-title-rule`    | `id`, `run`, `body`: `{"icon"?, "title"?, "expectTitle"?}`                                                                                                                                                                                    | `{"icon": bool, "title": bool}`, or 409                                                                 |
 | `heartbeat`           | `id`, `body`: `{"lane": string, "borrowed": bool}`                                                                                                                                                                                            | `null`                                                                                                  |
 | `pause`               | `id`, `body`: `{"body", "preview"?}`                                                                                                                                                                                                          | the updated `Task`                                                                                      |
 | `fail`                | `id`, `body`: `{"body", "preview"?}`                                                                                                                                                                                                          | `{"applied": bool, "task": Task}`                                                                       |
@@ -1086,6 +1090,39 @@ Compare-and-set. The server stores the document only while its stored version is
 - It sends the `tasks` event.
 
 Only the CLI writes the document (`board agents push`, `board agents rm --board`); the browser never writes it. The browser reads it with `agents.shared`, a call of its own outside the machine API: `{"version", "document", "pushedAt"}` of the user's row, or `null`. It opens the document under `agents:v<version>` as a machine does and computes each agent's hash to compare with the hashes in the machines' catalogues (`machines.catalogs`). There is no browser call that writes it. Export and import of the account carry the row as the table `shared_agents`; an import into a board that has its own keeps the board's.
+
+### Title rules
+
+The rules that give a new task an icon and say how its title is written (see [The title rules](encryption.md#the-title-rules)). Like the shared agents they are one sealed document per user, but the user writes them in the browser and every machine's CLI reads them.
+
+```json
+{ "version": 3, "rules": [{ "pattern": "^/review ", "flags": "i", "icon": "🔎", "instruction": "…" }] }
+```
+
+- The document is sealed as `titles` with the context `titles:v<version>`. The server keeps `version` in the clear beside it, so a save is compare-and-set and the server cannot hand an old document out as a newer one.
+- At most 50 rules and 512 KiB. A pattern has at most 300 characters and an instruction at most 2000. The server checks only that the document is a sealed value of that size.
+
+#### `get-title-rules`
+
+No body. The answer is `{"version": 3, "document": "abe1.…"}`, or `null` when the user saved none. Any machine of the user may read it.
+
+Only the browser writes the document, with `titleRules.set` (compare-and-set on `expectedVersion`, 409 when another save came first). The browser reads it with `titleRules.get`: `{"version", "document", "updatedAt"}` or `null`. Both are calls of their own outside the machine API, and no machine command writes the document. Export and import of the account carry the row as the table `title_rules`; an import into a board that has its own keeps the board's.
+
+#### `apply-title-rule`
+
+```json
+{ "id": "<task>", "run": "<run id>", "body": { "icon": "abe1.…", "title": "abe1.…", "expectTitle": "abe1.…" } }
+```
+
+Stores a sealed icon and/or title on the task the run belongs to. This is not `configure-task`: it never replaces what the user set, and it acts only for its run.
+
+- `icon` is sealed as `icon` under the task's binding. It is stored only while the task has no icon.
+- `title` is sealed as `title` under the task's binding. It needs `expectTitle`, the `title` envelope the caller opened and found to be the default, and `expectTitle` is refused without `title`. The title is stored only while the task still holds exactly that envelope, so a rename in the browser in between is not overwritten.
+- At least one of `icon` and `title`. Any other key is 400.
+- `run` is required: without it the answer is 400 `run is required`. The call acts only while the task is not running in a later run (409 `the task is running in a later run, not in this one`). A run that ended may still apply, since a short run can end before its title is written.
+- A schedule's occurrence is 409, with the message of a rename: it takes its title and icon from its schedule.
+- The answer is `{"icon": bool, "title": bool}`, each saying whether that part was stored. A part that was not stored is not an error.
+- It writes no note, changes neither the status nor the position, and sends the `tasks` event only when something was stored.
 
 ### Run control
 

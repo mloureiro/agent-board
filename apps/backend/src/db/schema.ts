@@ -473,6 +473,26 @@ export const linkRules = pgTable(
   ],
 ).enableRLS();
 
+/**
+ * The title rules the user set in the browser: one sealed document of all of them per user, bound to its version (`titles`,
+ * context `titles:v<version>`), read by the browser and by every machine's CLI. The version is clear so that a save is
+ * compare-and-set; it only goes up, one per save.
+ */
+export const titleRules = pgTable(
+  'title_rules',
+  {
+    owner: owner().primaryKey(),
+    version: integer('version').notNull(),
+    document: text('document').notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check('title_rules_document_sealed', isEnvelope(t.document)),
+    check('title_rules_version_positive', sql`${t.version} >= 1`),
+    tenant(),
+  ],
+).enableRLS();
+
 export const authFlowKind = pgEnum('auth_flow_kind', [
   'oidc',
   'saml',

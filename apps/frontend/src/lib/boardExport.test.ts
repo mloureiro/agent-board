@@ -35,7 +35,7 @@ const base = {
     return SETUP;
   },
   prefs: { 'agent-board.desktopNotifications': 'on' },
-  total: 21,
+  total: 24,
   signal: new AbortController().signal,
   now: NOW,
 };
@@ -55,7 +55,7 @@ describe('buildExport', () => {
       prefs: base.prefs,
     });
     const parsed = rows.map(parseExportRowLine);
-    expect(parsed).toHaveLength(27);
+    expect(parsed).toHaveLength(30);
     expect([...new Set(parsed.map(({ table }) => table))]).toEqual([...EXPORT_TABLES]);
     expect(parsed.slice(0, 3).map(({ row }) => row['id'])).toEqual(['task-1', 'task-2', 'task-3']);
     expect(fetchPage).toHaveBeenCalledWith('task', 'more', base.signal);
@@ -73,8 +73,8 @@ describe('buildExport', () => {
   it('reports rows so far against the total', async () => {
     const onProgress = vi.fn();
     await buildExport({ ...base, includeTranscripts: false, fetchPage: pager(), onProgress });
-    expect(onProgress.mock.calls[0]).toEqual([{ rows: 0, total: 21 }]);
-    expect(onProgress.mock.calls.at(-1)).toEqual([{ rows: 21, total: 21 }]);
+    expect(onProgress.mock.calls[0]).toEqual([{ rows: 0, total: 24 }]);
+    expect(onProgress.mock.calls.at(-1)).toEqual([{ rows: 24, total: 24 }]);
   });
 
   it('stops when cancelled and fetches nothing more', async () => {
@@ -99,6 +99,7 @@ describe('export counts and names', () => {
     machines: 5,
     sharedAgents: 1,
     linkRules: 1,
+    titleRules: 0,
     transcriptRuns: 6,
     transcriptEvents: 7,
     running: 0,
