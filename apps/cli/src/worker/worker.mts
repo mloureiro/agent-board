@@ -42,6 +42,8 @@ import { selfCommand } from '../self/self.mts';
 import { autoCompactSetting, pickEnv, readMcpServers, readSettingsEnv } from './settings-env.mts';
 import { contextWindowsFile, createContextWindowStore } from './context-windows.mts';
 import type { ContextWindowStore } from './context-windows.mts';
+import { autoTitle, haikuTitleWriter } from './auto-title.mts';
+import type { TitleWriter } from './auto-title.mts';
 import { createRunFiles } from './runtime.mts';
 import type { RunFiles } from './runtime.mts';
 import { createSessionStore } from './sessions.mts';
@@ -128,14 +130,19 @@ export interface WorkerDeps extends Context {
   contextWindows?: ContextWindowStore;
   // Makes the backend's calls for the task name this run, so the board refuses them once a later run holds the task.
   bindRun?: (scope: RunScope) => void;
+  // Writes the title a title rule asks for; the step never fails the run.
+  writeTitle: TitleWriter;
 }
 
 export async function runWorker(deps: WorkerDeps, taskId: string): Promise<void> {
   const workerStartedAt = deps.now();
   deps.watches.markLive(taskId, process.pid);
+  const autoTitled: { done?: Promise<void> } = {};
   try {
-    await runTask(deps, taskId, workerStartedAt);
+    await runTask(deps, taskId, workerStartedAt, autoTitled);
   } finally {
+    // The worker process must not end while the title writer's child is still running.
+    await autoTitled.done;
     deps.watches.clearLive(taskId);
   }
 }
@@ -150,7 +157,12 @@ async function forkParentOf(backend: Backend, id: string): Promise<ForkParent | 
   }
 }
 
-async function runTask(deps: WorkerDeps, taskId: string, workerStartedAt: Date): Promise<void> {
+async function runTask(
+  deps: WorkerDeps,
+  taskId: string,
+  workerStartedAt: Date,
+  autoTitled: { done?: Promise<void> },
+): Promise<void> {
   const { backend, config, watches } = deps;
   deps.resetLog(taskId);
   const task = await backend.getTask(taskId);
@@ -658,6 +670,8 @@ async function runTask(deps: WorkerDeps, taskId: string, workerStartedAt: Date):
     await backend.updateTask(task.id, { sessionId: run.sessionId });
   }
   let result: RunResult;
+  // Not awaited: the run never waits for the title.
+  autoTitled.done = autoTitle(deps, task, plan.invocation.cwd);
   const stopListening = deps.watchChanges?.(() => void startLooking());
   const stopAwake = deps.keepAwake?.();
   try {
@@ -847,6 +861,7 @@ export async function workerMain(taskId: string): Promise<void> {
     bindRun: (scope) => {
       run = scope;
     },
+    writeTitle: haikuTitleWriter(),
   };
   try {
     await runWorker(deps, taskId);
