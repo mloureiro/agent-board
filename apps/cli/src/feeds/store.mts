@@ -3,7 +3,7 @@
 //   <name>.json           the last runs and the task of every key it scheduled: the runner only
 //   <name>.lock           the pid of the process running it, so the watch unit and `board feeds run` never run it twice at once
 // The board's keys cannot be read back, so the key → task map is how a feed finds the tasks of items that went away.
-import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { linkSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { isRecord, isFeedId } from '@agent-board/shared';
@@ -118,12 +118,13 @@ export function createFeedStore(
       return undefined;
     }
   };
-  const replace = (target: string, value: unknown): void => {
+  const tempFile = (target: string, value: unknown): string => {
     ensure();
     const temp = `${target}.tmp-${process.pid}-${randomBytes(3).toString('hex')}`;
     writeFileSync(temp, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
-    renameSync(temp, target);
+    return temp;
   };
+  const replace = (target: string, value: unknown): void => renameSync(tempFile(target, value), target);
   const readControl = (name: string): FeedControl => parseFeedControl(readJson(file(name, 'control.json')));
   return {
     readControl,
@@ -131,8 +132,9 @@ export function createFeedStore(
       ensure();
       const target = file(name, 'control.json');
       const fresh = { ...EMPTY_CONTROL, ...patch, id: randomBytes(8).toString('hex') };
+      const temp = tempFile(target, fresh);
       try {
-        writeFileSync(target, `${JSON.stringify(fresh, null, 2)}\n`, { flag: 'wx', mode: 0o600 });
+        linkSync(temp, target);
         return fresh;
       } catch {
         const current = readControl(name);
@@ -140,6 +142,8 @@ export function createFeedStore(
         if (current.id !== undefined && JSON.stringify(merged) === JSON.stringify(current)) return merged;
         replace(target, merged);
         return merged;
+      } finally {
+        rmSync(temp, { force: true });
       }
     },
     readRecord: (name) => parseFeedRecord(readJson(file(name, 'json'))),
@@ -162,10 +166,20 @@ export function createFeedStore(
           const stale = `${target}.stale-${process.pid}-${randomBytes(3).toString('hex')}`;
           try {
             renameSync(target, stale);
-            rmSync(stale, { force: true });
           } catch {
             continue;
           }
+          const moved = Number(readFileSync(stale, 'utf8'));
+          if (moved !== holder) {
+            try {
+              linkSync(stale, target);
+            } catch {
+              // Another process already holds a newer lock; the moved one is superseded.
+            }
+            rmSync(stale, { force: true });
+            return false;
+          }
+          rmSync(stale, { force: true });
         }
       }
       return false;

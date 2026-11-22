@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { BackendError } from '../backend/backend.mts';
@@ -241,6 +241,26 @@ test('a lock naming a dead process is replaced; one naming a live process is not
   assert.deepEqual(readdirSync(dir), ['gh.lock']);
 });
 
+test('a second process that read the same dead pid does not take the lock a first one just made', () => {
+  const dir = join(tempDir(), 'feeds');
+  const lock = join(dir, 'gh.lock');
+  createFeedStore(dir, () => false).lock('other');
+  writeFileSync(lock, '4000000');
+  let interleaved = false;
+  const store = createFeedStore(dir, (pid) => {
+    if (!interleaved && pid === 4000000) {
+      interleaved = true;
+      renameSync(lock, `${lock}.stale-other`);
+      rmSync(`${lock}.stale-other`);
+      writeFileSync(lock, '777', { flag: 'wx' });
+    }
+    return pid === 777;
+  });
+  assert.equal(store.lock('gh'), false);
+  assert.equal(readFileSync(lock, 'utf8'), '777');
+  assert.deepEqual(readdirSync(dir).sort(), ['gh.lock', 'other.lock']);
+});
+
 test('two first writers of a control file end with one id and both patches', () => {
   const dir = join(tempDir(), 'feeds');
   const one = createFeedStore(dir, () => false);
@@ -251,6 +271,7 @@ test('two first writers of a control file end with one id and both patches', () 
   assert.equal(second.id, first.id);
   assert.deepEqual(one.readControl('gh'), { id: first.id, paused: true, runRequestedAt: iso(0) });
   assert.equal(one.updateControl('gh', {}).id, first.id);
+  assert.deepEqual(readdirSync(dir), ['gh.control.json']);
 });
 
 test('an unreadable control file or record reads as empty', () => {

@@ -46,7 +46,6 @@ async function listing(deps: FeedRunDeps, feed: FeedConfig): Promise<FeedItem[] 
   return parsed.ok ? parsed.items : parsed.error;
 }
 
-// A task waits in Todo for a fresh start: no worker took it, and it was not answered, paused or woken.
 const isWaitingFresh = (task: Task | undefined): boolean => task?.status === 'todo' && task.next === 'fresh';
 
 /**
@@ -138,7 +137,6 @@ export async function runFeed(deps: FeedRunDeps, feed: FeedConfig): Promise<Feed
           log(`FEED ${feed.name} done ${id}: ${key.slice(0, 80)} is no longer listed`);
         } catch (thrown) {
           if (thrown instanceof BackendError && thrown.status === 409) continue;
-          // Kept, so the next run tries again.
           tasks[key] = id;
           log(`FEED ${feed.name} cannot move ${id} to done: ${errorText(thrown)}`);
         }
@@ -167,7 +165,6 @@ export async function runFeed(deps: FeedRunDeps, feed: FeedConfig): Promise<Feed
   }
 }
 
-/** Whether a run was asked for since the last one started. */
 export function runAsked(control: FeedControl, record: FeedRecord): boolean {
   if (control.runRequestedAt === undefined) return false;
   return record.last === undefined || Date.parse(control.runRequestedAt) > Date.parse(record.last.startedAt);
