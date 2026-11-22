@@ -17,7 +17,7 @@ import type { WebConfig } from '../backend/web-config.mts';
 import { print } from '../cli.mts';
 import { selfCommand } from '../self/self.mts';
 import { errorText } from '../output/text.mts';
-import { signalGroup } from '../worker/process.mts';
+import { groupExists, signalGroup } from '../worker/process.mts';
 import { createRunFiles, lockDir } from '../worker/runtime.mts';
 import { TICK_GRACE_S, TICK_LIMIT_S, lockFileName } from './tick.mts';
 
@@ -256,7 +256,7 @@ export function runLimited(argv: string[], { limitMs, graceMs }: TickLimits): Pr
       clearTimeout(limitTimer);
       clearTimeout(killTimer);
       // What a stopped tick left in its group goes with it.
-      if (stopped) signalGroup(child.pid, 'SIGKILL');
+      if (stopped && child.pid !== undefined && groupExists(child.pid)) signalGroup(child.pid, 'SIGKILL');
       if (killed) return resolve(KILLED);
       if (stopped) return resolve(TIMED_OUT);
       resolve(code ?? (signal === null ? -1 : 128 + (osConstants.signals[signal] ?? 0)));
