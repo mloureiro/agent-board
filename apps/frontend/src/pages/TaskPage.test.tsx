@@ -44,6 +44,12 @@ vi.mock('../lib/trpc', () => {
       },
       transcript: {
         runs: { queryOptions: ({ id }: { id: string }) => ({ queryKey: ['transcript.runs', id] }) },
+        context: {
+          queryOptions: ({ id }: { id: string }) => ({
+            queryKey: ['transcript.context', id],
+            queryFn: async () => null,
+          }),
+        },
         events: { queryKey: (input: unknown) => ['transcript.events', input] },
       },
     }),
@@ -55,6 +61,7 @@ const task = (id: string, title: string): BoardTask =>
     id,
     title,
     input: 'do it',
+    skillLabels: [],
     labels: [],
     status: 'needs-me',
     priority: 'normal',

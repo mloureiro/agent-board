@@ -70,6 +70,7 @@ const task = (overrides: Partial<ListedTask>): ListedTask =>
     borrowed: false,
     unreadable: [],
     invalid: [],
+    skillLabels: [],
     labels: [],
     lastNote: null,
     createdAt: new Date().toISOString(),

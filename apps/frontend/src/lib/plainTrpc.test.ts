@@ -451,11 +451,11 @@ describe('opening what arrives', () => {
       id: 'task1',
       title: 'Review the PR',
       input: '/review-pr 17741\n\nplease',
-      labels: ['review-pr'],
+      skillLabels: ['review-pr'],
       unreadable: [],
       lastNote: { text: 'hello there', author: 'user', unreadable: false },
     });
-    expect(tasks[1]).toMatchObject({ labels: ['review'], lastNote: null });
+    expect(tasks[1]).toMatchObject({ skillLabels: ['review'], lastNote: null });
   });
 
   it('shows a server event as text and the rest of the notes only when they open', async () => {
@@ -605,6 +605,7 @@ describe('opening what arrives', () => {
       input: '',
       workdir: null,
       unreadable: ['title', 'input', 'workdir'],
+      skillLabels: [],
       labels: [],
     });
     expect(good).toMatchObject({

@@ -154,10 +154,14 @@ body {
   border-color: var(--mantine-color-indigo-4);
 }
 
-.emoji-add {
+.emoji-add,
+.labels-add {
   opacity: 0;
 }
 .task-card:hover .emoji-add,
+.task-card:hover .labels-add,
+.labels-add:focus-visible,
+.labels-add[data-open],
 .emoji-add:focus-visible,
 .emoji-add[data-open] {
   opacity: 1;

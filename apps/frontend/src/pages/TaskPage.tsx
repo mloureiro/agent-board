@@ -21,6 +21,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { ActionPanel } from '../components/ActionPanel';
+import { ContextUsageBar } from '../components/ContextUsageBar';
 import { ForkModal } from '../components/ForkModal';
 import { EditTaskPrompt } from '../components/EditPrompt';
 import { WatchList } from '../components/WatchList';
@@ -35,6 +36,7 @@ import {
   LanePicker,
   ModelPicker,
   TaskIconPicker,
+  TaskLabelsPicker,
   TitleSetting,
   WorkdirSetting,
 } from '../components/TaskSettings';
@@ -153,7 +155,9 @@ function TaskView({ id }: { id: string }) {
                 Agent: {task.agent}
               </Badge>
             ) : null}
-            <TaskBadges task={task} withPriority={false} hold={heldTask(task, machines.data ?? [], now)} />
+            <TaskBadges task={task} withPriority={false} hold={heldTask(task, machines.data ?? [], now)}>
+              <TaskLabelsPicker task={task} />
+            </TaskBadges>
             <Text size="xs" c="dimmed" title={stamp(task.createdAt)}>
               created by {task.createdBy} {ago(task.createdAt)}
             </Text>
@@ -168,6 +172,7 @@ function TaskView({ id }: { id: string }) {
           )}
           <WorkdirSetting task={task} unlisted={unlisted} />
           <AutoDoneSetting task={task} />
+          <ContextUsageBar taskId={task.id} live={task.status === 'running'} />
           <Group gap="xs">
             <Button
               variant="default"

@@ -151,6 +151,19 @@ test('--icon sends the emoji, none sends null, and without the flag or the same 
   await assert.rejects(run.go(['schedules', 'edit', 's1', '--icon', 'broom']), /not an icon: give one emoji/);
 });
 
+test('--label replaces the labels, none alone removes them, and the same labels send nothing', async () => {
+  const run = runner([schedule({ id: 's1' })]);
+  await run.go(['schedules', 'edit', 's1', '--label', 'chore', '--label', 'nightly']);
+  assert.deepEqual(sentSettings(run), { ...BASE, labels: ['chore', 'nightly'] });
+  assert.deepEqual(run.printed, ['s1 updated: labels chore, nightly. The pending card was updated too.']);
+  await run.go(['schedules', 'edit', 's1', '--label', 'chore', '--label', 'nightly']);
+  assert.equal(run.printed.at(-1), 's1 already has these settings');
+  await run.go(['schedules', 'edit', 's1', '--label', 'none']);
+  assert.deepEqual(sentSettings(run), { ...BASE, labels: [] });
+  assert.equal(run.printed.at(-1), 's1 updated: labels none. The pending card was updated too.');
+  await assert.rejects(run.go(['schedules', 'edit', 's1', '--label', '-x']), /not a label/);
+});
+
 test('--lane sends the lane, default sends null, and without the flag no lane is sent', async () => {
   const run = runner([schedule({ id: 's1', requestedLane: 'old' })]);
   await run.go(['schedules', 'edit', 's1', '--lane', 'review']);

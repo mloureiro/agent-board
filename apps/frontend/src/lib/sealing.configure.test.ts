@@ -1,4 +1,4 @@
-import { deriveKeys, openFields, openIcon, type RowRef } from '@agent-board/shared';
+import { deriveKeys, openFields, openIcon, openLabels, type RowRef } from '@agent-board/shared';
 import { describe, expect, it } from 'vitest';
 import { openerFor } from './opening';
 import { InputError, sealConfigure, sealNewTask } from './sealing';
@@ -84,5 +84,22 @@ describe('the icon', () => {
     const occurrence: RowRef = { kind: 'task', id: 'occ00001', createdBy: 'user', scheduleId: repeat.id, forkOf: null };
     expect(await openIcon(openerFor(keys), occurrence, repeat.icon)).toBe('🧹');
     expect(await sealNewTask(keys, { input: '/sweep' })).not.toHaveProperty('icon');
+  });
+});
+
+describe('the labels', () => {
+  it('are sealed for the task, a schedule’s for its occurrences, and an empty list clears them', async () => {
+    const task = { id: 'task0001', createdBy: 'user', scheduleId: null } as const;
+    const row: RowRef = { kind: 'task', forkOf: null, ...task };
+    const sealed = await sealConfigure(keys, { task, labels: ['bug', ' ui ', 'Bug'] });
+    expect(sealed.labels).toMatch(/^abe1\./);
+    expect(await openLabels(openerFor(keys), row, sealed.labels)).toEqual(['bug', 'ui']);
+    expect(await sealConfigure(keys, { task, labels: [] })).toEqual({ id: 'task0001', labels: null });
+    await expect(sealConfigure(keys, { task, labels: ['-x'] })).rejects.toThrow(InputError);
+
+    const repeat = await sealNewTask(keys, { input: '/sweep', labels: ['chore'], when: { every: 3_600_000 } });
+    const occurrence: RowRef = { kind: 'task', id: 'occ00001', createdBy: 'user', scheduleId: repeat.id, forkOf: null };
+    expect(await openLabels(openerFor(keys), occurrence, repeat.labels)).toEqual(['chore']);
+    expect(await sealNewTask(keys, { input: '/sweep', labels: [] })).not.toHaveProperty('labels');
   });
 });

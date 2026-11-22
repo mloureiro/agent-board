@@ -10,6 +10,7 @@ import {
   isSessionId,
   openFields,
   openIcon,
+  openLabels,
   openMachineCatalog,
   openMachineSources,
   parseSourceRequest,
@@ -25,6 +26,7 @@ import {
   openPreview,
   isWatchId,
   openWatches,
+  parseContextEvent,
   parseTranscriptEvent,
   taskLabels,
   transcriptBinding,
@@ -66,6 +68,7 @@ type WireLastNote = NonNullable<WireListedTask['lastNote']>;
 type WireThreadNote = RouterOutputs['tasks']['get']['thread'][number];
 type WireSchedule = RouterOutputs['schedules']['list'][number];
 type WireEvent = RouterOutputs['transcript']['events'][number];
+type WireContext = RouterOutputs['transcript']['context'];
 
 interface SealedFields {
   title: string;
@@ -75,7 +78,7 @@ interface SealedFields {
 
 export type BoardTask = Omit<
   WireBoardTask,
-  keyof SealedFields | 'icon' | 'pr' | 'prState' | 'prs' | 'promptPrState' | 'watches' | 'watchStops'
+  keyof SealedFields | 'icon' | 'labels' | 'pr' | 'prState' | 'prs' | 'promptPrState' | 'watches' | 'watchStops'
 > &
   SealedFields & {
     icon: string | null;
@@ -88,6 +91,7 @@ export type BoardTask = Omit<
     watchEvents: number;
     // The watches you asked to stop that the machine has not acknowledged yet.
     watchStops: string[];
+    skillLabels: string[];
     labels: string[];
     unreadable: UnreadableField[];
     // The clear fields the board sent in a shape it does not promise; they are shown as neutral values.
@@ -133,9 +137,10 @@ export interface TaskDetail {
   parent: BoardTask | null;
 }
 
-export type Schedule = Omit<WireSchedule, keyof SealedFields | 'icon'> &
+export type Schedule = Omit<WireSchedule, keyof SealedFields | 'icon' | 'labels'> &
   SealedFields & {
     icon: string | null;
+    labels: string[];
     unreadable: UnreadableField[];
     // The clear fields the board sent in a shape it does not promise; the page shows a placeholder for them.
     invalid: string[];
@@ -198,9 +203,10 @@ export async function openBoardTask(keys: Keys, wire: WireBoardTask): Promise<Bo
     scheduleId: shapes.scheduleId,
     forkOf: shapes.forkOf ?? null,
   } as const;
-  const [fields, icon, prs, watches] = await Promise.all([
+  const [fields, icon, labels, prs, watches] = await Promise.all([
     openFields(openerFor(keys), row, wire),
     openIcon(openerFor(keys), row, wire.icon),
+    openLabels(openerFor(keys), row, wire.labels),
     openPrs(openerFor(keys), wire.id, wire.prs ?? []),
     openWatches(openerFor(keys), wire.id, wire.watches),
   ]);
@@ -216,7 +222,8 @@ export async function openBoardTask(keys: Keys, wire: WireBoardTask): Promise<Bo
     watchEvents: watches.pendingEvents,
     watchStops: Array.isArray(watchStops) ? watchStops.filter(isWatchId) : [],
     promptPrState: wire.promptPrState ?? null,
-    labels: taskLabels({ input: fields.input, createdBy: shapes.createdBy }),
+    skillLabels: taskLabels({ input: fields.input, createdBy: shapes.createdBy }),
+    labels,
     invalid,
   };
 }
@@ -304,9 +311,10 @@ export async function openTaskDetail(keys: Keys, wire: RouterOutputs['tasks']['g
 
 export async function openSchedule(keys: Keys, wire: WireSchedule): Promise<Schedule> {
   const id = safeId(wire.id, 'schedule id');
-  const [fields, icon] = await Promise.all([
+  const [fields, icon, labels] = await Promise.all([
     openFields(openerFor(keys), { kind: 'schedule', id }, wire),
     openIcon(openerFor(keys), { kind: 'schedule', id }, wire.icon),
+    openLabels(openerFor(keys), { kind: 'schedule', id }, wire.labels),
   ]);
   const remainingOk = wire.remaining === null || isCount(wire.remaining);
   const everyOk = wire.everyMs === null || (isCount(wire.everyMs) && wire.everyMs > 0);
@@ -320,6 +328,7 @@ export async function openSchedule(keys: Keys, wire: WireSchedule): Promise<Sche
     ...wire,
     ...fields,
     icon,
+    labels,
     id,
     priority: isPriority(wire.priority) ? wire.priority : 'normal',
     machine: shownName(wire.machine),
@@ -503,4 +512,31 @@ export async function openSources(keys: Keys, wire: RouterOutputs['sources']['li
       };
     }),
   );
+}
+
+export interface ContextReading {
+  used: number;
+  window: number | null;
+  threshold: number | null;
+  model: string;
+  at: string;
+}
+
+export async function openContext(
+  keys: Keys,
+  taskId: string,
+  wire: WireContext,
+): Promise<ContextReading | null | 'unreadable'> {
+  if (wire === null) return null;
+  if (!isSafeNoteId(wire.runId)) return 'unreadable';
+  const text = await tryOpen(keys, transcriptBinding('tr.data', taskId, wire.runId, wire.seq), wire.data);
+  let event: ReturnType<typeof parseContextEvent>;
+  try {
+    event = text === undefined ? undefined : parseContextEvent(JSON.parse(text));
+  } catch {
+    return 'unreadable';
+  }
+  if (event === undefined || event.seq !== wire.seq) return 'unreadable';
+  const { used, window, threshold, model } = event;
+  return { used, window, threshold, model, at: String(wire.at) };
 }

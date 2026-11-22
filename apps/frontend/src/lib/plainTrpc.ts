@@ -20,6 +20,7 @@ import {
   openSources,
   openMachines,
   openOutput,
+  openContext,
   openRuns,
   openSchedule,
   openSchedules,
@@ -392,6 +393,14 @@ export function createPlainTRPC(raw: RawTRPC, client: RawClient, keys: Keys | nu
           queryOptions({
             queryKey: plainKey(raw.transcript.runs.queryKey(input)),
             queryFn: async ({ signal }) => openRuns(await client.transcript.runs.query(input, { signal })),
+          }),
+      },
+      context: {
+        queryOptions: (input: { id: string }) =>
+          queryOptions({
+            queryKey: plainKey(raw.transcript.context.queryKey(input)),
+            queryFn: async ({ signal }) =>
+              openContext(need(), input.id, await client.transcript.context.query(input, { signal })),
           }),
       },
       events: {

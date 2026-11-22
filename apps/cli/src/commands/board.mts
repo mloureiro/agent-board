@@ -28,6 +28,7 @@ import {
   QuestionError,
   runsLeft,
   serializePolish,
+  shownLabels,
   STATUSES,
   UNREADABLE_TEXT,
 } from '@agent-board/shared';
@@ -39,6 +40,7 @@ import { plainLine, plainText } from '../output/terminal.mts';
 import type { Style } from '../output/style.mts';
 import {
   checkedIcon,
+  checkedLabels,
   haikuDuplicateCheck,
   localTime,
   parseScheduleArgs,
@@ -175,7 +177,8 @@ export function formatTasks(found: Task[], flags: TasksFlags, style: Style): str
     return [
       style.bold(`${status} (${inStatus.length})`),
       ...inStatus.map((task) => {
-        const labels = task.labels.length > 0 ? `  [${plainLine(task.labels.join(','))}]` : '';
+        const shown = shownLabels(task);
+        const labels = shown.length > 0 ? `  [${plainLine(shown.join(','))}]` : '';
         const hints = [
           task.notBefore ? `starts ${localTime(task.notBefore)}` : undefined,
           task.held ? 'waits for a free slot of its schedule' : undefined,
@@ -245,7 +248,7 @@ export function renderThread(task: Task, notes: Note[]): string {
   const lines = [
     `# ${task.title}`,
     '',
-    `status: ${task.status} · priority: ${task.priority} · labels: ${task.labels.join(', ') || '-'}`,
+    `status: ${task.status} · priority: ${task.priority} · labels: ${plainLine(shownLabels(task).join(', ')) || '-'}`,
     ...(task.agent == null ? [] : [`agent: ${task.agent}`]),
     ...(task.forkOf === undefined ? [] : [`fork of: ${task.forkOf}`]),
     ...task.prs.map((pr) => `pr: ${pr.url}`),
@@ -346,6 +349,7 @@ export interface AddFlags {
   priority?: string;
   lane?: string;
   icon?: string;
+  label?: string[];
   // Propose in the working directory instead of the parent's.
   here?: boolean;
 }
@@ -357,10 +361,12 @@ export function parseAddFlags(flags: AddFlags): {
   priority: Priority | undefined;
   lane: string | undefined;
   icon: string | undefined;
+  labels: string[] | undefined;
 } {
   const title = flags.title?.trim();
   const { file, parent, priority, lane } = flags;
   const icon = flags.icon === undefined ? undefined : checkedIcon(flags.icon);
+  const labels = flags.label === undefined ? undefined : checkedLabels(flags.label);
   if (!title) throw new UsageError('--title needs a title');
   if (!file) throw new UsageError('--file is required');
   if (parent !== undefined) requireTaskId(parent, UsageError);
@@ -368,7 +374,7 @@ export function parseAddFlags(flags: AddFlags): {
     throw new UsageError(`unknown priority "${priority.slice(0, 20)}"; use one of ${PRIORITIES.join(', ')}`);
   if (lane !== undefined && !isSafeLane(lane))
     throw new UsageError(`"${lane.slice(0, 40)}" is not a lane name (${MACHINE_NAME_RULE})`);
-  return { title, file, parent, priority, lane, icon };
+  return { title, file, parent, priority, lane, icon, labels };
 }
 
 /**
@@ -420,7 +426,7 @@ export async function add(
   // `runTask`: AGENT_BOARD_TASK, the task of the run that proposes.
   where: { cwd: string; startDir?: string; runTask?: string },
 ): Promise<Task> {
-  const { title, file, parent, priority, lane, icon } = parseAddFlags(flags);
+  const { title, file, parent, priority, lane, icon, labels } = parseAddFlags(flags);
   // A follow-up runs where its parent does, unless --here asks for this directory.
   const inherited = parent === undefined || flags.here === true ? undefined : await parentDir(context, parent, where);
   const workdir = inherited ?? proposalDir(context.config, where);
@@ -435,6 +441,7 @@ export async function add(
     ...(priority ? { priority } : {}),
     ...(lane === undefined ? {} : { lane }),
     ...(icon === undefined ? {} : { icon }),
+    ...(labels === undefined ? {} : { labels }),
   };
   const { task } = await context.backend.addTask(draft);
   confirm(context, `proposed ${task.id} ${context.taskLink(task.id)}`);

@@ -700,3 +700,20 @@ describe('NewTaskModal icon', () => {
     expect(sent()).toMatchObject({ icon: '🚀', when: 'now' });
   });
 });
+
+describe('NewTaskModal labels', () => {
+  it('sends no labels by default', async () => {
+    await open();
+    await userEvent.click(createButton());
+    await waitFor(() => expect(create).toHaveBeenCalled());
+    expect(sent()).not.toHaveProperty('labels');
+  });
+
+  it('sends the labels typed in the Labels field', async () => {
+    await open();
+    await userEvent.type(screen.getByRole('combobox', { name: 'Labels' }), 'bug{Enter}ui{Enter}');
+    await userEvent.click(createButton());
+    await waitFor(() => expect(create).toHaveBeenCalled());
+    expect(sent()).toMatchObject({ labels: ['bug', 'ui'], when: 'now' });
+  });
+});

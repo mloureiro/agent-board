@@ -38,6 +38,7 @@ test("the board's flags come first; the rest is the prompt, its own flags includ
     model: undefined,
     effort: undefined,
     icon: undefined,
+    labels: undefined,
     lane: undefined,
     autoDone: false,
     agent: undefined,
@@ -64,6 +65,7 @@ test("the board's flags come first; the rest is the prompt, its own flags includ
     model: undefined,
     effort: undefined,
     icon: undefined,
+    labels: undefined,
     lane: undefined,
     autoDone: false,
     agent: undefined,
@@ -460,6 +462,29 @@ test('--icon is checked and sent for a plain task and for a repeat, and a requeu
   assert.ok(
     requeue.printed.includes(
       'old keeps its icon (none); --icon applies only to a new task: use `board task old set icon 🧪`',
+    ),
+  );
+});
+
+test('--label is repeatable, checked and sent for a plain task and for a repeat, and a requeue says it was not applied', async () => {
+  assert.deepEqual(parseScheduleArgs(['--label', 'bug', '--label', 'ui', 'x']).labels, ['bug', 'ui']);
+  assert.equal(parseScheduleArgs(['x']).labels, undefined);
+  assert.throws(() => parseScheduleArgs(['--label', '-x', 'x']), /not a label/);
+
+  const plain = setup(undefined);
+  const made = await schedule(plain.deps, parseScheduleArgs(['--label', 'bug', '--new', '/sweep']));
+  assert.deepEqual(made?.task.labels, ['bug']);
+  const repeat = setup(undefined);
+  const first = (await schedule(repeat.deps, parseScheduleArgs(['--label', 'chore', '--every', '2h', '/sweep'], NOW)))
+    ?.task;
+  assert.deepEqual(first?.labels, ['chore']);
+  assert.ok(repeat.backend.writes[0]?.includes('| labels chore'));
+
+  const requeue = setup({ taskId: 'old', reason: 'same PR' }, 'requeue');
+  await schedule(requeue.deps, parseScheduleArgs(['--label', 'bug', '/review-pr', '17741']));
+  assert.ok(
+    requeue.printed.includes(
+      'old keeps its labels (none); --label applies only to a new task: use `board task old set labels`',
     ),
   );
 });

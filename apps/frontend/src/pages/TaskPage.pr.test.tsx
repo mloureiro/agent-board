@@ -61,6 +61,7 @@ vi.mock('../components/ActionPanel', () => ({
   },
 }));
 vi.mock('../components/TranscriptDrawer', () => ({ TranscriptDrawer: () => null }));
+vi.mock('../components/ContextUsageBar', () => ({ ContextUsageBar: () => null }));
 
 const task = (overrides: Partial<BoardTask>): BoardTask =>
   ({
@@ -101,6 +102,7 @@ const task = (overrides: Partial<BoardTask>): BoardTask =>
     borrowed: false,
     unreadable: [],
     invalid: [],
+    skillLabels: [],
     labels: [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),

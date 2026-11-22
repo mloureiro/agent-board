@@ -513,7 +513,7 @@ test('ask and add keep their flag shapes', async () => {
     await go(['add', '--file', join(dir, 'p.md'), '--title', 'Fix it', '--parent', ID, '--priority', 'low']);
     await assert.rejects(go(['ask', ID]), /required option '--file <path>' not specified/);
     await assert.rejects(go(['add', '--title', 't']), /required option '--file <path>' not specified/);
-    await assert.rejects(go(['add', '--title', 't', '--file', '/tmp/x', '--label', 'l']), /unknown option '--label'/);
+    await assert.rejects(go(['add', '--title', 't', '--file', '/tmp/x', '--tag', 'l']), /unknown option '--tag'/);
     assert.deepEqual(backend.writes, [`ask ${ID}: Q`, `ask ${ID}: Q`, 'create Fix it | follow up | ']);
   } finally {
     rmSync(dir, { recursive: true });
