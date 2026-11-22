@@ -17,7 +17,7 @@ import type { RunScope } from '../backend/web-backend.mts';
 import { watchBoardChanges } from './changes.mts';
 import { buildContext, print, UsageError } from '../cli.mts';
 import type { Context } from '../cli.mts';
-import { logLine, StreamCondenser } from '@agent-board/shared';
+import { contextWindowsIn, logLine, parseAutoCompactPct, StreamCondenser } from '@agent-board/shared';
 import type { Backend, RunInbox, Task } from '@agent-board/shared';
 import { agentFor, neverRun, ownLane, removedIntakeProblem, unreadableForRun } from '../task-rules.mts';
 import {
@@ -39,7 +39,9 @@ import type { RateLimitReading } from '../usage/usage.mts';
 import { defaultLane, getPaths } from '../config/config.mts';
 import { checkoutAbove, isAllowedDir, isDirectory, tryRealpath } from '../config/dirs.mts';
 import { selfCommand } from '../self/self.mts';
-import { pickEnv, readMcpServers, readSettingsEnv } from './settings-env.mts';
+import { autoCompactSetting, pickEnv, readMcpServers, readSettingsEnv } from './settings-env.mts';
+import { contextWindowsFile, createContextWindowStore } from './context-windows.mts';
+import type { ContextWindowStore } from './context-windows.mts';
 import { createRunFiles } from './runtime.mts';
 import type { RunFiles } from './runtime.mts';
 import { createSessionStore } from './sessions.mts';
@@ -123,6 +125,7 @@ export interface WorkerDeps extends Context {
   // The run reported the subscription's usage in a rate limit event: remembers it for the dispatcher. Called only when the
   // numbers differ from the last call of this run. Best effort, and what it throws goes in the log.
   recordUsage?: (reading: RateLimitReading) => void;
+  contextWindows?: ContextWindowStore;
   // Makes the backend's calls for the task name this run, so the board refuses them once a later run holds the task.
   bindRun?: (scope: RunScope) => void;
 }
@@ -361,7 +364,24 @@ async function runTask(deps: WorkerDeps, taskId: string, workerStartedAt: Date):
     });
   };
   // The transcript: condensed stream-json events, sent in batches with each check and once more at the end.
-  const condenser = new StreamCondenser(deps.now);
+  let knownWindows: Record<string, number> = {};
+  try {
+    knownWindows = deps.contextWindows?.read() ?? {};
+  } catch (error) {
+    deps.appendLog(taskId, `the machine's context windows were not read: ${errorText(error)}`);
+  }
+  const autoCompactPct = parseAutoCompactPct(
+    autoCompactSetting([
+      process.env,
+      env,
+      deps.settingsEnv(deps.home),
+      ...(restricted === undefined ? [deps.settingsEnv(plan.invocation.cwd)] : []),
+    ]),
+  );
+  const condenser = new StreamCondenser(deps.now, {
+    knownWindow: (model) => knownWindows[model] ?? null,
+    autoCompactPct,
+  });
   const runId = deps.newSessionId();
   const transcript = createTranscriptUploader({
     post: (events) =>
@@ -405,6 +425,14 @@ async function runTask(deps: WorkerDeps, taskId: string, workerStartedAt: Date):
         deps.recordUsage?.(usage);
       } catch (error) {
         deps.appendLog(taskId, `the run's usage was not recorded: ${errorText(error)}`);
+      }
+    }
+    const windows = deps.contextWindows === undefined ? undefined : contextWindowsIn(line);
+    if (windows !== undefined) {
+      try {
+        deps.contextWindows?.record(windows);
+      } catch (error) {
+        deps.appendLog(taskId, `the run's context windows were not recorded: ${errorText(error)}`);
       }
     }
     if (!firstOutput && oldestEvent !== undefined) {
@@ -815,6 +843,7 @@ export async function workerMain(taskId: string): Promise<void> {
     recordSkills: (cwd, skills) =>
       recordRunSkills({ store: createCatalogStore(), config: context.config }, cwd, skills),
     recordUsage: (reading) => createUsageStore(usageFile(getPaths().stateDir)).record(reading, new Date()),
+    contextWindows: createContextWindowStore(contextWindowsFile(getPaths().stateDir)),
     bindRun: (scope) => {
       run = scope;
     },

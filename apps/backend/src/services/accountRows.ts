@@ -242,6 +242,12 @@ export const linkRulesRowSchema = z.object({
   updatedAt: timestamp,
 });
 
+export const titleRulesRowSchema = z.object({
+  version: z.number().int().min(1).max(MAX_INT32),
+  document: sealed('titles', 'document'),
+  updatedAt: timestamp,
+});
+
 export const transcriptRunRowSchema = z.object({
   id: z.string().regex(TRANSCRIPT_RUN_ID, 'not a run id'),
   taskId: id,

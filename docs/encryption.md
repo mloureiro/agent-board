@@ -47,6 +47,7 @@ The operator can read, swap, replay and forge anything in the database and in AP
 | `machine.sources`            | `machine:<name>`                                                                             | the machine's CLI (dispatch, the watch unit)                                                                                                    |
 | `agents.shared`              | `agents:v<version>`                                                                          | the user's CLI (`board agents push`, `board agents rm --board`), outside a board run, one document for all the agents on the board              |
 | `links`                      | `links:v<version>`                                                                           | the user's browser (Settings › Links), one document for all the link rules                                                                      |
+| `titles`                     | `titles:v<version>`                                                                          | the user's browser (Settings › Titles), one document for all the title rules; read by the browser and every machine's CLI                       |
 | `note.body`, `note.preview`  | `note:<taskId>:<author>:<kind>`                                                              | the client of that author                                                                                                                       |
 | `note.suggestion`            | `note:<taskId>:agent:comment`                                                                | the agent's CLI                                                                                                                                 |
 | `note.questions`             | `note:<taskId>:agent:question`                                                               | the agent's CLI                                                                                                                                 |
@@ -68,6 +69,7 @@ The operator can read, swap, replay and forge anything in the database and in AP
   - `machine.sources` is `{"sources":[{"id":…,"name":…,"everyMs":…,"paused":…,"runNow":…,"problem":…,"last":{…}}]}`, with `problem` and `last` only when there is one. The commands are not in it.
 - `agents.shared` is `{"version":…,"agents":{"<name>":{…}}}`, see [The agents on the board](#the-agents-on-the-board). Its `<version>` is the clear version the server keeps beside it, and the document says the same version inside.
 - `links` is `{"version":…,"rules":[{"pattern":…,"url":…,"flags":…}]}`, with `flags` (`i`) only on a case-insensitive rule, see [The link rules](#the-link-rules). Its `<version>` works as that of `agents.shared`.
+- `titles` is `{"version":…,"rules":[{"pattern":…,"flags":…,"icon":…,"instruction":…}]}`, with `flags` (`i`), `icon` and `instruction` only where the rule sets them, see [The title rules](#the-title-rules). Its `<version>` works as that of `agents.shared`.
 
 Clients choose the ids of the tasks and schedules they make, because the fields are sealed against them. An id is 12 random characters, and a collision is a 409 whoever holds the id.
 
@@ -381,13 +383,22 @@ The link rules (see [Link rules](usage.md#link-rules)) are one sealed document, 
 - **The browser checks the content.** The server checks that the value is an envelope within the size limit. The browser opens the document only when it says the version it is bound to, has at most 50 rules, each with a pattern that compiles and a URL that starts with `https://` or `http://`. Anything else is unreadable and no rule applies.
 - **The operator sees** that the user has link rules, the version, when they were saved and the envelope's size. Not how many rules, what they match or where they point.
 
+### The title rules
+
+The title rules are one sealed document, `titles`, bound to `titles:v<version>`. Only the browser writes it. The browser and every machine's CLI read it, which is why it is a document of its own and not part of `links`: the link rules stay unreadable to any machine.
+
+- **One document, not a row per rule.** The patterns and the instructions often name a project or a way of working, so they stay inside one ciphertext, and a save is atomic.
+- **The version is in the binding**, as for the link rules. A save is compare-and-set on the clear version (`titleRules.set` with `expectedVersion`; a lost race is a CONFLICT), so two tabs cannot overwrite each other unseen. The server can serve an older document, but it cannot make it open as a newer version.
+- **The reader checks the content.** The server checks that the value is an envelope within the size limit. A reader opens the document only when it says the version it is bound to, has at most 50 rules, and every rule passes the same check the Settings page applies: a pattern of at most 300 characters that compiles, an icon that is one emoji, an instruction of at most 2000 characters, and at least an icon or an instruction. Anything else is unreadable and no rule applies.
+- **The operator sees** that the user has title rules, the version, when they were saved and the envelope's size. Not how many rules, what they match or what they say.
+
 ## The export file
 
 Settings › Account › Your data writes the board to one NDJSON file (see [Your data](usage.md#your-data)). The header is the first line, and every other line is one row of a table. `packages/shared/src/archive.mts` defines the format.
 
 **What is in it.**
 
-- The rows as the server stores them: every sealed column is still an envelope, so the file holds no plaintext of the board.
+- The rows as the server stores them: every sealed column is still an envelope, so the file holds no plaintext of the board. The link rules and the title rules travel as the tables `link_rules` and `title_rules`.
 - The wrapped key slots, the passphrase slot and the recovery slot. The data key itself is not in the file.
 - The clear columns exactly as the server sees them (see [What the server sees](#what-the-server-sees)): ids, statuses, priorities, times, machine names, blind indexes and the rest.
 - The sha256 hashes of the machine tokens, never a token.

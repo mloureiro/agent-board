@@ -1,5 +1,5 @@
 {
-  "id": "79306182-fa8b-4616-b275-675a5166dbb8",
+  "id": "55314c46-5416-477f-98f3-ef937642d8f8",
   "prevId": "3f2390e0-da1c-41e5-bc33-d97190a9daf4",
   "version": "7",
   "dialect": "postgresql",
@@ -838,12 +838,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "labels": {
-          "name": "labels",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "every_ms": {
           "name": "every_ms",
           "type": "bigint",
@@ -1026,10 +1020,6 @@
         "schedule_icon_sealed": {
           "name": "schedule_icon_sealed",
           "value": "\"schedule\".\"icon\" ~ '^abe1[.][A-Za-z0-9_-]{38,}$'"
-        },
-        "schedule_labels_sealed": {
-          "name": "schedule_labels_sealed",
-          "value": "\"schedule\".\"labels\" ~ '^abe1[.][A-Za-z0-9_-]{38,}$'"
         },
         "schedule_one_rule": {
           "name": "schedule_one_rule",
@@ -1475,12 +1465,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "labels": {
-          "name": "labels",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "watches": {
           "name": "watches",
           "type": "text",
@@ -1783,10 +1767,6 @@
           "name": "task_icon_sealed",
           "value": "\"task\".\"icon\" ~ '^abe1[.][A-Za-z0-9_-]{38,}$'"
         },
-        "task_labels_sealed": {
-          "name": "task_labels_sealed",
-          "value": "\"task\".\"labels\" ~ '^abe1[.][A-Za-z0-9_-]{38,}$'"
-        },
         "task_watches_sealed": {
           "name": "task_watches_sealed",
           "value": "\"task\".\"watches\" ~ '^abe1[.][A-Za-z0-9_-]{38,}$'"
@@ -1798,6 +1778,79 @@
         "task_head_blind": {
           "name": "task_head_blind",
           "value": "\"task\".\"head\" ~ '^abh1[.][A-Za-z0-9_-]{43}$'"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.title_rules": {
+      "name": "title_rules",
+      "schema": "",
+      "columns": {
+        "owner": {
+          "name": "owner",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "current_setting('app.owner', true)"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "document": {
+          "name": "document",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "title_rules_owner_app_user_username_fk": {
+          "name": "title_rules_owner_app_user_username_fk",
+          "tableFrom": "title_rules",
+          "tableTo": "app_user",
+          "columnsFrom": [
+            "owner"
+          ],
+          "columnsTo": [
+            "username"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "tenant": {
+          "name": "tenant",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "board_app"
+          ],
+          "using": "owner = (select current_setting('app.owner', true))",
+          "withCheck": "owner = (select current_setting('app.owner', true))"
+        }
+      },
+      "checkConstraints": {
+        "title_rules_document_sealed": {
+          "name": "title_rules_document_sealed",
+          "value": "\"title_rules\".\"document\" ~ '^abe1[.][A-Za-z0-9_-]{38,}$'"
+        },
+        "title_rules_version_positive": {
+          "name": "title_rules_version_positive",
+          "value": "\"title_rules\".\"version\" >= 1"
         }
       },
       "isRLSEnabled": true

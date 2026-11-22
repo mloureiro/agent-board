@@ -28,6 +28,7 @@ export type Field =
   | 'machine.sources'
   | 'agents.shared'
   | 'links'
+  | 'titles'
   | 'note.body'
   | 'note.preview'
   | 'note.suggestion'

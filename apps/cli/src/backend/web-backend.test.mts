@@ -512,6 +512,31 @@ test('a status or priority that needs a server feature is sent only when the ser
   assert.deepEqual(having.seen, ['version', 'update-task']);
 });
 
+test('context events are sent only to a server that names transcript.context', async () => {
+  const make = (features: string[]) => {
+    const sent: unknown[] = [];
+    const fetcher: Fetch = async (url, init) => {
+      const command = url.slice(`${config.url}/api/machine/`.length);
+      if (command === 'transcript')
+        sent.push((JSON.parse(String(init.body)) as { body: { events: unknown[] } }).body.events);
+      const result = command === 'version' ? { ...VERSION_ANSWER, features } : {};
+      return new Response(JSON.stringify({ result }));
+    };
+    return { sent, backend: createWebBackend({ loadConfig: () => config, fetch: fetcher }) };
+  };
+  const events = [
+    { seq: 0, at: 'a', parent: null, kind: 'text' as const, data: 'abe1.x' },
+    { seq: 1, at: 'a', parent: null, kind: 'context' as const, data: 'abe1.y' },
+  ];
+  const batch = { runId: 'r1', startedAt: '2026-01-01T00:00:00Z', sessionId: null, resumed: false, events };
+  const lacking = make(['events']);
+  await lacking.backend.transcript('abc', batch);
+  assert.deepEqual(lacking.sent, [[events[0]]]);
+  const having = make(['transcript.context']);
+  await having.backend.transcript('abc', batch);
+  assert.deepEqual(having.sent, [events]);
+});
+
 test('a model is sent only to a server that names task.model', async () => {
   const make = (features: string[]) => {
     const seen: string[] = [];

@@ -34,6 +34,7 @@ import {
   parseWirePromptEdit,
   parseWireScheduleDraft,
   parseWireSetAgents,
+  parseWireTitleRuleApply,
   parseWireScheduleEdit,
   parseWireTaskConfig,
   parseWireTaskDraft,
@@ -81,11 +82,13 @@ import {
 } from './services/schedules';
 import type { ScheduleUpdate } from './services/schedules';
 import { getSharedAgents, setSharedAgents, sharedAgentsVersion } from './services/sharedAgents';
+import { getTitleRules } from './services/titleRules';
 import { appendTranscript } from './services/transcripts';
 import {
   ackMessages,
   addNote,
   addTask,
+  applyTitleRule,
   ask,
   attachSession,
   claimTask,
@@ -370,6 +373,16 @@ async function handleMachineCall(
     case 'ack-source-requests':
       await ackSourceRequests(db, machine, parsed(() => parseWireSourceRequestAck(body['body'])).requests);
       return null;
+    case 'get-title-rules': {
+      const stored = await getTitleRules(db);
+      return stored === null ? null : { version: stored.version, document: stored.document };
+    }
+    case 'apply-title-rule': {
+      const run = runOf(body);
+      if (run === undefined) throw new AppError('BAD_REQUEST', 'run is required');
+      const change = parsed(() => parseWireTitleRuleApply(body['body']));
+      return applyTitleRule(db, idOf(body, 'task'), change, run);
+    }
     case 'get-agents':
       return getSharedAgents(db);
     case 'set-agents':
@@ -475,6 +488,11 @@ function updateOf(settings: WireScheduleSettings): Omit<ScheduleUpdate, 'id' | '
     rule: repeat,
     ...(at === undefined ? {} : { startAt: at }),
   };
+}
+
+/** Whether an `apply-title-rule` answer says a part was stored. */
+function storedAny(result: unknown): boolean {
+  return isRecord(result) && (result['icon'] === true || result['title'] === true);
 }
 
 /** The commands that change what dispatch decides; heartbeats and transcripts arrive every 15 s per running task and do not. */
@@ -617,7 +635,8 @@ export function registerMachineApi(
           ...(vocabulary === undefined ? {} : { vocabulary }),
         });
       });
-      if (DISPATCH_WRITES.has(command)) changes.notify(machine.owner);
+      if (command === 'apply-title-rule' ? storedAny(result) : DISPATCH_WRITES.has(command))
+        changes.notify(machine.owner);
       return { result };
     }
 

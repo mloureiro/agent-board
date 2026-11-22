@@ -30,6 +30,7 @@ import {
   parseWirePrRemoval,
   parseWirePrState,
   parseWirePrStates,
+  parseWireTitleRuleApply,
   parseWireSchedule,
   parseWireScheduleDraft,
   parseWireScheduleEdit,
@@ -609,6 +610,20 @@ test('the new keys of a schedule are shape-checked', () => {
   );
   assert.throws(() => parseWireSchedule({ ...after, cron: '0 9 * * *', timezone: 'UTC' }), /exactly one/);
   assert.throws(() => parseWireSchedule({ ...after, everyMs: 60_000 }), /exactly one/);
+});
+
+test('apply-title-rule takes a sealed icon, or a sealed title with the title it expects, and nothing else', async () => {
+  const icon = await sealed('icon', '🔎');
+  const title = await sealed('title', 'New');
+  const expectTitle = await sealed('title', 'Old');
+  assert.deepEqual(parseWireTitleRuleApply({ icon }), { icon });
+  assert.deepEqual(parseWireTitleRuleApply({ title, expectTitle }), { title, expectTitle });
+  assert.deepEqual(parseWireTitleRuleApply({ icon, title, expectTitle }), { icon, title, expectTitle });
+  assert.throws(() => parseWireTitleRuleApply({}), /icon or a title/);
+  assert.throws(() => parseWireTitleRuleApply({ title }), /go together/);
+  assert.throws(() => parseWireTitleRuleApply({ icon, expectTitle }), /go together/);
+  assert.throws(() => parseWireTitleRuleApply({ icon: '🔎' }), /must be encrypted/);
+  assert.throws(() => parseWireTitleRuleApply({ icon, extra: 1 }), /unknown key "extra"/);
 });
 
 test('a task carries held only when it waits for a free slot of its schedule', () => {

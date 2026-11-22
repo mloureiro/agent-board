@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { pickEnv, readMcpServers, readSettingsEnv } from './settings-env.mts';
+import { autoCompactSetting, pickEnv, readMcpServers, readSettingsEnv } from './settings-env.mts';
 
 test('settings.local.json wins over settings.json; a missing or broken file is skipped', () => {
   const dir = mkdtempSync(join(tmpdir(), 'agent-board-settings-'));
@@ -28,4 +28,11 @@ test('the named servers come from .mcp.json; unknown names are reported', () => 
     missing: ['nope'],
   });
   assert.deepEqual(readMcpServers(join(dir, 'none'), ['shortcut']).missing, ['shortcut']);
+});
+
+test('the auto-compact setting is the last layer that has it', () => {
+  const name = 'CLAUDE_AUTOCOMPACT_PCT_OVERRIDE';
+  assert.equal(autoCompactSetting([{ [name]: '60' }, {}, { [name]: '80' }, { OTHER: 'x' }]), '80');
+  assert.equal(autoCompactSetting([{ [name]: '60' }, { [name]: undefined }]), '60');
+  assert.equal(autoCompactSetting([{}, { OTHER: 'x' }]), undefined);
 });

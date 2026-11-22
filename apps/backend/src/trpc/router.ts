@@ -26,6 +26,7 @@ import { tasks, type NoteRow, type TaskRow } from '../db/schema';
 import { ACCOUNT_TABLES, deleteAccount, exportPage, importRows, summarize } from '../services/account';
 import { getKeys, replaceSlots, setupKeys } from '../services/keys';
 import { getLinkRules, setLinkRules } from '../services/linkRules';
+import { getTitleRules, setTitleRules } from '../services/titleRules';
 import {
   issueToken,
   listMachineCatalogs,
@@ -665,6 +666,25 @@ const linksRouter = router({
     .mutation(({ ctx, input }) => setLinkRules(ctx.db, input)),
 });
 
+const titleRulesRouter = router({
+  /** The sealed title rules with their version and when they were saved, or null before the first save. */
+  get: procedure.query(({ ctx }) => getTitleRules(ctx.db)),
+  /** Stores the next version while the board's is still `expectedVersion` (0: none); CONFLICT when another save came first. */
+  set: procedure
+    .input(
+      z
+        .object({
+          document: sealed('titles', 'titles'),
+          version: z.number().int().min(1).max(MAX_INT32),
+          expectedVersion: z.number().int().min(0).lt(MAX_INT32),
+        })
+        .refine(({ version, expectedVersion }) => version === expectedVersion + 1, {
+          message: 'version must be expectedVersion + 1',
+        }),
+    )
+    .mutation(({ ctx, input }) => setTitleRules(ctx.db, input)),
+});
+
 const transcriptRouter = router({
   /** A task's runs, newest first. */
   runs: procedure.input(z.object({ id })).query(({ ctx, input }) => listRuns(ctx.db, input.id)),
@@ -724,6 +744,7 @@ export const appRouter = router({
   sources: sourcesRouter,
   agents: agentsRouter,
   links: linksRouter,
+  titleRules: titleRulesRouter,
 });
 
 export type AppRouter = typeof appRouter;

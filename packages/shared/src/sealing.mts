@@ -18,6 +18,7 @@
 //   machine.sources machine:<name> (the sources the machine's CLI runs: names, timers and last runs, one JSON document)
 //   agents.shared  agents:v<version> (every agent definition the user pushed to the board, one JSON document; see sharedAgents.mts)
 //   links          links:v<version> (the link rules the user set in the browser, one JSON document; see linkRules.mts)
+//   titles         titles:v<version> (the title rules the user set in the browser, read by the CLI too; see titleRules.mts)
 //   note.*         note:<taskId>:<author>:<kind>
 //   tr.*           <taskId>:<runId>:<seq>
 //

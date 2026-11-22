@@ -2,6 +2,7 @@
 // they want to know why the agent did something. The worker sends them to the board in batches while the run goes on.
 import { ContractError, isSessionId, MAX_INT32, MAX_OUTPUT_SIZE, parseSealed } from './contract.mts';
 import { isRecord, isStringList } from './guards.mts';
+import { modelWindowsOf, usedTokensOf } from './context.mts';
 
 interface EventBase {
   // Order within the run, from 0.
@@ -170,17 +171,24 @@ function capBody(body: RunEventBody): RunEventBody {
 const str = (value: unknown): string => (typeof value === 'string' ? value : '');
 const num = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) ? value : null);
 
-/**
- * Turns stream-json lines into transcript events. Keeps the little state the stream needs across lines: the event
- * counter and the last thinking-token estimate, which arrives before the (empty) thinking block it belongs to.
- */
+export interface CondenserOptions {
+  knownWindow?: (model: string) => number | null;
+  autoCompactPct?: number | null;
+}
+
+/** Turns stream-json lines into transcript events. */
 export class StreamCondenser {
   private seq = 0;
   private thinkingTokens: number | null = null;
+  private mainModel: string | null = null;
+  private reportedWindows: Record<string, number> = {};
+  private lastContext: { used: number; window: number | null } | null = null;
   private readonly now: () => Date;
+  private readonly options: CondenserOptions;
 
-  constructor(now: () => Date = () => new Date()) {
+  constructor(now: () => Date = () => new Date(), options: CondenserOptions = {}) {
     this.now = now;
+    this.options = options;
   }
 
   /** A note of the worker's own, at the next position: for something that happened to the transcript itself. */
@@ -203,7 +211,7 @@ export class StreamCondenser {
 
     if (type === 'system') return this.system(event, parent);
     if (type === 'assistant') {
-      return content.flatMap((block: unknown): TranscriptEvent[] => {
+      const events = content.flatMap((block: unknown): TranscriptEvent[] => {
         if (!isRecord(block)) return [];
         if (block['type'] === 'text' && str(block['text']).trim() !== '')
           return [this.make(parent, { kind: 'text', text: str(block['text']) })];
@@ -223,6 +231,7 @@ export class StreamCondenser {
           ];
         return [];
       });
+      return parent === null ? [...events, ...this.contextOf(message)] : events;
     }
     if (type === 'user') {
       return content.flatMap((block: unknown): TranscriptEvent[] => {
@@ -246,6 +255,7 @@ export class StreamCondenser {
           )
         : [];
       return [
+        ...this.resultWindow(event),
         this.make(parent, {
           kind: 'result',
           text: str(event['result']),
@@ -262,6 +272,9 @@ export class StreamCondenser {
 
   private system(event: Record<string, unknown>, parent: string | null): TranscriptEvent[] {
     const subtype = event['subtype'];
+    if (subtype === 'init' && parent === null && typeof event['model'] === 'string' && event['model'] !== '') {
+      this.mainModel = event['model'];
+    }
     if (subtype === 'thinking_tokens') {
       this.thinkingTokens = num(event['estimated_tokens']);
       return [];
@@ -286,6 +299,28 @@ export class StreamCondenser {
       ];
     }
     return [];
+  }
+
+  private contextOf(message: Record<string, unknown> | undefined): RunEvent[] {
+    const model = typeof message?.['model'] === 'string' && message['model'] !== '' ? message['model'] : this.mainModel;
+    const used = usedTokensOf(message?.['usage']);
+    if (model === null || used === undefined) return [];
+    this.mainModel = model;
+    const window = this.reportedWindows[model] ?? this.options.knownWindow?.(model) ?? null;
+    return this.reading(model, used, window);
+  }
+
+  private resultWindow(result: Record<string, unknown>): RunEvent[] {
+    this.reportedWindows = { ...this.reportedWindows, ...modelWindowsOf(result) };
+    const window = this.mainModel === null ? undefined : this.reportedWindows[this.mainModel];
+    if (this.lastContext === null || this.mainModel === null || window === undefined) return [];
+    return window === this.lastContext.window ? [] : this.reading(this.mainModel, this.lastContext.used, window);
+  }
+
+  private reading(model: string, used: number, window: number | null): RunEvent[] {
+    if (this.lastContext?.used === used && this.lastContext.window === window) return [];
+    this.lastContext = { used, window };
+    return [this.make(null, { kind: 'context', used, window, threshold: this.options.autoCompactPct ?? null, model })];
   }
 
   private make(parent: string | null, body: TranscriptEventBody): TranscriptEvent;

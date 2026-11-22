@@ -40,6 +40,7 @@ export const ADDED_SERVER_FEATURES = [
   'task.labels',
   'machine.sources',
   'transcript.context',
+  'task.title-rules',
 ] as const;
 
 export const SERVER_FEATURES = [...BASELINE_SERVER_FEATURES, ...ADDED_SERVER_FEATURES] as const;
@@ -81,6 +82,7 @@ export const SERVER_FEATURE_LABELS: Record<ServerFeature, string> = {
   'task.labels': 'task labels',
   'machine.sources': 'sources on the board',
   'transcript.context': 'context usage in transcripts',
+  'task.title-rules': 'title rules',
   wait: 'waiting',
 };
 

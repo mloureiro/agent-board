@@ -236,6 +236,12 @@ A new server feature, `task.icon`. A task and a schedule take one emoji, sealed 
 
 Update the server first. A server without `task.icon` makes the flags refuse with "the board server does not support task icons yet; update the board server", and nothing else changes. A machine on an older CLI ignores the field, and the icon never changes how a task runs.
 
+### Context usage on the task page (CLI 0.33.0)
+
+A new server feature, `transcript.context`. The worker reports how full the main agent's context window is, and the task page shows it as a bar (see [Context usage](workers.md#context-usage)). A migration is not needed and no version number is raised.
+
+Deploy the server and release the CLI in any order. A machine on an older CLI reports nothing, and its runs show no bar. A CLI against a server without the feature sends no context events, and its transcripts are unchanged.
+
 ### A task names its effort (CLI 0.32.0)
 
 A new server feature, `task.effort`. A task and a schedule take an effort level (`low`, `medium`, `high`, `xhigh` or `max`) that the worker passes to `claude` as `--effort`. `board schedule --effort`, `board schedules edit --effort` and `board task <task> set effort` set it, and the New task form, the task page and the schedule editor have an **Effort** select (see [Effort](usage.md#effort)). A migration adds an `effort` column to `task` and `schedule`. Nothing changes for the tasks you have, and no version number is raised.
@@ -634,17 +640,18 @@ The CLI builds every task link it prints as `<url>/t/<id>` from `web.json`. The 
 
 The state directory is `~/.local/state/agent-board` (`AGENT_BOARD_STATE_DIR`, or `XDG_STATE_HOME`):
 
-| Path                         | Purpose                                                                                                     |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `logs/<task>.log`            | The task's log, emptied when a worker starts. The worker's own fatal errors are appended to it.             |
-| `sessions/<task>`            | The Claude session this machine started for the task.                                                       |
-| `watches/<task>/`            | The task's watches and their events (see [Watches](workers.md#watches)).                                    |
-| `waits/<task>.json`          | A check stored by `board wait --check` (see [Waiting](usage.md#waiting)).                                   |
-| `worktree-locks/<task>.json` | The worktrees the task locked (see [Where a task runs](workers.md#where-a-task-runs)).                      |
-| `catalog/`                   | What `claude` reported as skills and models, one file per directory.                                        |
-| `usage.json`                 | The usage this machine's runs reported, one entry per window (see [Usage limits](workers.md#usage-limits)). |
-| `pr-refresh.json`            | The time of the last PR state lookup.                                                                       |
-| `update.json`                | The last update hint and the last self-update attempt.                                                      |
+| Path                         | Purpose                                                                                                        |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `logs/<task>.log`            | The task's log, emptied when a worker starts. The worker's own fatal errors are appended to it.                |
+| `sessions/<task>`            | The Claude session this machine started for the task.                                                          |
+| `watches/<task>/`            | The task's watches and their events (see [Watches](workers.md#watches)).                                       |
+| `waits/<task>.json`          | A check stored by `board wait --check` (see [Waiting](usage.md#waiting)).                                      |
+| `worktree-locks/<task>.json` | The worktrees the task locked (see [Where a task runs](workers.md#where-a-task-runs)).                         |
+| `catalog/`                   | What `claude` reported as skills and models, one file per directory.                                           |
+| `usage.json`                 | The usage this machine's runs reported, one entry per window (see [Usage limits](workers.md#usage-limits)).    |
+| `context-windows.json`       | The context window each model reported in this machine's runs (see [Context usage](workers.md#context-usage)). |
+| `pr-refresh.json`            | The time of the last PR state lookup.                                                                          |
+| `update.json`                | The last update hint and the last self-update attempt.                                                         |
 
 The dispatcher deletes a task's log and session record once the task is done, closed or deleted and the file has not changed for 14 days. A task in any other column keeps them, so it can still be resumed. A done task brought back after that cannot resume its session and needs **Re-run fresh**.
 

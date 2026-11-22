@@ -178,6 +178,9 @@ describe('what the application role can store afterwards', () => {
   const linkRules = (tx: Tx, document: string) =>
     tx.execute(sql`insert into link_rules (version, document) values (1, ${document})`);
 
+  const titleRules = (tx: Tx, document: string) =>
+    tx.execute(sql`insert into title_rules (version, document) values (1, ${document})`);
+
   const plaintextCases: [string, string, (tx: Tx) => Promise<unknown>][] = [
     ['task_title_sealed', 'a plain task title', (tx) => task(tx, { title: 'plain' })],
     ['task_input_sealed', 'a plain prompt', (tx) => task(tx, { input: 'plain' })],
@@ -212,6 +215,7 @@ describe('what the application role can store afterwards', () => {
     ['machine_sources_index_blind', 'a plain sources index', (tx) => machine(tx, { sourcesIndex: 'abcdef' })],
     ['shared_agents_document_sealed', 'plain shared agents', (tx) => sharedAgents(tx, '{"version":1,"agents":{}}')],
     ['link_rules_document_sealed', 'plain link rules', (tx) => linkRules(tx, '{"version":1,"rules":[]}')],
+    ['title_rules_document_sealed', 'plain title rules', (tx) => titleRules(tx, '{"version":1,"rules":[]}')],
     ['task_title_sealed', 'a too short envelope', (tx) => task(tx, { title: 'abe1.AAAA' })],
     ['task_title_sealed', 'an envelope with a line break', (tx) => task(tx, { title: `${ENVELOPE}\n` })],
     ['schedule_title_sealed', 'a plain schedule title', (tx) => schedule(tx, { title: 'plain' })],

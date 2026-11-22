@@ -363,7 +363,13 @@ export function createWebBackend(options: WebBackendOptions): WebBackend {
     runInbox: async (id) => call('run-inbox', { id: taskId(id) }, parseWireRunInbox),
     ackMessages: async (id, ack) => send('ack-messages', { id: taskId(id), body: ack }),
     stopped: async (id, note) => call('stopped', { id: taskId(id), body: note }, parseWireTask),
-    transcript: async (id, batch) => send('transcript', { id: taskId(id), body: batch }),
+    transcript: async (id, batch) => {
+      const { features } = await connect();
+      const events = features.has('transcript.context')
+        ? batch.events
+        : batch.events.filter((e) => e.kind !== 'context');
+      await send('transcript', { id: taskId(id), body: { ...batch, events } });
+    },
     readNotes: async (id) => call('read-notes', { id: taskId(id) }, (value) => parseWireNotes(value, listOptions)),
     addSchedule: async (draft) => {
       await requireSendable(draft);
