@@ -7,6 +7,7 @@ import { moveConfirmed } from '../components/confirmStart';
 import { IncompatibleMachinesBanner } from '../components/IncompatibleMachinesBanner';
 import { QueryStatus } from '../components/QueryStatus';
 import { TaskCard } from '../components/TaskCard';
+import { usePageTitle } from '../components/usePageTitle';
 import { usePolish } from '../components/usePolish';
 import { beforeIdOver, dropNeighbors } from '../lib/dropPosition';
 import { canMoveMergedToDone } from '../lib/mergedPrs';
@@ -226,7 +227,13 @@ function BoardColumns({ only }: { only?: Status }) {
   );
 }
 
-export const BoardPage = () => <BoardColumns />;
+export function BoardPage() {
+  usePageTitle('Board');
+  return <BoardColumns />;
+}
 
 /** Backlog is hidden from the board on a phone, so it gets a page of its own. */
-export const BacklogPage = () => <BoardColumns only="backlog" />;
+export function BacklogPage() {
+  usePageTitle('Backlog');
+  return <BoardColumns only="backlog" />;
+}

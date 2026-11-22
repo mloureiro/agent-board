@@ -15,6 +15,7 @@ import { IconKey, IconLogin } from '@tabler/icons-react';
 import { browserSupportsWebAuthn } from '@simplewebauthn/browser';
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import { usePageTitle } from '../components/usePageTitle';
 import { useRawTRPCClient } from '../lib/trpc';
 import { challengeOf, followableUrl, keepVerifier, newVerifier, type RedirectMethod } from './redirectFlow';
 import { rememberReturnPath } from './returnPath';
@@ -107,6 +108,7 @@ function SignupForm({ supported }: { supported: boolean }) {
 
 /** What a user sees when nobody is signed in: one button per way the board offers, and sign-up when it is open. */
 export function LoginPage({ failure }: Props) {
+  usePageTitle('Sign in');
   const client = useRawTRPCClient();
   const config = useAuthConfig();
   const completeSignIn = useCompleteSignIn();

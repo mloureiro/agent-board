@@ -1,6 +1,7 @@
 import { Button, Group, NavLink as MantineNavLink, ScrollArea, Stack, Title } from '@mantine/core';
 import { IconBell, IconKey, IconLink, IconRobot, IconServer, IconUser } from '@tabler/icons-react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
+import { usePageTitle } from '../../components/usePageTitle';
 import { Revision } from './Revision';
 
 const SUBPAGES = [
@@ -14,6 +15,7 @@ const SUBPAGES = [
 
 /** The settings subpages: a column beside the content, a scrollable row above it on a phone. */
 export function SettingsLayout() {
+  usePageTitle('Settings');
   const { pathname } = useLocation();
   return (
     <Stack maw={1000} mx="auto">
