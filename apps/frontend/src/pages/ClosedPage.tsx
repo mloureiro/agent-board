@@ -2,11 +2,13 @@ import { Anchor, Badge, Group, Paper, Stack, Text, Title } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { QueryStatus } from '../components/QueryStatus';
+import { usePageTitle } from '../components/usePageTitle';
 import { STATUS_COLOR, STATUS_LABEL } from '../lib/status';
 import { ago } from '../lib/time';
 import { useTRPC } from '../lib/trpc';
 
 export function ClosedPage() {
+  usePageTitle('Closed');
   const trpc = useTRPC();
   const tasks = useQuery(trpc.tasks.list.queryOptions({ closed: true }));
   const sorted = [...(tasks.data ?? [])].sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));

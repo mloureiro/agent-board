@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { EditScheduleModal } from '../components/EditSchedule';
 import { QueryStatus } from '../components/QueryStatus';
+import { usePageTitle } from '../components/usePageTitle';
 import { ago, stamp } from '../lib/time';
 import { POLL_MS, useTRPC, type Schedule as ScheduleRow } from '../lib/trpc';
 
@@ -158,6 +159,7 @@ function ScheduleRowView({ schedule, all }: { schedule: ScheduleRow; all: readon
 }
 
 export function SchedulesPage() {
+  usePageTitle('Schedules');
   const trpc = useTRPC();
   const schedules = useQuery({ ...trpc.schedules.list.queryOptions(), refetchInterval: POLL_MS });
   const rows = schedules.data ?? [];

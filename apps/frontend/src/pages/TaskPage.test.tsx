@@ -197,6 +197,11 @@ describe('TaskPage', () => {
   };
   const fork = () => screen.queryByRole('button', { name: 'Fork' });
 
+  it('puts the task title in the document title once the task is loaded', () => {
+    page([task('aaaa1111', 'Fix the login redirect')]);
+    expect(document.title).toBe('Fix the login redirect · Agent Board');
+  });
+
   it('offers Fork on a task with a session on a machine, and opens the dialog', async () => {
     page([{ ...task('aaaa1111', 'Task A'), machine: 'laptop', workdir: '/work/a' }]);
     await userEvent.click(fork()!);

@@ -1,6 +1,7 @@
 import { Center, Group, Loader, Paper, Stack, Text, Title } from '@mantine/core';
 import { IconLogin } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
+import { usePageTitle } from '../components/usePageTitle';
 import { useRawTRPCClient } from '../lib/trpc';
 import { failureMessage } from './failure';
 import { LoginPage } from './LoginPage';
@@ -43,6 +44,7 @@ export function RedirectReturn({ method }: Props) {
   const client = useRawTRPCClient();
   const completeSignIn = useCompleteSignIn();
   const [failure, setFailure] = useState<string | null>(null);
+  usePageTitle(failure === null ? 'Signing in' : 'Sign in');
   // A strict-mode remount runs the effect again, and the query it reads is gone by then.
   const started = useRef(false);
 

@@ -23,6 +23,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { ActionPanel } from '../components/ActionPanel';
 import { ForkModal } from '../components/ForkModal';
 import { EditTaskPrompt } from '../components/EditPrompt';
+import { usePageTitle } from '../components/usePageTitle';
 import { WatchList } from '../components/WatchList';
 import { Markdown } from '../components/Markdown';
 import { PriorityPicker } from '../components/PriorityPicker';
@@ -88,6 +89,7 @@ function TaskView({ id }: { id: string }) {
   const setTranscriptOpen = (open: boolean) => setSearch(open ? { transcript: '1' } : {}, { replace: true });
   const [forking, setForking] = useState(false);
   const noteCount = query.data?.thread.length ?? 0;
+  usePageTitle(query.data?.task.title ?? 'Task');
 
   // Land on the newest note and the action panel; follow new notes as they arrive.
   useEffect(() => {
