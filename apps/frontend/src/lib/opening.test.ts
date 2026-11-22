@@ -15,7 +15,7 @@ import {
 } from '@agent-board/shared';
 import type { PrState, TaskWatch } from '@agent-board/shared';
 import { describe, expect, it } from 'vitest';
-import { openBoardTask, openCatalogs, openContext, openEvent, openMachines } from './opening';
+import { openBoardTask, openCatalogs, openContext, openEvent, openListedTasks, openMachines } from './opening';
 import { sealerFor } from './contexts';
 import type { RouterOutputs } from './wire';
 
@@ -433,6 +433,18 @@ describe('the context reading of a task, as the browser opens it', () => {
   it('shows a value sealed under another position, or of another shape, as unreadable', async () => {
     expect(await openContext(keys, taskId, await wire(8))).toBe('unreadable');
     expect(await openContext(keys, taskId, await wire(7, { ...reading, used: 'lots' }))).toBe('unreadable');
+  });
+
+  it('opens the readings of a listing, and gives a card nothing for an unreadable one', async () => {
+    const task = await wireTask([]);
+    const [readable, unreadable, none] = await openListedTasks(keys, [
+      { ...task, lastNote: null, context: await wire(7) },
+      { ...task, lastNote: null, context: await wire(8) },
+      { ...task, lastNote: null, context: null },
+    ]);
+    expect(readable?.context).toMatchObject({ used: 133_600, window: 1_000_000 });
+    expect(unreadable?.context).toBeNull();
+    expect(none?.context).toBeNull();
   });
 
   it('refuses a run id that is not an id without throwing', async () => {

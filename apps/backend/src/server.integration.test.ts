@@ -985,6 +985,48 @@ describe('transcripts', () => {
     expect(await ui.transcript.context({ id: task.id })).toBeNull();
   });
 
+  it('lists the newest run’s context on running tasks only, and never on another user’s list', async () => {
+    const ui = plainUi(db);
+    const claimed = async (title: string) => {
+      const { json } = await ctx.call('laptop', 'add-task', { body: { title, labels: ['review-pr'] } });
+      const id: string = json.result.task.id;
+      expect((await ctx.call('laptop', 'claim-task', { id, machine: 'laptop' })).status).toBe(200);
+      return id;
+    };
+    const reading = (seq: number, used: number) => ({
+      seq,
+      at: at(seq + 1),
+      parent: null,
+      kind: 'context',
+      used,
+      window: 1_000_000,
+      threshold: null,
+      model: 'claude-opus-4-7',
+    });
+    const withReading = await claimed('with a reading');
+    const withoutReading = await claimed('newest run has none');
+    const todo = await ui.tasks.create({ input: '/todo' });
+    const older = { ...batch('run-list-0001', [reading(0, 1000), reading(2, 2000)]), startedAt: at(0) };
+    const newer = {
+      ...batch('run-list-0002', [{ seq: 0, at: at(21), parent: null, kind: 'text', text: 'again' }]),
+      startedAt: at(20),
+    };
+    await ctx.call('laptop', 'transcript', { id: withReading, body: older });
+    await ctx.call('laptop', 'transcript', {
+      id: withoutReading,
+      body: { ...older, runId: 'run-list-0003' },
+    });
+    await ctx.call('laptop', 'transcript', { id: withoutReading, body: { ...newer, runId: 'run-list-0004' } });
+    await ctx.call('laptop', 'transcript', { id: todo.id, body: { ...older, runId: 'run-list-0005' } });
+    const contexts = Object.fromEntries((await ui.tasks.list()).map((row) => [row.id, row.context]));
+    expect(contexts[withReading]).toMatchObject({ runId: 'run-list-0001', seq: 2 });
+    expect(contexts[withoutReading]).toBeNull();
+    expect(contexts[todo.id]).toBeNull();
+    expect((await plainUi(db, 'other').tasks.list()).map((row) => row.id)).not.toContain(withReading);
+    const { latestContexts } = await import('./services/transcripts');
+    expect(await asOwner(db, 'other', (tx) => latestContexts(tx, [withReading, withoutReading]))).toEqual(new Map());
+  });
+
   it('refuses an event with a bad seq or date instead of failing in the database', async () => {
     const task = await plainUi(db).tasks.create({ input: '/grill' });
     for (const bad of [{ seq: -1 }, { seq: 1.5 }, { seq: 2 ** 31 }, { at: 'soon' }, { parent: 'a b' }]) {

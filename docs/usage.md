@@ -723,6 +723,8 @@ Once the latest run has reported how full the agent's context window is, the tas
 
 The bar follows a running task about every 15 seconds and keeps the last value after the run ends. A line on the bar marks where auto-compaction starts, but only when the run sets that threshold itself; see [Context usage](workers.md#context-usage). When the worker does not know the model's window yet, the bar is empty and the label shows only the tokens used.
 
+A running task's card shows the same figure as a 2 px line along its bottom edge, only when the window is known. It takes no space, and hovering it shows the label.
+
 ### The other buttons
 
 | Button                     | Effect                                                                                         |
