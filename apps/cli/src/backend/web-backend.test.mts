@@ -1152,11 +1152,13 @@ test('a run names itself in the calls for its own task that the server checks ag
           ? { ...VERSION_ANSWER, features }
           : command === 'fail'
             ? { applied: true, task: await taskJson('abc') }
-            : command === 'run-inbox'
-              ? { stop: false, messages: [] }
-              : ['heartbeat', 'ask', 'ack-messages', 'add-note'].includes(command)
-                ? null
-                : await taskJson('abc');
+            : command === 'apply-title-rule'
+              ? { icon: true, title: false }
+              : command === 'run-inbox'
+                ? { stop: false, messages: [] }
+                : ['heartbeat', 'ask', 'ack-messages', 'add-note'].includes(command)
+                  ? null
+                  : await taskJson('abc');
       return new Response(JSON.stringify({ result }), { status: 200 });
     };
     const backend = createWebBackend({
@@ -1176,10 +1178,22 @@ test('a run names itself in the calls for its own task that the server checks ag
     await backend.runInbox(id);
     await backend.ackMessages(id, { ids: [] });
     await backend.stopped(id, noteInput);
+    await backend.applyTitleRule(id, { icon: 'abe1.icon' });
     await backend.addNote(id, noteInput);
     await backend.getTask(id);
   };
-  const fenced = ['update-task', 'ask', 'heartbeat', 'pause', 'fail', 'wait', 'run-inbox', 'ack-messages', 'stopped'];
+  const fenced = [
+    'update-task',
+    'ask',
+    'heartbeat',
+    'pause',
+    'fail',
+    'wait',
+    'run-inbox',
+    'ack-messages',
+    'stopped',
+    'apply-title-rule',
+  ];
 
   const current = make([...SERVER_FEATURES]);
   await exercise(current.backend, 'abc');
@@ -1202,4 +1216,20 @@ test('a run names itself in the calls for its own task that the server checks ag
   const older = make(SERVER_FEATURES.filter((feature) => feature !== 'task.run'));
   await exercise(older.backend, 'abc');
   assert.ok(older.seen.every((request) => !('run' in request.body)));
+});
+
+test('both title rule commands need the task.title-rules feature and are refused without it, before anything is sent', async () => {
+  const without = boardWith(['events'], {});
+  await assert.rejects(
+    without.backend.getTitleRules(),
+    (error: unknown) => error instanceof BackendError && error.missingFeature === 'task.title-rules',
+  );
+  await assert.rejects(
+    without.backend.applyTitleRule('abc', { icon: 'abe1.icon' }),
+    (error: unknown) => error instanceof BackendError && error.missingFeature === 'task.title-rules',
+  );
+  assert.deepEqual(
+    without.seen.map((request) => request.command),
+    ['version'],
+  );
 });

@@ -407,6 +407,7 @@ describe('an agent’s proposal', () => {
     hookCommand: () => 'hook',
     now: () => new Date(),
     watchEveryMs: 10,
+    writeTitle: async () => ({ problem: 'no title writer in this test' }),
   });
 
   async function propose() {
@@ -555,6 +556,7 @@ describe('a wait', () => {
       hookCommand: () => 'hook',
       now: () => new Date(),
       watchEveryMs: 10,
+      writeTitle: async () => ({ problem: 'no title writer in this test' }),
     });
 
     const { task } = await ctx.cli.addTask({ title: 'Ship it', input: 'push and watch CI' });

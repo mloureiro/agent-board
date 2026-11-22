@@ -359,6 +359,12 @@ export function dryRunBackend(inner: Backend, print: (line: string) => void): Ba
         `DRY set-agents v${document.version} (replacing v${expectedVersion}): ${Object.keys(document.agents).sort().join(', ') || 'no agents'}`,
       );
     },
+    async applyTitleRule(id, change) {
+      print(
+        `DRY apply-title-rule ${id}${change.icon === undefined ? '' : ` icon ${change.icon}`}${change.title === undefined ? '' : ` title ${oneLine(change.title.text, 160)}`}`,
+      );
+      return { icon: false, title: false };
+    },
     async heartbeat(id, beat) {
       print(`DRY heartbeat ${id} ${JSON.stringify(beat)}`);
     },

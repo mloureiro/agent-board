@@ -68,6 +68,7 @@ function setup(result: RunResult | Error, moveDuringRun = false) {
     watchEveryMs: 10,
     watches: createWatchStore(tempDir()),
     spoolEveryMs: 5,
+    writeTitle: async () => ({ problem: 'no title writer in this test' }),
   };
   return { deps, backend, calls };
 }
@@ -2444,4 +2445,59 @@ test('events are not handed over once a pause was requested or the task left Run
     assert.equal(await watch.onTurnEnd?.(), undefined);
     assert.equal(deps.watches.events('w1').length, 1);
   });
+});
+
+function titledSetup(writeTitle: WorkerDeps['writeTitle'], result: RunResult = { exitCode: 0, signal: null }) {
+  const { deps, backend, calls } = setup(result);
+  const subject = backend.tasks[0]!;
+  Object.assign(subject, {
+    title: '/pj-acme:review https://github.com/acme/app/pull/8',
+    input: '/pj-acme:review https://github.com/acme/app/pull/8',
+  });
+  backend.boardTitleRules.held = { version: 1, rules: [{ pattern: '^/pj-', instruction: 'a title' }] };
+  deps.writeTitle = writeTitle;
+  return { deps, backend, calls };
+}
+
+test('the run starts while the title is still being written, and the worker ends only after it', async () => {
+  const order: string[] = [];
+  let release: () => void = () => undefined;
+  const released = new Promise<void>((done) => (release = done));
+  const { deps } = titledSetup(async () => {
+    order.push('writer started');
+    await released;
+    order.push('writer done');
+    return { title: 'A title' };
+  });
+  const run = deps.run;
+  deps.run = async (...args) => {
+    order.push('run');
+    return run(...args);
+  };
+  let ended = false;
+  const worker = runWorker(deps, 'w1').then(() => {
+    ended = true;
+    order.push('worker ended');
+  });
+  await settle();
+  assert.ok(order.includes('run') && order.includes('writer started'));
+  assert.ok(!order.includes('writer done'));
+  assert.equal(ended, false);
+  release();
+  await worker;
+  assert.deepEqual(order.slice(-2), ['writer done', 'worker ended']);
+});
+
+test('a title writer that rejects leaves the run reported exactly as it is without rules', async () => {
+  const plain = setup({ exitCode: 1, signal: null });
+  await runWorker(plain.deps, 'w1');
+  const titled = titledSetup(
+    async () => {
+      throw new Error('boom');
+    },
+    { exitCode: 1, signal: null },
+  );
+  await runWorker(titled.deps, 'w1');
+  assert.deepEqual(titled.backend.writes, plain.backend.writes);
+  assert.ok(titled.calls.some((call) => call.includes('title rules failed: boom')));
 });
