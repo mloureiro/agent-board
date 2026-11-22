@@ -8,6 +8,7 @@
 //   input          <origin>:<creator>, then :fork:<parentId> for a fork, then :agent:<name> with an agent
 //   agent          <origin> (the name of the agent the task runs as)
 //   icon           <origin> (the emoji the user chose for the card)
+//   labels         <origin> (the labels the user gave the task, one JSON list)
 //   workdir        <origin>, or for a scheduled task also task:<id>:schedule:<scheduleId> (the worker's rewrite)
 //   pr             task:<id>:agent (a PR URL the task's agent reported; every PR of the task has this binding)
 //   watches        task:<id>:agent (the watches of the task the machine's CLI runs for it, one JSON document)
@@ -43,6 +44,7 @@ import {
   checkSealedSize,
   ContractError,
   DIR_LABEL_RULE,
+  checkLabels,
   ICON_RULE,
   isAgentName,
   isEmojiIcon,
@@ -149,6 +151,31 @@ export async function openIcon(open: Opener, row: RowRef, wire: string | null | 
   if (wire === null || wire === undefined) return null;
   const icon = await open(iconBinding(row), wire);
   return icon !== undefined && isEmojiIcon(icon) ? icon : null;
+}
+
+/** The labels are bound to the row's origin like the icon, so a schedule's labels are the ones its occurrences open. */
+export const labelsBinding = (row: RowRef): Binding => ({ field: 'labels', context: origin(row) });
+
+/** The labels as one sealed JSON list, checked by `checkLabels`; null when none are left, which the board stores as no labels. */
+export async function sealLabels(seal: Sealer, row: RowRef, labels: readonly string[]): Promise<string | null> {
+  const checked = checkLabels(labels);
+  if (checked.length === 0) return null;
+  return sealChecked(seal, labelsBinding(row), JSON.stringify(checked), 'the labels');
+}
+
+/** The labels of a task or schedule; empty when there are none or what opens is not a list of labels. Display only, never acted on. */
+export async function openLabels(open: Opener, row: RowRef, wire: string | null | undefined): Promise<string[]> {
+  if (wire === null || wire === undefined) return [];
+  const text = await open(labelsBinding(row), wire);
+  if (text === undefined) return [];
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (!Array.isArray(parsed) || !parsed.every((label) => typeof label === 'string')) return [];
+    const labels = checkLabels(parsed);
+    return labels.length === parsed.length ? labels : [];
+  } catch {
+    return [];
+  }
 }
 
 /** The binding a new directory is sealed under: an occurrence's own rewrite names its schedule, so it is only an occurrence's. */

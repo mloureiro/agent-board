@@ -55,6 +55,7 @@ const task = (id: string, title: string): BoardTask =>
     id,
     title,
     input: 'do it',
+    skillLabels: [],
     labels: [],
     status: 'needs-me',
     priority: 'normal',

@@ -10,6 +10,7 @@ import {
   isSessionId,
   openFields,
   openIcon,
+  openLabels,
   openMachineCatalog,
   openMachineSources,
   parseSourceRequest,
@@ -75,7 +76,7 @@ interface SealedFields {
 
 export type BoardTask = Omit<
   WireBoardTask,
-  keyof SealedFields | 'icon' | 'pr' | 'prState' | 'prs' | 'promptPrState' | 'watches' | 'watchStops'
+  keyof SealedFields | 'icon' | 'labels' | 'pr' | 'prState' | 'prs' | 'promptPrState' | 'watches' | 'watchStops'
 > &
   SealedFields & {
     icon: string | null;
@@ -88,6 +89,7 @@ export type BoardTask = Omit<
     watchEvents: number;
     // The watches you asked to stop that the machine has not acknowledged yet.
     watchStops: string[];
+    skillLabels: string[];
     labels: string[];
     unreadable: UnreadableField[];
     // The clear fields the board sent in a shape it does not promise; they are shown as neutral values.
@@ -133,9 +135,10 @@ export interface TaskDetail {
   parent: BoardTask | null;
 }
 
-export type Schedule = Omit<WireSchedule, keyof SealedFields | 'icon'> &
+export type Schedule = Omit<WireSchedule, keyof SealedFields | 'icon' | 'labels'> &
   SealedFields & {
     icon: string | null;
+    labels: string[];
     unreadable: UnreadableField[];
     // The clear fields the board sent in a shape it does not promise; the page shows a placeholder for them.
     invalid: string[];
@@ -198,9 +201,10 @@ export async function openBoardTask(keys: Keys, wire: WireBoardTask): Promise<Bo
     scheduleId: shapes.scheduleId,
     forkOf: shapes.forkOf ?? null,
   } as const;
-  const [fields, icon, prs, watches] = await Promise.all([
+  const [fields, icon, labels, prs, watches] = await Promise.all([
     openFields(openerFor(keys), row, wire),
     openIcon(openerFor(keys), row, wire.icon),
+    openLabels(openerFor(keys), row, wire.labels),
     openPrs(openerFor(keys), wire.id, wire.prs ?? []),
     openWatches(openerFor(keys), wire.id, wire.watches),
   ]);
@@ -216,7 +220,8 @@ export async function openBoardTask(keys: Keys, wire: WireBoardTask): Promise<Bo
     watchEvents: watches.pendingEvents,
     watchStops: Array.isArray(watchStops) ? watchStops.filter(isWatchId) : [],
     promptPrState: wire.promptPrState ?? null,
-    labels: taskLabels({ input: fields.input, createdBy: shapes.createdBy }),
+    skillLabels: taskLabels({ input: fields.input, createdBy: shapes.createdBy }),
+    labels,
     invalid,
   };
 }
@@ -304,9 +309,10 @@ export async function openTaskDetail(keys: Keys, wire: RouterOutputs['tasks']['g
 
 export async function openSchedule(keys: Keys, wire: WireSchedule): Promise<Schedule> {
   const id = safeId(wire.id, 'schedule id');
-  const [fields, icon] = await Promise.all([
+  const [fields, icon, labels] = await Promise.all([
     openFields(openerFor(keys), { kind: 'schedule', id }, wire),
     openIcon(openerFor(keys), { kind: 'schedule', id }, wire.icon),
+    openLabels(openerFor(keys), { kind: 'schedule', id }, wire.labels),
   ]);
   const remainingOk = wire.remaining === null || isCount(wire.remaining);
   const everyOk = wire.everyMs === null || (isCount(wire.everyMs) && wire.everyMs > 0);
@@ -320,6 +326,7 @@ export async function openSchedule(keys: Keys, wire: WireSchedule): Promise<Sche
     ...wire,
     ...fields,
     icon,
+    labels,
     id,
     priority: isPriority(wire.priority) ? wire.priority : 'normal',
     machine: shownName(wire.machine),

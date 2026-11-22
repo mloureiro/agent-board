@@ -1,4 +1,4 @@
-// `board schedule [--priority p] [--model m] [--effort e] [--icon i] [--lane l] [--auto-done] [--agent a] [--title t] [--hold | --backlog] [--in <dur> | --at <time>] [--every <dur> | --cron <expr>]
+// `board schedule [--priority p] [--model m] [--effort e] [--icon i] [--label l]... [--lane l] [--auto-done] [--agent a] [--title t] [--hold | --backlog] [--in <dur> | --at <time>] [--every <dur> | --cron <expr>]
 // [--times <n> | --until <time>] [--polish] [--new] [--key <k> [--version <v>]] <prompt...>`: a task from a prompt, written as you
 // would type it into Claude Code, bound to this machine and the directory it was scheduled from. Before it creates one, a quick
 // Haiku call checks whether an open task already covers it. With `--every` or `--cron` it creates a repeating schedule instead.
@@ -12,6 +12,7 @@ import {
   defaultTitle,
   describeRule,
   EFFORTS,
+  checkLabels,
   ICON_RULE,
   isAgentName,
   isEffort,
@@ -44,6 +45,8 @@ export interface ScheduleArgs {
   // The effort level of the run; undefined is claude's default.
   effort: Effort | undefined;
   icon: string | undefined;
+  // The user's labels; undefined is none.
+  labels: string[] | undefined;
   // The lane the task asks for; undefined is the default lane of the machine that takes it.
   lane: string | undefined;
   // The agent may move the task to Done itself; false leaves it unset.
@@ -84,6 +87,8 @@ export interface ScheduleFlags {
   model?: string;
   effort?: string;
   icon?: string;
+  // Repeatable: one string per `--label`.
+  label?: string[];
   lane?: string;
   autoDone?: boolean;
   agent?: string;
@@ -118,6 +123,11 @@ export function addScheduleOptions(command: Command): Command {
     )
     .option('--effort <level>', `claude effort level: ${EFFORTS.join(', ')} (default: claude's default)`)
     .option('--icon <emoji>', 'one emoji shown at the left of the title on the board card (default: none)')
+    .option(
+      '--label <label>',
+      'a label shown on the board card; repeatable (default: none)',
+      (value: string, previous: string[] = []) => [...previous, value],
+    )
     .option(
       '--lane <name>',
       "the lane of the machine that runs the task (default: that machine's default lane; a machine without the lane uses its default one)",
@@ -214,6 +224,7 @@ export function parseScheduleArgs(flags: ScheduleFlags, words: string[], now: Da
     model: undefined,
     effort: undefined,
     icon: undefined,
+    labels: undefined,
     lane: undefined,
     autoDone: flags.autoDone === true,
     agent: undefined,
@@ -238,6 +249,7 @@ export function parseScheduleArgs(flags: ScheduleFlags, words: string[], now: Da
   if (flags.model !== undefined) result.model = checkedModel(flags.model);
   if (flags.effort !== undefined) result.effort = checkedEffort(flags.effort);
   if (flags.icon !== undefined) result.icon = checkedIcon(flags.icon);
+  if (flags.label !== undefined) result.labels = checkedLabels(flags.label);
   if (flags.lane !== undefined) result.lane = checkedLane(flags.lane);
   if (flags.agent !== undefined) result.agent = checkedAgent(flags.agent);
   if (hold && backlog) throw new UsageError('--hold and --backlog cannot be combined');
@@ -294,6 +306,15 @@ export function checkedIcon(value: string): string {
   return value;
 }
 
+/** The labels of `--label` or `set labels`, checked, trimmed and without repeats. */
+export function checkedLabels(values: readonly string[]): string[] {
+  try {
+    return checkLabels(values);
+  } catch (error) {
+    if (error instanceof ContractError) throw new UsageError(plainLine(error.message));
+    throw error;
+  }
+}
 export function checkedLane(value: string): string {
   if (!isSafeLane(value)) throw new UsageError(`"${value.slice(0, 40)}" is not a lane name (${MACHINE_NAME_RULE})`);
   return value;
@@ -526,6 +547,7 @@ async function addRepeat(deps: ScheduleDeps, args: ScheduleArgs): Promise<{ sche
     ...(args.model === undefined ? {} : { model: args.model }),
     ...(args.effort === undefined ? {} : { effort: args.effort }),
     ...(args.icon === undefined ? {} : { icon: args.icon }),
+    ...(args.labels === undefined ? {} : { labels: args.labels }),
     ...(args.lane === undefined ? {} : { lane: args.lane }),
     ...(args.autoDone ? { autoDone: true } : {}),
     ...(args.agent === undefined ? {} : { agent: args.agent }),
@@ -596,6 +618,7 @@ async function scheduleKeyed(deps: ScheduleDeps, args: ScheduleArgs, key: string
     ...(args.model === undefined ? {} : { model: args.model }),
     ...(args.effort === undefined ? {} : { effort: args.effort }),
     ...(args.icon === undefined ? {} : { icon: args.icon }),
+    ...(args.labels === undefined ? {} : { labels: args.labels }),
     ...(args.lane === undefined ? {} : { lane: args.lane }),
     ...(args.autoDone ? { autoDone: true } : {}),
     ...(args.agent === undefined ? {} : { agent: args.agent }),
@@ -704,6 +727,10 @@ export async function schedule(deps: ScheduleDeps, args: ScheduleArgs): Promise<
           deps.print(
             `${existing.id} keeps its icon (${existing.icon ?? 'none'}); --icon applies only to a new task: use \`board task ${existing.id} set icon ${args.icon}\``,
           );
+        if (args.labels !== undefined && args.labels.join('\n') !== existing.labels.join('\n'))
+          deps.print(
+            `${existing.id} keeps its labels (${plainLine(existing.labels.join(', ')) || 'none'}); --label applies only to a new task: use \`board task ${existing.id} set labels\``,
+          );
         if (args.lane !== undefined && args.lane !== existing.requestedLane)
           deps.print(
             `${existing.id} keeps its lane (${existing.requestedLane ?? 'the default'}); --lane applies only to a new task: use \`board task ${existing.id} set lane ${args.lane}\``,
@@ -754,6 +781,7 @@ export async function schedule(deps: ScheduleDeps, args: ScheduleArgs): Promise<
     ...(args.model === undefined ? {} : { model: args.model }),
     ...(args.effort === undefined ? {} : { effort: args.effort }),
     ...(args.icon === undefined ? {} : { icon: args.icon }),
+    ...(args.labels === undefined ? {} : { labels: args.labels }),
     ...(args.lane === undefined ? {} : { lane: args.lane }),
     ...(args.autoDone ? { autoDone: true } : {}),
     ...(args.agent === undefined ? {} : { agent: args.agent }),

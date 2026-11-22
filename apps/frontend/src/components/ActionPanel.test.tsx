@@ -55,6 +55,7 @@ function running(overrides: Partial<BoardTask>): BoardTask {
     id: 'abc12345',
     title: 't',
     input: 'do it',
+    skillLabels: [],
     labels: [],
     status: 'running',
     priority: 'normal',

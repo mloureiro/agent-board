@@ -1,4 +1,4 @@
-// `board schedules edit <id> [text...] [--title t] [--priority p] [--model m] [--effort e] [--icon i] [--lane l] [--auto-done on|off] [--agent a] [--dir d]
+// `board schedules edit <id> [text...] [--title t] [--priority p] [--model m] [--effort e] [--icon i] [--label l]... [--lane l] [--auto-done on|off] [--agent a] [--dir d]
 // [--every d | --cron e | --after s [--delay d]] [--in d | --at t] [--times n | --until t | --forever] [--max-concurrent n]`:
 // the prompt and every setting of a schedule, the ones the browser's Edit schedule form changes. What a flag leaves out stays
 // as the schedule has it, and a new repeat replaces the old one.
@@ -24,6 +24,7 @@ import {
   checkedLane,
   checkedEffort,
   checkedIcon,
+  checkedLabels,
   checkedModel,
   checkedPriority,
   localTime,
@@ -40,6 +41,8 @@ export interface ScheduleEditFlags {
   model?: string;
   effort?: string;
   icon?: string;
+  // Repeatable: one string per `--label`; `none` alone removes them.
+  label?: string[];
   lane?: string;
   autoDone?: string;
   agent?: string;
@@ -64,6 +67,8 @@ export interface ScheduleChanges {
   // null for claude's default effort.
   effort?: Effort | null;
   icon?: string | null;
+  // The whole new list; empty removes them.
+  labels?: string[];
   // null for the default lane.
   lane?: string | null;
   autoDone?: boolean;
@@ -94,6 +99,7 @@ const SETTING_FLAGS = [
   'model',
   'effort',
   'icon',
+  'label',
   'lane',
   'autoDone',
   'agent',
@@ -159,6 +165,8 @@ export function parseScheduleChanges(flags: ScheduleEditFlags, now: Date = new D
   if (flags.model !== undefined) changes.model = flags.model === 'default' ? null : checkedModel(flags.model);
   if (flags.effort !== undefined) changes.effort = flags.effort === 'default' ? null : checkedEffort(flags.effort);
   if (flags.icon !== undefined) changes.icon = flags.icon === NONE ? null : checkedIcon(flags.icon);
+  if (flags.label !== undefined)
+    changes.labels = flags.label.length === 1 && flags.label[0] === NONE ? [] : checkedLabels(flags.label);
   if (flags.lane !== undefined) changes.lane = flags.lane === 'default' ? null : checkedLane(flags.lane);
   if (flags.autoDone !== undefined) changes.autoDone = onOff(flags.autoDone);
   if (flags.agent !== undefined) changes.agent = flags.agent === NONE ? null : checkedAgent(flags.agent);
@@ -221,9 +229,10 @@ export function settingsOf(schedule: Schedule): ScheduleSettings {
 }
 
 interface Resolved {
-  // Only a lane and an icon that differ from the schedule's.
+  // Only a lane, an icon and labels that differ from the schedule's.
   lane?: string | null;
   icon?: string | null;
+  labels?: string[];
   place?: ScheduleSettings['place'];
   repeat?: ScheduleRepeat;
 }
@@ -244,6 +253,7 @@ function applyChanges(before: ScheduleSettings, changes: ScheduleChanges, resolv
     ...(changes.effort === undefined ? {} : { effort: changes.effort }),
     ...(resolved.lane === undefined ? {} : { lane: resolved.lane }),
     ...(resolved.icon === undefined ? {} : { icon: resolved.icon }),
+    ...(resolved.labels === undefined ? {} : { labels: resolved.labels }),
     ...(changes.autoDone === undefined ? {} : { autoDone: changes.autoDone }),
     ...(changes.maxConcurrent === undefined ? {} : { maxConcurrent: changes.maxConcurrent }),
     ...(resolved.place === undefined ? {} : { place: resolved.place }),
@@ -313,6 +323,7 @@ function differences(before: ScheduleSettings, after: ScheduleSettings, startAt:
     ...((before.effort ?? null) === (after.effort ?? null) ? [] : [`effort ${after.effort ?? 'default'}`]),
     ...(after.lane === undefined ? [] : [`lane ${plainLine(after.lane ?? 'default')}`]),
     ...(after.icon === undefined ? [] : [`icon ${after.icon ?? NONE}`]),
+    ...(after.labels === undefined ? [] : [`labels ${plainLine(after.labels.join(', ')) || NONE}`]),
     ...(changed('autoDone') ? [`auto-done ${after.autoDone ? 'on' : 'off'}`] : []),
     ...(changed('repeat') ? [`repeat ${plainLine(ruleLine(after.repeat))}`] : []),
     ...(startAt === undefined ? [] : [`first run ${localTime(startAt)}`]),
@@ -375,9 +386,14 @@ export async function editSchedule(context: Context, id: string, options: Schedu
   const repeat = await repeatOf(context, id, current, changes);
   const lane = changes.lane === current.requestedLane ? undefined : changes.lane;
   const icon = changes.icon === current.icon ? undefined : changes.icon;
+  const labels =
+    changes.labels === undefined || changes.labels.join('\n') === current.labels.join('\n')
+      ? undefined
+      : changes.labels;
   const after = applyChanges(before, changes, {
     ...(lane === undefined ? {} : { lane }),
     ...(icon === undefined ? {} : { icon }),
+    ...(labels === undefined ? {} : { labels }),
     ...(place === undefined ? {} : { place }),
     ...(repeat === undefined ? {} : { repeat }),
   });

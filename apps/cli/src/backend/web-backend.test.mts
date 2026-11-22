@@ -621,6 +621,39 @@ test('an icon is sent only to a server that names task.icon', async () => {
   assert.deepEqual(having.seen, ['version', 'add-task', 'add-schedule', 'configure-task']);
 });
 
+test('labels are sent only to a server that names task.labels', async () => {
+  const make = (features: string[]) => {
+    const seen: string[] = [];
+    const fetcher: Fetch = async (url) => {
+      const command = url.slice(`${config.url}/api/machine/`.length);
+      seen.push(command);
+      const result =
+        command === 'version'
+          ? { ...VERSION_ANSWER, features }
+          : command === 'add-task'
+            ? { task: await taskJson('abc'), created: true }
+            : command === 'configure-task'
+              ? await taskJson('abc')
+              : { schedule: serializeSchedule(await wireSchedule({ id: 'sch1' })), task: await taskJson('abc') };
+      return new Response(JSON.stringify({ result }));
+    };
+    return { seen, backend: createWebBackend({ loadConfig: () => config, fetch: fetcher }) };
+  };
+  const task = { id: 'abc', title: 'abe1.t', input: 'abe1.i' };
+  const schedule = { ...task, everyMs: 7_200_000 };
+  const labels = `abe1.${'A'.repeat(40)}`;
+  const lacking = make(['events', 'task.configure']);
+  await assert.rejects(lacking.backend.addTask({ ...task, labels }), /does not support task labels yet/);
+  await assert.rejects(lacking.backend.addSchedule({ ...schedule, labels }), /does not support task labels yet/);
+  await assert.rejects(lacking.backend.configureTask('abc', { labels: null }), /does not support task labels yet/);
+  assert.deepEqual(lacking.seen, ['version']);
+  const having = make(['task.labels', 'task.configure']);
+  await having.backend.addTask({ ...task, labels });
+  await having.backend.addSchedule({ ...schedule, labels });
+  await having.backend.configureTask('abc', { labels: null });
+  assert.deepEqual(having.seen, ['version', 'add-task', 'add-schedule', 'configure-task']);
+});
+
 test('an agent is sent only to a server that names task.agent, and refused before anything is sent otherwise', async () => {
   const make = (features: string[]) => {
     const seen: string[] = [];

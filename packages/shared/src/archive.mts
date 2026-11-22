@@ -29,6 +29,7 @@ import type { KeySlot } from './keys.mts';
 import {
   agentBinding,
   iconBinding,
+  labelsBinding,
   inputBinding,
   machineCatalogBinding,
   machineDirsBinding,
@@ -182,8 +183,8 @@ type Plan = Record<string, Binding[]>;
 
 /** The sealed (envelope) columns of each table, which a re-seal opens; the server's `SEALED_COLUMNS` must list the same ones. */
 export const SEALED_ROW_COLUMNS: Record<ExportTable, readonly string[]> = {
-  task: ['title', 'input', 'workdir', 'homeWorkdir', 'agent', 'icon', 'watches'],
-  schedule: ['title', 'input', 'workdir', 'agent', 'icon'],
+  task: ['title', 'input', 'workdir', 'homeWorkdir', 'agent', 'icon', 'labels', 'watches'],
+  schedule: ['title', 'input', 'workdir', 'agent', 'icon', 'labels'],
   note: ['body', 'preview', 'suggestion', 'questions', 'answers'],
   task_pr: ['pr'],
   machine: ['dirs', 'catalog', 'usage', 'sources'],
@@ -216,7 +217,7 @@ function taskRef(row: Record<string, unknown>): Extract<RowRef, { kind: 'task' }
   return { kind: 'task', id, createdBy, scheduleId, forkOf };
 }
 
-/** Title, input, directories, agent and icon: the columns tasks and schedules share, bound to the row's origin. */
+/** Title, input, directories, agent, icon and labels: the columns tasks and schedules share, bound to the row's origin. */
 async function contentPlan(ctx: ResealContext, row: Record<string, unknown>, ref: RowRef | undefined): Promise<Plan> {
   if (ref === undefined) return {};
   const agentWire = textOrNull(row['agent']);
@@ -224,6 +225,7 @@ async function contentPlan(ctx: ResealContext, row: Record<string, unknown>, ref
   const plan: Plan = {
     title: bindingsOf(() => [titleBinding(ref)]),
     icon: [iconBinding(ref)],
+    labels: [labelsBinding(ref)],
     workdir: bindingsOf(() => workdirOpenBindings(ref)),
     homeWorkdir: bindingsOf(() => workdirOpenBindings(ref)),
   };

@@ -129,6 +129,9 @@ export interface Task {
   title: string;
   input: string;
   // Derived from the prompt and the creator by `taskLabels`; the board does not store them.
+  skillLabels: string[];
+  // The labels the user gave the task, opened; empty for none, and for a value that does not open as a list of labels.
+  // Display only.
   labels: string[];
   status: Status;
   priority: Priority;
@@ -309,6 +312,7 @@ export interface TaskDraft {
   // The agent the task runs as (sealed on the wire); the sealer of `input` states it too, so it is part of that context.
   agent?: string;
   icon?: string;
+  labels?: string[];
   // The PR head sha; the sealing backend turns it into its blind index.
   head?: string;
   // Only with status todo.
@@ -372,6 +376,7 @@ export interface Schedule {
   // The agent every occurrence runs as, by name; null for none.
   agent?: string | null;
   icon: string | null;
+  labels: string[];
   // The rule, exactly one of: an interval on the grid `anchorAt + k * everyMs`, a 5-field cron expression in `timezone`, or
   // `after` another schedule. `cron` is the first expression; `moreCrons` holds the others (up to 9), which a CLI that predates
   // them does not read. Absent when there is only one, and from a server without `schedule.crons`.
@@ -419,6 +424,7 @@ export interface ScheduleDraft {
   // The agent every occurrence runs as (sealed on the wire).
   agent?: string;
   icon?: string;
+  labels?: string[];
   // Exactly one of `everyMs`, `cron` and `after`; a cron expression needs its `timezone` (IANA name). `moreCrons` goes with
   // `cron` only: up to 9 more expressions in the same time zone, none the same as another.
   everyMs?: number;
@@ -590,7 +596,7 @@ export type SourcesOnBoard = DirsOnBoard;
 // What the board server stores and returns: the sealed fields are envelopes (`abe1.…`) it cannot read. Values the server
 // returns may also be legacy plain text from before encryption; only what a client sends is checked to be sealed.
 
-type SealedTaskFields = 'title' | 'input' | 'workdir' | 'agent' | 'icon' | 'labels' | 'unreadable';
+type SealedTaskFields = 'title' | 'input' | 'workdir' | 'agent' | 'icon' | 'labels' | 'skillLabels' | 'unreadable';
 type OpenedTaskFields = 'prs' | 'promptPrState' | 'watches' | 'watchEvents' | 'watchStops';
 
 /** What the states of `set-pr-states` and `setPrStates` name: the prompt's PR, and reported PRs by the id of their row. */
@@ -617,6 +623,7 @@ export type WireTask = Omit<Task, SealedTaskFields | OpenedTaskFields> & {
   workdir: string | null;
   agent?: string | null;
   icon?: string | null;
+  labels?: string | null;
   pr: string | null;
   prState: PrState | null;
   prs?: WireTaskPr[];
@@ -625,12 +632,16 @@ export type WireTask = Omit<Task, SealedTaskFields | OpenedTaskFields> & {
   watchStops?: string[];
 };
 
-export type WireSchedule = Omit<Schedule, 'title' | 'input' | 'workdir' | 'agent' | 'icon' | 'unreadable'> & {
+export type WireSchedule = Omit<
+  Schedule,
+  'title' | 'input' | 'workdir' | 'agent' | 'icon' | 'labels' | 'unreadable'
+> & {
   title: string;
   input: string;
   workdir: string | null;
   agent?: string | null;
   icon?: string | null;
+  labels?: string | null;
 };
 
 export interface WireNote {
@@ -663,7 +674,7 @@ export interface WireRunInbox {
 }
 
 // A task draft with its id; title, input and workdir are sealed, dedupeKey and head are blind indexes.
-export type WireTaskDraft = Omit<TaskDraft, 'id'> & { id: string };
+export type WireTaskDraft = Omit<TaskDraft, 'id' | 'labels'> & { id: string; labels?: string };
 // A task patch; input and workdir are sealed, head is a blind index.
 export type WireTaskPatch = Omit<TaskPatch, 'seal'>;
 // A task's settings as the user edits them after creation. Each key is optional, at least one is present.
@@ -679,6 +690,8 @@ export interface TaskConfigChange {
   autoDone?: boolean;
   // One emoji (`isEmojiIcon`), or null for none; sealed on the wire, so it needs `seal`.
   icon?: string | null;
+  // The whole list of labels (`checkLabels`), replacing the task's; empty for none. Sealed on the wire, so it needs `seal`.
+  labels?: string[];
   // Where the task runs from now on. An object pins it to the directory on the calling machine and drops the session (it
   // cannot be resumed from another directory); null gives the task no directory of its own.
   place?: { workdir: string } | null;
@@ -725,6 +738,8 @@ export interface ScheduleSettings {
   lane?: string | null;
   // One emoji (`isEmojiIcon`); null is none. Absent keeps the schedule's. Needs the `task.icon` feature.
   icon?: string | null;
+  // The whole list of labels (`checkLabels`); empty is none. Absent keeps the schedule's. Needs the `task.labels` feature.
+  labels?: string[];
   autoDone: boolean;
   repeat: ScheduleRepeat;
   // The first run of a rule of its own; absent keeps the schedule's.
@@ -754,9 +769,10 @@ export interface WirePromptEdit {
 }
 
 // The settings of an edit-schedule body: the agent and the directory are sealed under the schedule, with the title and prompt.
-export type WireScheduleSettings = Omit<ScheduleSettings, 'agent' | 'place'> & {
+export type WireScheduleSettings = Omit<ScheduleSettings, 'agent' | 'labels' | 'place'> & {
   agent?: string;
   icon?: string | null;
+  labels?: string | null;
   place: { machine: string; workdir: string } | null;
 };
 
@@ -772,10 +788,10 @@ export interface WireEditScheduleResult {
 }
 
 // The body of configure-task: the directory is sealed.
-export type WireTaskConfig = Omit<TaskConfigChange, 'seal'>;
+export type WireTaskConfig = Omit<TaskConfigChange, 'seal' | 'labels'> & { labels?: string | null };
 
 // A schedule draft with its id; title, input and workdir are sealed.
-export type WireScheduleDraft = Omit<ScheduleDraft, 'id'> & { id: string };
+export type WireScheduleDraft = Omit<ScheduleDraft, 'id' | 'labels'> & { id: string; labels?: string };
 
 export interface WireNoteInput {
   // Sealed note text; sealed empty text for a note without any.
@@ -987,6 +1003,7 @@ export const SEALED_LIMITS: Record<Field, number> = {
   workdir: 4096,
   agent: 256,
   icon: 128,
+  labels: 4096,
   pr: 1024,
   watches: 32 * 1024,
   'machine.dirs': 256 * 1024,
@@ -1083,6 +1100,33 @@ export function isEmojiIcon(value: string): boolean {
   return (
     value.length <= MAX_ICON_LENGTH && EMOJI_SHAPE.test(value) && Array.from(GRAPHEMES.segment(value)).length === 1
   );
+}
+
+export const MAX_LABELS = 16;
+export const MAX_LABEL_LENGTH = 32;
+export const LABEL_RULE = `letters, digits, spaces and - _ . : / # +, at most ${MAX_LABEL_LENGTH} characters, starting with a letter or a digit`;
+const LABEL_SHAPE = new RegExp(`^[\\p{L}\\p{N}][\\p{L}\\p{N}\\p{M} _.:/#+-]{0,${MAX_LABEL_LENGTH - 1}}$`, 'u');
+
+/** One label of a task: a short word or phrase that ends in no space. */
+export function isLabel(value: string): boolean {
+  return LABEL_SHAPE.test(value) && value === value.trimEnd();
+}
+
+/** A task's labels, trimmed, without empties and without repeats (ignoring case, the first spelling wins); throws on a bad one or too many. */
+export function checkLabels(labels: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const kept: string[] = [];
+  for (const raw of labels) {
+    const label = raw.trim();
+    if (label === '') continue;
+    if (!isLabel(label)) throw new ContractError(`"${label.slice(0, 40)}" is not a label: ${LABEL_RULE}`);
+    const key = label.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    kept.push(label);
+  }
+  if (kept.length > MAX_LABELS) throw new ContractError(`a task takes at most ${MAX_LABELS} labels`);
+  return kept;
 }
 
 /** Whether a text holds a control character (the C0 ones and DEL): newlines and NULs that a line, a path or an argument must not carry. */
@@ -1396,6 +1440,7 @@ export function parseWireTask(value: unknown): WireTask {
     workdir: nullableString(obj, 'workdir', 'task'),
     ...(obj['agent'] == null ? {} : { agent: string(obj, 'agent', 'task') }),
     ...(obj['icon'] == null ? {} : { icon: string(obj, 'icon', 'task') }),
+    ...(obj['labels'] == null ? {} : { labels: string(obj, 'labels', 'task') }),
     pr: obj['pr'] === undefined ? null : nullableString(obj, 'pr', 'task'),
     prState: PR_STATES.find((state) => state === obj['prState']) ?? null,
     ...(obj['prs'] === undefined ? {} : { prs: wireTaskPrs(obj['prs']) }),
@@ -1513,6 +1558,7 @@ export function parseWireSchedule(value: unknown): WireSchedule {
     workdir: nullableString(obj, 'workdir', 'schedule'),
     ...(obj['agent'] == null ? {} : { agent: string(obj, 'agent', 'schedule') }),
     ...(obj['icon'] == null ? {} : { icon: string(obj, 'icon', 'schedule') }),
+    ...(obj['labels'] == null ? {} : { labels: string(obj, 'labels', 'schedule') }),
     everyMs,
     cron,
     ...(moreCrons.length === 0 ? {} : { moreCrons }),
@@ -1934,6 +1980,7 @@ export function parseWireTaskDraft(value: unknown): WireTaskDraft {
       'workdir',
       'agent',
       'icon',
+      'labels',
       'head',
       'notBefore',
     ],
@@ -1960,6 +2007,7 @@ export function parseWireTaskDraft(value: unknown): WireTaskDraft {
   if ('workdir' in obj) draft.workdir = sealedField(obj, 'workdir', 'draft', 'workdir');
   if ('agent' in obj) draft.agent = sealedField(obj, 'agent', 'draft', 'agent');
   if ('icon' in obj) draft.icon = sealedField(obj, 'icon', 'draft', 'icon');
+  if ('labels' in obj) draft.labels = sealedField(obj, 'labels', 'draft', 'labels');
   if (draft.agent !== undefined && draft.createdBy === 'agent')
     throw new ContractError(
       'draft.agent cannot go with createdBy agent: a proposal runs under no agent until the user starts it',
@@ -2001,6 +2049,7 @@ export function parseWireScheduleDraft(value: unknown): WireScheduleDraft {
       'workdir',
       'agent',
       'icon',
+      'labels',
       'everyMs',
       'cron',
       'moreCrons',
@@ -2031,6 +2080,7 @@ export function parseWireScheduleDraft(value: unknown): WireScheduleDraft {
   if ('workdir' in obj) draft.workdir = sealedField(obj, 'workdir', what, 'workdir');
   if ('agent' in obj) draft.agent = sealedField(obj, 'agent', what, 'agent');
   if ('icon' in obj) draft.icon = sealedField(obj, 'icon', what, 'icon');
+  if ('labels' in obj) draft.labels = sealedField(obj, 'labels', what, 'labels');
   if ((draft.machine === undefined) !== (draft.workdir === undefined))
     throw new ContractError('schedule draft.machine and schedule draft.workdir go together');
   if (['everyMs', 'cron', 'after'].filter((rule) => rule in obj).length !== 1)
@@ -2094,7 +2144,7 @@ export function parseWireTaskPatch(value: unknown): WireTaskPatch {
 // Body of configure-task. At least one key. `place` carries the sealed directory only: the machine is the token's.
 export function parseWireTaskConfig(value: unknown): WireTaskConfig {
   const obj = record(value, 'config');
-  const keys = ['priority', 'model', 'effort', 'lane', 'autoDone', 'icon', 'place'];
+  const keys = ['priority', 'model', 'effort', 'lane', 'autoDone', 'icon', 'labels', 'place'];
   rejectUnknownKeys(obj, keys, 'config');
   if (!keys.some((key) => key in obj)) throw new ContractError(`config needs one of ${keys.join(', ')}`);
   const config: WireTaskConfig = {};
@@ -2104,6 +2154,7 @@ export function parseWireTaskConfig(value: unknown): WireTaskConfig {
   if ('lane' in obj) config.lane = obj['lane'] === null ? null : laneName(obj, 'config');
   if ('autoDone' in obj) config.autoDone = boolean(obj, 'autoDone', 'config');
   if ('icon' in obj) config.icon = nullableSealedField(obj, 'icon', 'config', 'icon');
+  if ('labels' in obj) config.labels = nullableSealedField(obj, 'labels', 'config', 'labels');
   if ('place' in obj) {
     if (obj['place'] === null) config.place = null;
     else {
@@ -2167,6 +2218,7 @@ function parseWireScheduleSettings(value: unknown, what: string): WireScheduleSe
       'effort',
       'lane',
       'icon',
+      'labels',
       'autoDone',
       'repeat',
       'at',
@@ -2199,6 +2251,7 @@ function parseWireScheduleSettings(value: unknown, what: string): WireScheduleSe
   if ('effort' in obj) settings.effort = obj['effort'] === null ? null : effortLevel(obj, what);
   if ('lane' in obj) settings.lane = obj['lane'] === null ? null : laneName(obj, what);
   if ('icon' in obj) settings.icon = nullableSealedField(obj, 'icon', what, 'icon');
+  if ('labels' in obj) settings.labels = nullableSealedField(obj, 'labels', what, 'labels');
   if ('at' in obj) {
     if ('after' in settings.repeat)
       throw new ContractError(`${what}.at does not go with a repeat after another schedule`);
@@ -2290,12 +2343,24 @@ export function notePreview(text: string): string | null {
 
 /**
  * A task's labels, derived from its prompt and creator: the skill the prompt starts with, and "review" for a task of the removed
- * built-in intake whose prompt names none (kept so that existing tasks keep their label). The board does not store labels.
+ * built-in intake whose prompt names none (kept so that existing tasks keep their label). The board does not store these; the
+ * labels the user gives a task are `Task.labels`.
  */
 export function taskLabels(task: Pick<Task, 'input' | 'createdBy'>): string[] {
   const skill = promptSkill(task.input);
   if (skill !== undefined) return [skill];
   return task.createdBy === 'intake' ? ['review'] : [];
+}
+
+/** What a client lists as a task's labels: the derived ones, then the user's, each once (ignoring case). */
+export function shownLabels(task: Pick<Task, 'skillLabels' | 'labels'>): string[] {
+  const seen = new Set<string>();
+  return [...task.skillLabels, ...task.labels].filter((label) => {
+    const key = label.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 /**

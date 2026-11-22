@@ -3,7 +3,9 @@ import { test } from 'node:test';
 import {
   ContractError,
   isEffort,
+  checkLabels,
   isEmojiIcon,
+  isLabel,
   isModelName,
   MAX_INTERVAL_MS,
   MAX_TASK_PRS,
@@ -48,6 +50,7 @@ import {
   serializeWireNote,
   STATUSES,
   shortSkill,
+  shownLabels,
   taskLabels,
 } from './contract.mts';
 import { blindIndex, deriveKeys, envelopeLength, generateDataKey, seal } from './crypto.mts';
@@ -249,6 +252,33 @@ test('the icon of a task, a draft, a config and a schedule draft is sealed, and 
   assert.equal(draft.icon, icon);
 });
 
+test('a label is a short word or phrase; a list is trimmed, without empties and repeats, and at most 16 long', () => {
+  for (const label of ['bug', 'needs review', 'v1.2', 'team/web', 'área', 'issue#42', 'c++', 'x'.repeat(32)])
+    assert.ok(isLabel(label), label);
+  for (const label of ['', ' bug', 'bug ', '-x', '_x', '#42', 'a\nb', 'a,b', '<b>', 'x'.repeat(33)])
+    assert.ok(!isLabel(label), JSON.stringify(label));
+  assert.deepEqual(checkLabels([' bug', 'UI', 'ui', '', 'Bug ']), ['bug', 'UI']);
+  assert.throws(() => checkLabels(['a,b']), /not a label/);
+  assert.throws(() => checkLabels(Array.from({ length: 17 }, (_, i) => `l${i}`)), /at most 16 labels/);
+});
+
+test('the labels of a task, a draft, a config and a schedule draft are sealed, and null clears them', async () => {
+  const labels = await sealed('labels', '["bug"]');
+  assert.equal(parseWireTask({ ...task, labels }).labels, labels);
+  assert.equal('labels' in parseWireTask({ ...task, labels: null }), false);
+  assert.equal(parseWireTaskDraft({ id: ID, title: TITLE, input: INPUT, labels }).labels, labels);
+  assert.deepEqual(parseWireTaskConfig({ labels }), { labels });
+  assert.deepEqual(parseWireTaskConfig({ labels: null }), { labels: null });
+  assert.throws(() => parseWireTaskConfig({ labels: '["bug"]' }), /config.labels must be encrypted/);
+  assert.throws(() => parseWireTaskConfig({ labels: `abe1.${'A'.repeat(8000)}` }), /config.labels is too long/);
+  assert.equal(parseWireScheduleDraft({ id: ID, title: TITLE, input: INPUT, everyMs: 60_000, labels }).labels, labels);
+});
+
+test('the labels a client shows are the derived ones, then the user’s, each once', () => {
+  assert.deepEqual(shownLabels({ skillLabels: ['review-pr'], labels: ['Review-PR', 'bug'] }), ['review-pr', 'bug']);
+  assert.deepEqual(shownLabels({ skillLabels: [], labels: [] }), []);
+});
+
 test('a draft takes the dedupe key, parent and creator; unknown keys fail', () => {
   assert.deepEqual(
     parseWireTaskDraft({ id: ID, title: TITLE, input: INPUT, dedupeKey: KEY, parentId: 'abc', createdBy: 'agent' }),
@@ -264,7 +294,10 @@ test('a draft takes the dedupe key, parent and creator; unknown keys fail', () =
   }
   assert.deepEqual(parseWireTaskPatch({ status: 'backlog' }), { status: 'backlog' });
   assert.throws(() => parseWireTaskDraft({ id: ID, title: TITLE, input: INPUT, rank: 1 }), ContractError);
-  assert.throws(() => parseWireTaskDraft({ id: ID, title: TITLE, input: INPUT, labels: [] }), /unknown key "labels"/);
+  assert.throws(
+    () => parseWireTaskDraft({ id: ID, title: TITLE, input: INPUT, labels: [] }),
+    /draft.labels must be a string/,
+  );
   assert.equal(parseWireTaskDraft({ id: ID, title: TITLE, input: INPUT, priority: 'high' }).priority, 'high');
   assert.equal(
     parseWireTaskDraft({ id: ID, title: TITLE, input: INPUT }).priority,
@@ -298,7 +331,7 @@ test('a task config takes a priority, a model or null, and a place with a sealed
   });
   assert.throws(
     () => parseWireTaskConfig({}),
-    /config needs one of priority, model, effort, lane, autoDone, icon, place/,
+    /config needs one of priority, model, effort, lane, autoDone, icon, labels, place/,
   );
   assert.throws(() => parseWireTaskConfig([]), /must be a JSON object/);
   assert.throws(() => parseWireTaskConfig({ priority: 'asap' }), /priority must be one of/);

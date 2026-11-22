@@ -10,6 +10,7 @@ import { isCurrentPlace } from '../lib/workingDirectories';
 import { confirmPlace } from './confirmPlace';
 import { DirectorySelect } from './DirectorySelect';
 import { EmojiPicker } from './EmojiPicker';
+import { LabelsEditor } from './LabelsEditor';
 import { useDirectoryChoices } from './useDirectoryChoices';
 import { useLaneOptions } from './useLaneOptions';
 import { useModelOptions } from './useModelOptions';
@@ -157,6 +158,18 @@ export function TaskIconPicker({ task, size }: { task: BoardTask; size: number }
       onChange={(icon) => configure.mutate({ task, icon })}
       disabled={configure.isPending}
       size={size}
+    />
+  );
+}
+
+export function TaskLabelsPicker({ task }: { task: BoardTask }) {
+  const trpc = useTRPC();
+  const configure = useMutation(trpc.tasks.configure.mutationOptions());
+  return (
+    <LabelsEditor
+      value={task.labels}
+      onChange={(labels) => configure.mutate({ task, labels })}
+      disabled={configure.isPending}
     />
   );
 }
