@@ -1,6 +1,6 @@
 import { MantineProvider } from '@mantine/core';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ContextUsageBar } from './ContextUsageBar';
 
@@ -34,7 +34,7 @@ function renderBar(live = false) {
     </MantineProvider>
   );
   const view = render(ui(live));
-  return { rerender: (isLive: boolean) => view.rerender(ui(isLive)) };
+  return { client, rerender: (isLive: boolean) => view.rerender(ui(isLive)) };
 }
 
 beforeEach(() => {
@@ -44,10 +44,10 @@ beforeEach(() => {
 describe('ContextUsageBar', () => {
   it('renders nothing while loading and when the run has no reading', async () => {
     fetchContext.mockResolvedValue(null);
-    renderBar();
+    const { client } = renderBar();
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
-    await vi.waitFor(() => expect(fetchContext).toHaveBeenCalled());
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await vi.waitFor(() => expect(client.getQueryState(['transcript.context', 'task1'])?.status).toBe('success'));
+    await act(async () => {});
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
     expect(screen.queryByText(/used/)).not.toBeInTheDocument();
   });

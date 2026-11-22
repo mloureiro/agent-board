@@ -15,11 +15,10 @@ export function describeContext({ used, window, threshold }: Pick<ContextReading
   marker: number | null;
 } {
   if (window === null || window <= 0) return { percent: null, label: `${formatTokens(used)} used`, marker: null };
-  const percent = Math.min(100, Math.round((used / window) * 100));
-  const shown = Math.round((used / window) * 100);
+  const percent = Math.round((used / window) * 100);
   return {
-    percent,
-    label: `${shown}% used · ${formatTokens(used)} / ${formatTokens(window)}`,
+    percent: Math.min(100, percent),
+    label: `${percent}% used · ${formatTokens(used)} / ${formatTokens(window)}`,
     marker: threshold,
   };
 }

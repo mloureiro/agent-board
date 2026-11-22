@@ -435,6 +435,10 @@ describe('the context reading of a task, as the browser opens it', () => {
     expect(await openContext(keys, taskId, await wire(7, { ...reading, used: 'lots' }))).toBe('unreadable');
   });
 
+  it('shows a value whose own position differs from the one it was served under as unreadable', async () => {
+    expect(await openContext(keys, taskId, await wire(7, { ...reading, seq: 9 }))).toBe('unreadable');
+  });
+
   it('opens the readings of a listing, and gives a card nothing for an unreadable one', async () => {
     const task = await wireTask([]);
     const [readable, unreadable, none] = await openListedTasks(keys, [
