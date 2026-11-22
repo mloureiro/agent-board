@@ -61,6 +61,7 @@ vi.mock('../components/ActionPanel', () => ({
   },
 }));
 vi.mock('../components/TranscriptDrawer', () => ({ TranscriptDrawer: () => null }));
+vi.mock('../components/ContextUsageBar', () => ({ ContextUsageBar: () => null }));
 
 const task = (overrides: Partial<BoardTask>): BoardTask =>
   ({
