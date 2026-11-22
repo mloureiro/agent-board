@@ -1062,6 +1062,48 @@ export async function configureTask(db: DbOrTx, taskId: string, config: TaskConf
   });
 }
 
+export interface TitleRuleChange {
+  icon?: string | undefined;
+  title?: string | undefined;
+  expectTitle?: string | undefined;
+}
+
+/**
+ * What a title rule gave a run's own task, sealed: the icon only while the task has none, the title only while it is still
+ * exactly the envelope `expectTitle` (the one the caller found to be the default), so a rename or an icon the user set
+ * meanwhile stays. Says which parts were stored. A schedule's occurrence takes both from its schedule and is refused. A run
+ * that ended may still apply, since a short run can end before a title is written; a later run of the task refuses an earlier
+ * one. No note is written, as for a rename, and the status and position stay.
+ */
+export async function applyTitleRule(
+  db: DbOrTx,
+  taskId: string,
+  change: TitleRuleChange,
+  run: string,
+): Promise<{ icon: boolean; title: boolean }> {
+  return db.transaction(async (tx) => {
+    const task = await lockTask(tx, taskId);
+    if (task.scheduleId !== null)
+      throw new AppError(
+        'CONFLICT',
+        'A scheduled occurrence takes its title and icon from its schedule; rename it on the Schedules page.',
+      );
+    const refused = notInRun(task, run, { moves: false });
+    if (refused) throw new AppError('CONFLICT', refused);
+    const set: TaskValues = {};
+    const icon = change.icon !== undefined && task.icon === null;
+    const title = change.title !== undefined && change.expectTitle === task.title;
+    if (icon) set.icon = change.icon!;
+    if (title) set.title = change.title!;
+    if (icon || title)
+      await tx
+        .update(tasks)
+        .set({ ...set, updatedAt: new Date() })
+        .where(eq(tasks.id, taskId));
+    return { icon, title };
+  });
+}
+
 /** Sets or clears (null) the start time of a Todo task. */
 export async function setNotBefore(db: DbOrTx, taskId: string, notBefore: Date | null, by: string): Promise<TaskRow> {
   return db.transaction(async (tx) => {

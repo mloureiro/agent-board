@@ -35,6 +35,7 @@ const COUNT_OF_TABLE: Record<ExportTable, keyof AccountSummary> = {
   machine: 'machines',
   shared_agents: 'sharedAgents',
   link_rules: 'linkRules',
+  title_rules: 'titleRules',
   transcript_run: 'transcriptRuns',
   transcript_event: 'transcriptEvents',
 };
