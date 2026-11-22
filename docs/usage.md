@@ -506,17 +506,17 @@ The agent keeps the run narrow, whoever made the task. `--agent reviewer` seals 
 
 The prompt, `--model`, `--effort`, `--lane`, `--priority` and `--title` apply to a task that is made, not to one that is found. A lane is never an `exists` reason: unlike `--agent`, it changes nothing about how the task runs under the old rules. A requeue runs the prompt stored when the task was created.
 
-### Sources
+### Feeds
 
-A source is a script that `board schedule --key` would otherwise run from a timer of your own, run by the machine instead. The watch unit (`agent-board-watch.service`) runs each source on its timer, makes the tasks and closes the stale ones. `board sources` shows how each source did.
+A feed is a script that `board schedule --key` would otherwise run from a timer of your own, run by the machine instead. The watch unit (`agent-board-watch.service`) runs each feed on its timer, makes the tasks and closes the stale ones. `board feeds` shows how each feed did.
 
 ```text
-board sources                                                    # each source, its timer and its last run
-board sources add <name> --every <dur> [--dir d] [--agent a] [--lane l] [--key-prefix p] [--timeout t] -- <command>
-board sources run <name> [--later]
-board sources pause <name>
-board sources resume <name>
-board sources rm <name>
+board feeds                                                    # each feed, its timer and its last run
+board feeds add <name> --every <dur> [--dir d] [--agent a] [--lane l] [--key-prefix p] [--timeout t] -- <command>
+board feeds run <name> [--later]
+board feeds pause <name>
+board feeds resume <name>
+board feeds rm <name>
 ```
 
 **The command** prints one JSON object per line, one for each item that should have a task now:
@@ -532,21 +532,21 @@ board sources rm <name>
 
 - `key`, `title` and `prompt` are required. `version` and `dir` are optional. Any other field fails the line.
 - `dir` makes that item's task in another listed directory, such as the checkout of the PR's repository.
-- The command runs with `bash -c` in the source's directory, with the `env` of your Claude Code settings on top, like a command watch. Tokens stay on the machine.
+- The command runs with `bash -c` in the feed's directory, with the `env` of your Claude Code settings on top, like a command watch. Tokens stay on the machine.
 
 **Each run.**
 
-- Every item goes through `board schedule --key <prefix><key>`, with the source's agent and lane. The prefix defaults to `source:<name>:`. So the board keeps one task per item, and a new `version` sends a task that waits in Needs me or is Done back to Todo, as described under [Results](#results).
+- Every item goes through `board schedule --key <prefix><key>`, with the feed's agent and lane. The prefix defaults to `feed:<name>:`. So the board keeps one task per item, and a new `version` sends a task that waits in Needs me or is Done back to Todo, as described under [Results](#results).
 - An item that an earlier run scheduled and that is no longer listed: its task is moved to Done if it still waits in Todo for its first start. A task that started, or that waits in Needs me, is left to you.
 - A run that fails schedules nothing and closes nothing. It fails on an exit other than 0, the time limit, more than 200 items or 200 KB of output, or a line that is not a valid item. An item that cannot be scheduled fails alone, for example when its `dir` is not listed.
 
-**The timer.** A source runs when its interval has passed since its last run, whether that run succeeded or not. The watch unit looks every 15 seconds and reads `config.json` each time, so a source added or changed takes effect without a restart. `run` runs it at once in the terminal, prints the counts and exits 1 if the run failed. `run --later` leaves it to the watch unit's next look. `pause` stops the timer until `resume`. A source never runs twice at once.
+**The timer.** A feed runs when its interval has passed since its last run, whether that run succeeded or not. The watch unit looks every 15 seconds and reads `config.json` each time, so a feed added or changed takes effect without a restart. `run` runs it at once in the terminal, prints the counts and exits 1 if the run failed. `run --later` leaves it to the watch unit's next look. `pause` stops the timer until `resume`. A feed never runs twice at once.
 
-**State.** The task of each item, the last run and the pause are kept in `~/.local/state/agent-board/sources/<name>.json`. The board cannot read a key back, so this file is how a run finds the tasks of items that went away. `rm` deletes it; the tasks stay on the board.
+**State.** The task of each item, the last run and the pause are kept in `~/.local/state/agent-board/feeds/<name>.json`. The board cannot read a key back, so this file is how a run finds the tasks of items that went away. `rm` deletes it; the tasks stay on the board.
 
-**On the board.** The **Sources** page lists every machine's sources with their timer, last run and result, and a source that cannot run with the reason. **Pause**, **Resume** and **Run now** reach the machine on its next dispatch tick, which the click starts; the button says "Pausing…" and the like until the machine has applied it. The page shows what the machine last sent: the dispatch tick sends the sources when they changed, and the watch unit after each run. The commands, keys and items never leave the machine. A server without the feature shows nothing, and the CLI goes on without it.
+**On the board.** The **Feeds** page lists every machine's feeds with their timer, last run and result, and a feed that cannot run with the reason. **Pause**, **Resume** and **Run now** reach the machine on its next dispatch tick, which the click starts; the button says "Pausing…" and the like until the machine has applied it. The page shows what the machine last sent: the dispatch tick sends the feeds when they changed, and the watch unit after each run. The commands, keys and items never leave the machine. A server without the feature shows nothing, and the CLI goes on without it.
 
-Without the watch unit no source runs on its timer, and `board sources` says so. Keep the prompt free of text copied from the item, such as a Slack message or a PR description. Put a link in it instead, so the agent reads that text as data.
+Without the watch unit no feed runs on its timer, and `board feeds` says so. Keep the prompt free of text copied from the item, such as a Slack message or a PR description. Put a link in it instead, so the agent reads that text as data.
 
 ### Review requests from GitHub
 

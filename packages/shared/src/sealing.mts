@@ -14,7 +14,7 @@
 //   machine.dirs   machine:<name> (the directory list the machine's CLI sends, one JSON document)
 //   machine.catalog machine:<name> (the skills and models the machine's CLI found, one JSON document)
 //   machine.usage  machine:<name> (the usage limits, readings and held tasks the machine's CLI found, one JSON document)
-//   machine.sources machine:<name> (the sources the machine's CLI runs: names, timers and last runs, one JSON document)
+//   machine.feeds machine:<name> (the feeds the machine's CLI runs: names, timers and last runs, one JSON document)
 //   agents.shared  agents:v<version> (every agent definition the user pushed to the board, one JSON document; see sharedAgents.mts)
 //   links          links:v<version> (the link rules the user set in the browser, one JSON document; see linkRules.mts)
 //   note.*         note:<taskId>:<author>:<kind>
@@ -36,8 +36,8 @@ import { catalogProblem, machineCatalogJson, parseMachineCatalog } from './catal
 import type { MachineCatalog } from './catalog.mts';
 import { machineUsageJson, parseMachineUsage, usageProblem } from './machineUsage.mts';
 import type { MachineUsage } from './machineUsage.mts';
-import { machineSourcesJson, parseMachineSources, sourcesProblem } from './machineSources.mts';
-import type { MachineSources } from './machineSources.mts';
+import { machineFeedsJson, parseMachineFeeds, feedsProblem } from './machineFeeds.mts';
+import type { MachineFeeds } from './machineFeeds.mts';
 import {
   AGENT_NAME_RULE,
   checkSealedSize,
@@ -372,34 +372,34 @@ export async function openMachineUsage(
   }
 }
 
-/** The sources of a machine: bound to the machine's name and to their own field, so no other document opens as them. */
-export const machineSourcesBinding = (machine: string): Binding => ({
-  field: 'machine.sources',
+/** The feeds of a machine: bound to the machine's name and to their own field, so no other document opens as them. */
+export const machineFeedsBinding = (machine: string): Binding => ({
+  field: 'machine.feeds',
   context: `machine:${machine}`,
 });
 
-/** A machine's `sourcesIndex` as the board stores it: the blind index of `sources:<machine>:<document>`, to tell whether they changed. */
-export const machineSourcesIndex = (keys: Keys, machine: string, sources: MachineSources): Promise<string> =>
-  blindIndex(keys, `sources:${machine}:${machineSourcesJson(sources)}`);
+/** A machine's `feedsIndex` as the board stores it: the blind index of `feeds:<machine>:<document>`, to tell whether they changed. */
+export const machineFeedsIndex = (keys: Keys, machine: string, feeds: MachineFeeds): Promise<string> =>
+  blindIndex(keys, `feeds:${machine}:${machineFeedsJson(feeds)}`);
 
-/** Seals the sources of `machine`; refuses more than the board takes and an entry that is not of its shape. */
-export async function sealMachineSources(seal: Sealer, machine: string, sources: MachineSources): Promise<string> {
-  const problem = sourcesProblem(sources);
-  if (problem !== undefined) throw new ContractError(`the sources have ${problem}`);
-  return sealChecked(seal, machineSourcesBinding(machine), machineSourcesJson(sources), 'the sources');
+/** Seals the feeds of `machine`; refuses more than the board takes and an entry that is not of its shape. */
+export async function sealMachineFeeds(seal: Sealer, machine: string, feeds: MachineFeeds): Promise<string> {
+  const problem = feedsProblem(feeds);
+  if (problem !== undefined) throw new ContractError(`the feeds have ${problem}`);
+  return sealChecked(seal, machineFeedsBinding(machine), machineFeedsJson(feeds), 'the feeds');
 }
 
-/** The sources a machine sent, or undefined when they do not open under exactly this machine's binding or are not a sources document. */
-export async function openMachineSources(
+/** The feeds a machine sent, or undefined when they do not open under exactly this machine's binding or are not a feeds document. */
+export async function openMachineFeeds(
   open: Opener,
   machine: string,
   wire: string | null | undefined,
-): Promise<MachineSources | undefined> {
+): Promise<MachineFeeds | undefined> {
   if (wire === null || wire === undefined) return undefined;
-  const text = await open(machineSourcesBinding(machine), wire);
+  const text = await open(machineFeedsBinding(machine), wire);
   if (text === undefined) return undefined;
   try {
-    return parseMachineSources(JSON.parse(text));
+    return parseMachineFeeds(JSON.parse(text));
   } catch {
     return undefined;
   }

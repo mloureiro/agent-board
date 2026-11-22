@@ -3,24 +3,24 @@ import { ConfigError, expandHome } from '../config/config.mts';
 import { readConfigFile } from '../config/config-file.mts';
 
 // A command this machine runs on its own timer, whose output lists the items that should each have a task (see items.mts).
-export interface SourceConfig {
+export interface FeedConfig {
   name: string;
   // Run with `bash -c` in `dir`, like a command watch.
   command: string;
   everyMs: number;
   // Where the command runs, and where an item without a `dir` of its own makes its task.
   dir: string;
-  // Put in front of every item's key, so two sources that list the same thing keep apart tasks.
+  // Put in front of every item's key, so two feeds that list the same thing keep apart tasks.
   keyPrefix: string;
   agent?: string;
   lane?: string;
   timeoutMs: number;
 }
 
-export const SOURCE_KEYS = ['command', 'every', 'dir', 'keyPrefix', 'agent', 'lane', 'timeout'] as const;
+export const FEED_KEYS = ['command', 'every', 'dir', 'keyPrefix', 'agent', 'lane', 'timeout'] as const;
 
-export const SOURCE_NAME_RULE = '1 to 40 letters, digits, dots, dashes or underscores, starting with a letter or digit';
-export const isSourceName = (name: string): boolean => /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/.test(name);
+export const FEED_NAME_RULE = '1 to 40 letters, digits, dots, dashes or underscores, starting with a letter or digit';
+export const isFeedName = (name: string): boolean => /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/.test(name);
 
 export const MIN_EVERY_MS = 60_000;
 export const DEFAULT_TIMEOUT_MS = 120_000;
@@ -36,13 +36,13 @@ function duration(value: unknown, where: string): number {
   }
 }
 
-export function parseSource(name: string, entry: unknown): SourceConfig {
-  const where = `sources.${name}`;
+export function parseFeed(name: string, entry: unknown): FeedConfig {
+  const where = `feeds.${name}`;
   if (!isRecord(entry)) throw new ConfigError(`config: ${where} must be an object`);
-  const unknown = Object.keys(entry).find((key) => !SOURCE_KEYS.some((known) => known === key));
+  const unknown = Object.keys(entry).find((key) => !FEED_KEYS.some((known) => known === key));
   if (unknown !== undefined)
     throw new ConfigError(
-      `config: ${where} has no setting "${unknown.slice(0, 40)}" (it takes ${SOURCE_KEYS.join(', ')})`,
+      `config: ${where} has no setting "${unknown.slice(0, 40)}" (it takes ${FEED_KEYS.join(', ')})`,
     );
   const { command, dir, keyPrefix, agent, lane } = entry;
   if (typeof command !== 'string' || command.trim() === '')
@@ -65,33 +65,33 @@ export function parseSource(name: string, entry: unknown): SourceConfig {
     command,
     everyMs,
     dir: expandHome(dir),
-    keyPrefix: keyPrefix ?? `source:${name}:`,
+    keyPrefix: keyPrefix ?? `feed:${name}:`,
     ...(agent === undefined ? {} : { agent }),
     ...(lane === undefined ? {} : { lane }),
     timeoutMs,
   };
 }
 
-// One bad source must not stop the others, nor the machine's other work: its error is kept by name, like a bad agent's.
-export function parseSources(raw: unknown): { sources: SourceConfig[]; sourceErrors: Record<string, string> } {
-  const sources: SourceConfig[] = [];
-  const sourceErrors: Record<string, string> = {};
-  if (raw === undefined) return { sources, sourceErrors };
-  if (!isRecord(raw)) throw new ConfigError('config: sources must be an object keyed by source name');
+// One bad feed must not stop the others, nor the machine's other work: its error is kept by name, like a bad agent's.
+export function parseFeeds(raw: unknown): { feeds: FeedConfig[]; feedErrors: Record<string, string> } {
+  const feeds: FeedConfig[] = [];
+  const feedErrors: Record<string, string> = {};
+  if (raw === undefined) return { feeds, feedErrors };
+  if (!isRecord(raw)) throw new ConfigError('config: feeds must be an object keyed by feed name');
   for (const [name, entry] of Object.entries(raw)) {
     try {
-      if (!isSourceName(name))
-        throw new ConfigError(`config: source name "${name.slice(0, 40)}" must be ${SOURCE_NAME_RULE}`);
-      sources.push(parseSource(name, entry));
+      if (!isFeedName(name))
+        throw new ConfigError(`config: feed name "${name.slice(0, 40)}" must be ${FEED_NAME_RULE}`);
+      feeds.push(parseFeed(name, entry));
     } catch (error) {
       if (!(error instanceof ConfigError)) throw error;
-      sourceErrors[name] = error.message;
+      feedErrors[name] = error.message;
     }
   }
-  return { sources, sourceErrors };
+  return { feeds, feedErrors };
 }
 
-// Read on every use, not once per process: the watch unit runs for days, and `board sources add` must not need a restart.
-export function loadSources(configFile: string): { sources: SourceConfig[]; sourceErrors: Record<string, string> } {
-  return parseSources(readConfigFile(configFile).raw['sources']);
+// Read on every use, not once per process: the watch unit runs for days, and `board feeds add` must not need a restart.
+export function loadFeeds(configFile: string): { feeds: FeedConfig[]; feedErrors: Record<string, string> } {
+  return parseFeeds(readConfigFile(configFile).raw['feeds']);
 }

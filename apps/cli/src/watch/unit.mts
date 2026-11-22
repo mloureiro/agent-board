@@ -18,14 +18,14 @@ import type { WatchDef, WatchEvent, WatchStore } from './store.mts';
 import { publishWatches, PUBLISH_EVERY_MS, REFRESH_MS } from './publish.mts';
 import { forgetWakeTries, isRunLive, tryWake } from './wake.mts';
 import { getPaths, loadConfig } from '../config/config.mts';
-import { createSourceStore } from '../sources/store.mts';
-import { dueSourceJobs } from '../sources/scan.mts';
-import { publishSources } from '../sources/publish.mts';
-import type { SourceJob } from '../sources/scan.mts';
+import { createFeedStore } from '../feeds/store.mts';
+import { dueFeedJobs } from '../feeds/scan.mts';
+import { publishFeeds } from '../feeds/publish.mts';
+import type { FeedJob } from '../feeds/scan.mts';
 
 export const SCAN_MS = 2000;
-// Sources are looked at less often than watches: each look reads config.json and every source's state file.
-export const SOURCES_SCAN_MS = 15_000;
+// Feeds are looked at less often than watches: each look reads config.json and every feed's state file.
+export const FEEDS_SCAN_MS = 15_000;
 
 export interface UnitDeps {
   store: WatchStore;
@@ -36,8 +36,8 @@ export interface UnitDeps {
   now: () => Date;
   isAlive: (pid: number) => boolean;
   log: (line: string) => void;
-  // The runs of the sources that are due (see sources/scan.mts).
-  sources?: (signal: AbortSignal) => SourceJob[];
+  // The runs of the feeds that are due (see feeds/scan.mts).
+  feeds?: (signal: AbortSignal) => FeedJob[];
 }
 
 export interface WatchUnit {
@@ -62,7 +62,7 @@ export function createWatchUnit(deps: UnitDeps): WatchUnit {
   const publishedAt = new Map<string, number>();
   // The running commands of the stream watches, by the key of their watch.
   const streams = new Map<string, { task: string; name: string; id: string; session: StreamSession }>();
-  let sourcesScannedAt = Number.NEGATIVE_INFINITY;
+  let feedsScannedAt = Number.NEGATIVE_INFINITY;
 
   const publish = async (task: string): Promise<void> => {
     stale.delete(task);
@@ -204,9 +204,9 @@ export function createWatchUnit(deps: UnitDeps): WatchUnit {
       store.touchHeartbeat(now());
       reapStreams();
       for (const task of store.tasks()) scanTask(task);
-      if (deps.sources !== undefined && now().getTime() - sourcesScannedAt >= SOURCES_SCAN_MS) {
-        sourcesScannedAt = now().getTime();
-        for (const { key, job } of deps.sources(abort.signal)) launch(key, job);
+      if (deps.feeds !== undefined && now().getTime() - feedsScannedAt >= FEEDS_SCAN_MS) {
+        feedsScannedAt = now().getTime();
+        for (const { key, job } of deps.feeds(abort.signal)) launch(key, job);
       }
     },
     async settled() {
@@ -264,7 +264,7 @@ export async function watchUnitMain(): Promise<void> {
   const stop = new AbortController();
   for (const name of ['SIGTERM', 'SIGINT'] as const) process.once(name, () => stop.abort());
   const { configFile } = getPaths();
-  const sourceStore = createSourceStore(undefined, isProcessAlive);
+  const feedStore = createFeedStore(undefined, isProcessAlive);
   await runWatchUnit(
     {
       store: createWatchStore(),
@@ -274,13 +274,13 @@ export async function watchUnitMain(): Promise<void> {
       now: () => new Date(),
       isAlive: isProcessAlive,
       log: print,
-      sources: (signal) =>
-        dueSourceJobs(
+      feeds: (signal) =>
+        dueFeedJobs(
           {
             backend,
             machine: context.config.machine,
             dirs: loadConfig(configFile).dirs,
-            store: sourceStore,
+            store: feedStore,
             run: (spec) => runCommand(spec),
             link: context.taskLink,
             now: () => new Date(),
@@ -288,8 +288,7 @@ export async function watchUnitMain(): Promise<void> {
             signal,
           },
           configFile,
-          () =>
-            publishSources({ backend, machine: context.config.machine, configFile, store: sourceStore, log: print }),
+          () => publishFeeds({ backend, machine: context.config.machine, configFile, store: feedStore, log: print }),
         ),
     },
     stop.signal,

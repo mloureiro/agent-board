@@ -11,9 +11,9 @@ import {
   openFields,
   openIcon,
   openMachineCatalog,
-  openMachineSources,
-  parseSourceRequest,
-  type MachineSource,
+  openMachineFeeds,
+  parseFeedRequest,
+  type MachineFeed,
   openMachineDirs,
   openMachineUsage,
   openNote,
@@ -476,30 +476,28 @@ export async function openOutput(
   return (await tryOpen(keys, transcriptBinding('tr.output', run.taskId, run.runId, seq), wire)) ?? UNREADABLE_TEXT;
 }
 
-/** One machine's sources as the Sources page shows them; `sources` is null when the document does not open. */
-export interface OpenedSources {
+/** One machine's feeds as the Feeds page shows them; `feeds` is null when the document does not open. */
+export interface OpenedFeeds {
   machine: string;
-  sources: MachineSource[] | null;
+  feeds: MachineFeed[] | null;
   updatedAt: string | null;
   lastSeenAt: string | null;
   // The pending requests (`pause:<id>` and the like) the machine has not applied yet.
   requests: string[];
 }
 
-export async function openSources(keys: Keys, wire: RouterOutputs['sources']['list']): Promise<OpenedSources[]> {
+export async function openFeeds(keys: Keys, wire: RouterOutputs['feeds']['list']): Promise<OpenedFeeds[]> {
   return Promise.all(
-    wire.map(async ({ name, sources: sealed, sourcesUpdatedAt, sourceRequests, lastSeenAt }) => {
+    wire.map(async ({ name, feeds: sealed, feedsUpdatedAt, feedRequests, lastSeenAt }) => {
       const shown = shownName(name) ?? INVALID_VALUE;
       const opened =
-        shown === INVALID_VALUE || sealed === null
-          ? undefined
-          : await openMachineSources(openerFor(keys), name, sealed);
+        shown === INVALID_VALUE || sealed === null ? undefined : await openMachineFeeds(openerFor(keys), name, sealed);
       return {
         machine: shown,
-        sources: opened?.sources ?? null,
-        updatedAt: sourcesUpdatedAt,
+        feeds: opened?.feeds ?? null,
+        updatedAt: feedsUpdatedAt,
         lastSeenAt,
-        requests: sourceRequests.filter((request) => parseSourceRequest(request) !== undefined),
+        requests: feedRequests.filter((request) => parseFeedRequest(request) !== undefined),
       };
     }),
   );

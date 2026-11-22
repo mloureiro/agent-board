@@ -10,7 +10,7 @@ import {
   parseVersionFeatures,
   parseVersionIdentity,
   parseVersionUsageIndex,
-  parseVersionSources,
+  parseVersionFeeds,
 } from '@agent-board/shared';
 import type { Keys } from '@agent-board/shared';
 import { isCompiledBinary } from '../self/self.mts';
@@ -44,9 +44,9 @@ export interface ServerIdentity {
   catalogIndex?: string;
   // The same for the usage status.
   usageIndex?: string;
-  // The same for the sources, and the requests of the user that wait for this machine.
-  sourcesIndex?: string;
-  sourceRequests?: string[];
+  // The same for the feeds, and the requests of the user that wait for this machine.
+  feedsIndex?: string;
+  feedRequests?: string[];
   // The version of the agent definitions the board holds for every machine; absent when it holds none or does not say.
   agentsVersion?: number;
 }
@@ -90,7 +90,7 @@ export async function verifyContract(
     const dirsIndex = parseVersionDirsIndex(version);
     const catalogIndex = parseVersionCatalogIndex(version);
     const usageIndex = parseVersionUsageIndex(version);
-    const sources = parseVersionSources(version);
+    const feeds = parseVersionFeeds(version);
     const agentsVersion = parseVersionAgentsVersion(version);
     return {
       ...identity,
@@ -100,8 +100,8 @@ export async function verifyContract(
       ...(dirsIndex === null ? {} : { dirsIndex }),
       ...(catalogIndex === null ? {} : { catalogIndex }),
       ...(usageIndex === null ? {} : { usageIndex }),
-      ...(sources.index === null ? {} : { sourcesIndex: sources.index }),
-      ...(sources.requests.length === 0 ? {} : { sourceRequests: sources.requests }),
+      ...(feeds.index === null ? {} : { feedsIndex: feeds.index }),
+      ...(feeds.requests.length === 0 ? {} : { feedRequests: feeds.requests }),
       ...(agentsVersion === null ? {} : { agentsVersion }),
     };
   } catch (error) {

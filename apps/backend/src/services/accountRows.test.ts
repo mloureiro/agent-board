@@ -62,7 +62,7 @@ const IGNORED: Record<AccountTable, Record<string, string>> = {
   task_pr: { owner: 'the signed-in user, whatever the file says' },
   machine: {
     owner: 'the signed-in user, whatever the file says',
-    sourceRequests: 'a request for the exporting machine, applied or not; no machine acts on an import',
+    feedRequests: 'a request for the exporting machine, applied or not; no machine acts on an import',
   },
   shared_agents: { owner: 'the signed-in user, whatever the file says' },
   link_rules: { owner: 'the signed-in user, whatever the file says' },

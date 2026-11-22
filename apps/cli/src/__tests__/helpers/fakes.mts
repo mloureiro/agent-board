@@ -14,7 +14,7 @@ import {
   machineCatalogJson,
   machineDirsJson,
   machineUsageJson,
-  machineSourcesJson,
+  machineFeedsJson,
   MIN_CLIENT,
   deriveKeys,
   encodeDataKey,
@@ -33,7 +33,7 @@ import type {
   MachineCatalog,
   MachineDir,
   MachineUsage,
-  MachineSources,
+  MachineFeeds,
   SharedAgentsOnBoard,
   Note,
   Schedule,
@@ -143,9 +143,9 @@ export interface FakeBackend extends Backend {
   boardCatalog: { supported: boolean; held: MachineCatalog | undefined; failure: Error | undefined };
   // The same for the usage status.
   boardUsage: { supported: boolean; held: MachineUsage | undefined; failure: Error | undefined };
-  boardSources: {
+  boardFeeds: {
     supported: boolean;
-    held: MachineSources | undefined;
+    held: MachineFeeds | undefined;
     requests: string[];
     failure: Error | undefined;
   };
@@ -190,7 +190,7 @@ export function fakeBackend(tasks: Task[]): FakeBackend {
     boardDirs: { supported: true, held: undefined, failure: undefined },
     boardCatalog: { supported: true, held: undefined, failure: undefined },
     boardUsage: { supported: true, held: undefined, failure: undefined },
-    boardSources: { supported: true, held: undefined, requests: [], failure: undefined },
+    boardFeeds: { supported: true, held: undefined, requests: [], failure: undefined },
     boardAgents: { supported: true, held: null, conflicts: 0 },
     async sharedAgentsVersion() {
       if (!state.boardAgents.supported) return 'unsupported';
@@ -467,23 +467,23 @@ export function fakeBackend(tasks: Task[]): FakeBackend {
       state.writes.push(`usage ${machine}: ${usage.held.length} held, ${usage.open.length} open`);
       state.boardUsage.held = structuredClone(usage);
     },
-    async checkSources(_machine, sources) {
-      if (state.boardSources.failure) throw state.boardSources.failure;
-      if (!state.boardSources.supported) return 'unsupported';
-      const { held } = state.boardSources;
-      return held !== undefined && machineSourcesJson(held) === machineSourcesJson(sources) ? 'current' : 'stale';
+    async checkFeeds(_machine, feeds) {
+      if (state.boardFeeds.failure) throw state.boardFeeds.failure;
+      if (!state.boardFeeds.supported) return 'unsupported';
+      const { held } = state.boardFeeds;
+      return held !== undefined && machineFeedsJson(held) === machineFeedsJson(feeds) ? 'current' : 'stale';
     },
-    async setSources(machine, sources) {
-      if (state.boardSources.failure) throw state.boardSources.failure;
-      state.writes.push(`sources ${machine}: ${sources.sources.map(({ name }) => name).join(',') || 'none'}`);
-      state.boardSources.held = structuredClone(sources);
+    async setFeeds(machine, feeds) {
+      if (state.boardFeeds.failure) throw state.boardFeeds.failure;
+      state.writes.push(`feeds ${machine}: ${feeds.feeds.map(({ name }) => name).join(',') || 'none'}`);
+      state.boardFeeds.held = structuredClone(feeds);
     },
-    async sourceRequests() {
-      return state.boardSources.supported ? [...state.boardSources.requests] : [];
+    async feedRequests() {
+      return state.boardFeeds.supported ? [...state.boardFeeds.requests] : [];
     },
-    async ackSourceRequests(requests) {
-      state.writes.push(`ack sources ${requests.join(' ')}`);
-      state.boardSources.requests = state.boardSources.requests.filter((request) => !requests.includes(request));
+    async ackFeedRequests(requests) {
+      state.writes.push(`ack feeds ${requests.join(' ')}`);
+      state.boardFeeds.requests = state.boardFeeds.requests.filter((request) => !requests.includes(request));
     },
     async heartbeat(id, beat) {
       state.writes.push(`heartbeat ${id} ${beat.lane}${beat.borrowed ? ' borrowed' : ''}`);

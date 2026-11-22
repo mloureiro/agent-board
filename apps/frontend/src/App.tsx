@@ -16,7 +16,7 @@ import { BacklogPage, BoardPage } from './pages/BoardPage';
 import { ClosedPage } from './pages/ClosedPage';
 import { AgentsPage } from './pages/AgentsPage';
 import { SchedulesPage } from './pages/SchedulesPage';
-import { SourcesPage } from './pages/SourcesPage';
+import { FeedsPage } from './pages/FeedsPage';
 import { AccountSettings } from './pages/settings/AccountSettings';
 import { EncryptionSettings } from './pages/settings/EncryptionSettings';
 import { LinksSettings } from './pages/settings/LinksSettings';
@@ -81,7 +81,7 @@ function SignedInApp() {
                 <Route path="backlog" element={<BacklogPage />} />
                 <Route path="t/:id" element={<TaskPage />} />
                 <Route path="schedules" element={<SchedulesPage />} />
-                <Route path="sources" element={<SourcesPage />} />
+                <Route path="feeds" element={<FeedsPage />} />
                 <Route path="closed" element={<ClosedPage />} />
                 <Route path="settings" element={<SettingsLayout />}>
                   <Route index element={<Navigate to="/settings/machines" replace />} />

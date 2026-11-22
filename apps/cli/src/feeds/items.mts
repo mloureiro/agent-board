@@ -1,22 +1,22 @@
 import { isRecord } from '@agent-board/shared';
 
-// One thing a source says should have a task: the line an adapter prints for it.
-export interface SourceItem {
+// One thing a feed says should have a task: the line an adapter prints for it.
+export interface FeedItem {
   key: string;
   title: string;
   prompt: string;
   version?: string;
-  // A directory of this machine's `dirs` list the task runs in, instead of the source's own.
+  // A directory of this machine's `dirs` list the task runs in, instead of the feed's own.
   dir?: string;
 }
 
-export const MAX_SOURCE_ITEMS = 200;
+export const MAX_FEED_ITEMS = 200;
 
 const ITEM_FIELDS = ['key', 'title', 'prompt', 'version', 'dir'] as const;
 
-export type ParsedItems = { ok: true; items: SourceItem[] } | { ok: false; error: string };
+export type ParsedItems = { ok: true; items: FeedItem[] } | { ok: false; error: string };
 
-function item(value: unknown, line: number): SourceItem | string {
+function item(value: unknown, line: number): FeedItem | string {
   if (!isRecord(value)) return `line ${line} is not a JSON object`;
   const unknown = Object.keys(value).find((field) => !ITEM_FIELDS.some((known) => known === field));
   if (unknown !== undefined)
@@ -41,7 +41,7 @@ function item(value: unknown, line: number): SourceItem | string {
 
 /** The items of an adapter's stdout, one JSON object per line; empty lines are skipped. Any bad line fails the whole listing. */
 export function parseItems(stdout: string): ParsedItems {
-  const items: SourceItem[] = [];
+  const items: FeedItem[] = [];
   const keys = new Set<string>();
   const lines = stdout.split('\n');
   for (const [index, text] of lines.entries()) {
@@ -57,7 +57,7 @@ export function parseItems(stdout: string): ParsedItems {
     if (keys.has(parsed.key)) return { ok: false, error: `line ${index + 1} repeats the key of an earlier line` };
     keys.add(parsed.key);
     items.push(parsed);
-    if (items.length > MAX_SOURCE_ITEMS) return { ok: false, error: `more than ${MAX_SOURCE_ITEMS} items` };
+    if (items.length > MAX_FEED_ITEMS) return { ok: false, error: `more than ${MAX_FEED_ITEMS} items` };
   }
   return { ok: true, items };
 }

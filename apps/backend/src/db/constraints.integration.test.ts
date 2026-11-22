@@ -156,13 +156,13 @@ describe('what the application role can store afterwards', () => {
       catalogIndex?: string | null;
       usage?: string | null;
       usageIndex?: string | null;
-      sources?: string | null;
-      sourcesIndex?: string | null;
+      feeds?: string | null;
+      feedsIndex?: string | null;
     } = {},
   ) =>
     tx.execute(sql`
-      insert into machine (name, token_hash, dirs, dirs_index, catalog, catalog_index, usage, usage_index, sources, sources_index)
-      values ('laptop', 'hash', ${o.dirs ?? null}, ${o.dirsIndex ?? null}, ${o.catalog ?? null}, ${o.catalogIndex ?? null}, ${o.usage ?? null}, ${o.usageIndex ?? null}, ${o.sources ?? null}, ${o.sourcesIndex ?? null})`);
+      insert into machine (name, token_hash, dirs, dirs_index, catalog, catalog_index, usage, usage_index, feeds, feeds_index)
+      values ('laptop', 'hash', ${o.dirs ?? null}, ${o.dirsIndex ?? null}, ${o.catalog ?? null}, ${o.catalogIndex ?? null}, ${o.usage ?? null}, ${o.usageIndex ?? null}, ${o.feeds ?? null}, ${o.feedsIndex ?? null})`);
 
   const sharedAgents = (tx: Tx, document: string) =>
     tx.execute(sql`insert into shared_agents (version, document) values (1, ${document})`);
@@ -198,8 +198,8 @@ describe('what the application role can store afterwards', () => {
     ['machine_usage_sealed', 'a plain usage status', (tx) => machine(tx, { usage: '{"windows":{}}' })],
     ['machine_usage_index_blind', 'a plain usage index', (tx) => machine(tx, { usageIndex: 'abcdef' })],
     ['machine_usage_index_blind', 'an envelope as a usage index', (tx) => machine(tx, { usageIndex: ENVELOPE })],
-    ['machine_sources_sealed', 'plain sources', (tx) => machine(tx, { sources: '{"sources":[]}' })],
-    ['machine_sources_index_blind', 'a plain sources index', (tx) => machine(tx, { sourcesIndex: 'abcdef' })],
+    ['machine_feeds_sealed', 'plain feeds', (tx) => machine(tx, { feeds: '{"feeds":[]}' })],
+    ['machine_feeds_index_blind', 'a plain feeds index', (tx) => machine(tx, { feedsIndex: 'abcdef' })],
     ['shared_agents_document_sealed', 'plain shared agents', (tx) => sharedAgents(tx, '{"version":1,"agents":{}}')],
     ['link_rules_document_sealed', 'plain link rules', (tx) => linkRules(tx, '{"version":1,"rules":[]}')],
     ['task_title_sealed', 'a too short envelope', (tx) => task(tx, { title: 'abe1.AAAA' })],

@@ -68,8 +68,8 @@ interface Connection {
   dirsIndex: string | null;
   catalogIndex: string | null;
   usageIndex: string | null;
-  sourcesIndex: string | null;
-  sourceRequests: string[];
+  feedsIndex: string | null;
+  feedRequests: string[];
   agentsVersion: number | null;
 }
 
@@ -94,8 +94,8 @@ const COMMAND_FEATURES: Partial<Record<string, ServerFeature>> = {
   'edit-schedule': 'prompt.edit',
   'set-catalog': 'machine.catalog',
   'set-usage': 'machine.usage',
-  'set-sources': 'machine.sources',
-  'ack-source-requests': 'machine.sources',
+  'set-feeds': 'machine.feeds',
+  'ack-feed-requests': 'machine.feeds',
   'get-agents': 'agents.shared',
   'set-agents': 'agents.shared',
 };
@@ -130,8 +130,8 @@ export function createWebBackend(options: WebBackendOptions): WebBackend {
         dirsIndex: identity.dirsIndex ?? null,
         catalogIndex: identity.catalogIndex ?? null,
         usageIndex: identity.usageIndex ?? null,
-        sourcesIndex: identity.sourcesIndex ?? null,
-        sourceRequests: identity.sourceRequests ?? [],
+        feedsIndex: identity.feedsIndex ?? null,
+        feedRequests: identity.feedRequests ?? [],
         agentsVersion: identity.agentsVersion ?? null,
       };
     })();
@@ -338,12 +338,12 @@ export function createWebBackend(options: WebBackendOptions): WebBackend {
       const { features, usageIndex } = await connect();
       return { supported: features.has('machine.usage'), index: usageIndex };
     },
-    setSources: async (body) => send('set-sources', { body }),
-    sourcesState: async () => {
-      const { features, sourcesIndex, sourceRequests } = await connect();
-      return { supported: features.has('machine.sources'), index: sourcesIndex, requests: sourceRequests };
+    setFeeds: async (body) => send('set-feeds', { body }),
+    feedsState: async () => {
+      const { features, feedsIndex, feedRequests } = await connect();
+      return { supported: features.has('machine.feeds'), index: feedsIndex, requests: feedRequests };
     },
-    ackSourceRequests: async (body) => send('ack-source-requests', { body }),
+    ackFeedRequests: async (body) => send('ack-feed-requests', { body }),
     getAgents: async () => call('get-agents', {}, parseWireSharedAgents),
     setAgents: async (body) => send('set-agents', { body }),
     agentsState: async () => {

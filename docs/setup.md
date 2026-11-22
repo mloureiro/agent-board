@@ -209,12 +209,12 @@ Stopping the listener waits for a dispatch tick that is running. The unit's `Tim
 
 The listener checks the API range each time it connects. When the server no longer serves this CLI, the listener logs that and exits, and systemd restarts it every 10 seconds until the CLI matches. When the server is older than the CLI, the listener logs that once and keeps reconnecting with its usual backoff.
 
-### Sources and the Sources page
+### Feeds and the Feeds page
 
-The CLI adds `board sources` and a `sources` key in `config.json` (see [Sources](usage.md#sources)). The server adds the feature `machine.sources`, migration `0047_machine-sources`, and the **Sources** page. Additive: deploy and release in any order.
+The CLI adds `board feeds` and a `feeds` key in `config.json` (see [Feeds](usage.md#feeds)). The server adds the feature `machine.feeds`, migrations `0047_machine-sources`, `0048_drop-machine-sources` and `0049_machine-feeds`, and the **Feeds** page. Additive: deploy and release in any order.
 
-- Until a machine runs a CLI with sources, it sends none and the page lists nothing for it.
-- After `board self-update`, restart the watch unit as well as the listener (`board restart watch`), since the watch unit runs the sources.
+- Until a machine runs a CLI with feeds, it sends none and the page lists nothing for it.
+- After `board self-update`, restart the watch unit as well as the listener (`board restart watch`), since the watch unit runs the feeds.
 
 ### `board watch --ci --ignore` and `ciIgnore` (CLI 0.31.0)
 
@@ -540,7 +540,7 @@ Machine settings are in `~/.config/agent-board/config.json`. `AGENT_BOARD_CONFIG
 | `usageLimits`       | Holds Todo tasks back while Claude usage is high. See [usageLimits](#usagelimits).                                                                                                               | Absent.                            |
 | `agents`            | Named agents a task can run as. See [agents](#agents).                                                                                                                                           | Absent.                            |
 | `dirs`              | The directories workers may run in. See [dirs](#dirs).                                                                                                                                           | Absent.                            |
-| `sources`           | Commands that make this machine's tasks from other tools, on a timer. See [sources](#sources).                                                                                                   | Absent.                            |
+| `feeds`             | Commands that make this machine's tasks from other tools, on a timer. See [feeds](#feeds).                                                                                                       | Absent.                            |
 
 An `intake` key is ignored with a warning, and `board doctor` fails on it. See [The built-in intake is removed](#the-built-in-intake-is-removed-cli-0130).
 
@@ -567,12 +567,12 @@ Each agent has `description` and `tools`, and optionally `prompt`, `allowedTools
 
 An agent can also be a file in the `agents` directory beside `config.json`, which `board agents add` writes, or a definition the board holds for every machine, which `board agents push` puts there. A task names an agent with `board schedule --agent` or the New task form. [Agents](workers.md#agents) has the details.
 
-### sources
+### feeds
 
-An object keyed by source name (1 to 40 letters, digits, `.`, `-` and `_`):
+An object keyed by feed name (1 to 40 letters, digits, `.`, `-` and `_`):
 
 ```json
-"sources": {
+"feeds": {
   "github-reviews": { "command": "~/bin/review-requests acme/app", "every": "10m", "dir": "~/workspace/app", "agent": "reviewer" }
 }
 ```
@@ -580,10 +580,10 @@ An object keyed by source name (1 to 40 letters, digits, `.`, `-` and `_`):
 - `command` (required) runs with `bash -c` in `dir`.
 - `every` (required) is a duration of at least `1m`.
 - `dir` (required) is where the command runs and where an item without a `dir` of its own makes its task. It must be listed in `dirs`.
-- `agent`, `lane` and `keyPrefix` (default `source:<name>:`) apply to every task it makes.
+- `agent`, `lane` and `keyPrefix` (default `feed:<name>:`) apply to every task it makes.
 - `timeout` is the longest one run may take: default `2m`, at most `30m`.
 
-A source with a bad setting is not run, and `board sources` says why. The other sources and the rest of the config are not affected. Manage it with `board sources add`, `rm`, `run`, `pause` and `resume` (see [Sources](usage.md#sources)).
+A feed with a bad setting is not run, and `board feeds` says why. The other feeds and the rest of the config are not affected. Manage it with `board feeds add`, `rm`, `run`, `pause` and `resume` (see [Feeds](usage.md#feeds)).
 
 ### dirs
 

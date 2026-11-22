@@ -1,14 +1,14 @@
-// What a source keeps on this machine, in `<stateDir>/sources/`:
+// What a feed keeps on this machine, in `<stateDir>/feeds/`:
 //   <name>.json   paused, the last run and its outcome, a run asked for now, and the task of every key it scheduled
-//   <name>.lock   the pid of the process running it, so the watch unit and `board sources run` never run it twice at once
-// The board's keys cannot be read back, so the key → task map is how a source finds the tasks of items that went away.
+//   <name>.lock   the pid of the process running it, so the watch unit and `board feeds run` never run it twice at once
+// The board's keys cannot be read back, so the key → task map is how a feed finds the tasks of items that went away.
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
-import { isRecord, isSourceId } from '@agent-board/shared';
+import { isRecord, isFeedId } from '@agent-board/shared';
 import { getPaths } from '../config/config.mts';
 
-export interface SourceCounts {
+export interface FeedCounts {
   listed: number;
   created: number;
   requeued: number;
@@ -16,40 +16,40 @@ export interface SourceCounts {
   failed: number;
 }
 
-export interface SourceRun {
+export interface FeedRun {
   at: string;
   ok: boolean;
   // Why the listing failed, or the first item that could not be scheduled.
   error?: string;
-  counts: SourceCounts;
+  counts: FeedCounts;
 }
 
-export interface SourceState {
+export interface FeedState {
   paused: boolean;
-  // Asked for with `board sources run --later` or from the board: the next scan runs it whatever its timer says.
+  // Asked for with `board feeds run --later` or from the board: the next scan runs it whatever its timer says.
   runNow: boolean;
-  // The opaque id the board and its requests know the source by; made on first publish.
+  // The opaque id the board and its requests know the feed by; made on first publish.
   id?: string;
-  last?: SourceRun;
+  last?: FeedRun;
   tasks: Record<string, string>;
 }
 
-export interface SourceStore {
-  read: (name: string) => SourceState;
-  write: (name: string, state: SourceState) => void;
+export interface FeedStore {
+  read: (name: string) => FeedState;
+  write: (name: string, state: FeedState) => void;
   // Takes the run lock; false while another live process holds it.
   lock: (name: string) => boolean;
   unlock: (name: string) => void;
 }
 
-const EMPTY: SourceState = { paused: false, runNow: false, tasks: {} };
+const EMPTY: FeedState = { paused: false, runNow: false, tasks: {} };
 
-const ZERO: SourceCounts = { listed: 0, created: 0, requeued: 0, closed: 0, failed: 0 };
+const ZERO: FeedCounts = { listed: 0, created: 0, requeued: 0, closed: 0, failed: 0 };
 
-function parseRun(value: unknown): SourceRun | undefined {
+function parseRun(value: unknown): FeedRun | undefined {
   if (!isRecord(value) || typeof value['at'] !== 'string' || typeof value['ok'] !== 'boolean') return undefined;
   const counts = isRecord(value['counts']) ? value['counts'] : {};
-  const count = (name: keyof SourceCounts): number => {
+  const count = (name: keyof FeedCounts): number => {
     const n = counts[name];
     return typeof n === 'number' && Number.isInteger(n) && n >= 0 ? n : 0;
   };
@@ -67,14 +67,14 @@ function parseRun(value: unknown): SourceRun | undefined {
   };
 }
 
-export function parseSourceState(value: unknown): SourceState {
+export function parseFeedState(value: unknown): FeedState {
   if (!isRecord(value)) return EMPTY;
   const tasks: Record<string, string> = {};
   if (isRecord(value['tasks']))
     for (const [key, id] of Object.entries(value['tasks'])) if (typeof id === 'string') tasks[key] = id;
   const last = parseRun(value['last']);
   return {
-    ...(isSourceId(value['id']) ? { id: value['id'] } : {}),
+    ...(isFeedId(value['id']) ? { id: value['id'] } : {}),
     paused: value['paused'] === true,
     runNow: value['runNow'] === true,
     ...(last === undefined ? {} : { last }),
@@ -82,18 +82,18 @@ export function parseSourceState(value: unknown): SourceState {
   };
 }
 
-export const zeroCounts = (): SourceCounts => ({ ...ZERO });
+export const zeroCounts = (): FeedCounts => ({ ...ZERO });
 
-export function createSourceStore(
-  dir: string = join(getPaths().stateDir, 'sources'),
+export function createFeedStore(
+  dir: string = join(getPaths().stateDir, 'feeds'),
   isAlive: (pid: number) => boolean,
-): SourceStore {
+): FeedStore {
   const file = (name: string, ext: string): string => join(dir, `${name}.${ext}`);
   const ensure = (): void => void mkdirSync(dir, { recursive: true, mode: 0o700 });
   return {
     read: (name) => {
       try {
-        return parseSourceState(JSON.parse(readFileSync(file(name, 'json'), 'utf8')));
+        return parseFeedState(JSON.parse(readFileSync(file(name, 'json'), 'utf8')));
       } catch {
         return EMPTY;
       }

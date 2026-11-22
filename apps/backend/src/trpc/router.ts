@@ -4,12 +4,12 @@ import {
   isSafeLane,
   isSafeMachineName,
   isSafeTaskId,
-  isSourceId,
+  isFeedId,
   isWatchId,
   parseKeyId,
   parseKeySlots,
   PRIORITIES,
-  SOURCE_ACTIONS,
+  FEED_ACTIONS,
   STATUSES,
   type WireNote,
   type WireScheduleDraft,
@@ -30,8 +30,8 @@ import {
   issueToken,
   listMachineCatalogs,
   listMachines,
-  listMachineSources,
-  requestSource,
+  listMachineFeeds,
+  requestFeed,
   revokeMachine,
 } from '../services/machines';
 import { sharedAgentsForBrowser } from '../services/sharedAgents';
@@ -616,19 +616,19 @@ const machinesRouter = router({
     .mutation(async ({ ctx, input }) => revokeMachine(ctx.db, input.name)),
 });
 
-const sourcesRouter = router({
-  /** The sealed sources and pending requests of every machine that sent sources. */
-  list: procedure.query(({ ctx }) => listMachineSources(ctx.db)),
-  /** Pause, resume or run one source now; the machine applies it on its next dispatch tick, which this mutation starts. */
+const feedsRouter = router({
+  /** The sealed feeds and pending requests of every machine that sent feeds. */
+  list: procedure.query(({ ctx }) => listMachineFeeds(ctx.db)),
+  /** Pause, resume or run one feed now; the machine applies it on its next dispatch tick, which this mutation starts. */
   request: procedure
     .input(
       z.object({
         machine: z.string().min(1).max(256),
-        action: z.enum(SOURCE_ACTIONS),
-        id: z.string().refine(isSourceId, 'not a source id'),
+        action: z.enum(FEED_ACTIONS),
+        id: z.string().refine(isFeedId, 'not a feed id'),
       }),
     )
-    .mutation(({ ctx, input }) => requestSource(ctx.db, input.machine, { action: input.action, id: input.id })),
+    .mutation(({ ctx, input }) => requestFeed(ctx.db, input.machine, { action: input.action, id: input.id })),
 });
 
 const agentsRouter = router({
@@ -714,7 +714,7 @@ export const appRouter = router({
   tasks: tasksRouter,
   schedules: schedulesRouter,
   machines: machinesRouter,
-  sources: sourcesRouter,
+  feeds: feedsRouter,
   agents: agentsRouter,
   links: linksRouter,
 });

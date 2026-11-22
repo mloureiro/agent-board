@@ -8,7 +8,7 @@ import {
   machineCatalogIndex,
   machineDirsIndex,
   machineUsageIndex,
-  machineSourcesIndex,
+  machineFeedsIndex,
   newTaskId,
   open,
   openFields,
@@ -28,7 +28,7 @@ import {
   sealMachineCatalog,
   sealMachineDirs,
   sealMachineUsage,
-  sealMachineSources,
+  sealMachineFeeds,
   sealNote,
   sealPr,
   sealQuestions,
@@ -418,21 +418,21 @@ export function sealingBackend(inner: WireBackend, keys: Keys | (() => Promise<K
       const sealed = await checked('set-usage', () => sealMachineUsage(sealer, machine, usage));
       await inner.setUsage({ usage: sealed, index: await machineUsageIndex(await getKeys(), machine, usage) });
     },
-    async checkSources(machine, sources) {
-      const { supported, index } = await inner.sourcesState();
+    async checkFeeds(machine, feeds) {
+      const { supported, index } = await inner.feedsState();
       if (!supported) return 'unsupported';
-      return index === (await machineSourcesIndex(await getKeys(), machine, sources)) ? 'current' : 'stale';
+      return index === (await machineFeedsIndex(await getKeys(), machine, feeds)) ? 'current' : 'stale';
     },
-    async setSources(machine, sources) {
-      const sealed = await checked('set-sources', () => sealMachineSources(sealer, machine, sources));
-      await inner.setSources({ sources: sealed, index: await machineSourcesIndex(await getKeys(), machine, sources) });
+    async setFeeds(machine, feeds) {
+      const sealed = await checked('set-feeds', () => sealMachineFeeds(sealer, machine, feeds));
+      await inner.setFeeds({ feeds: sealed, index: await machineFeedsIndex(await getKeys(), machine, feeds) });
     },
-    async sourceRequests() {
-      const { supported, requests } = await inner.sourcesState();
+    async feedRequests() {
+      const { supported, requests } = await inner.feedsState();
       return supported ? requests : [];
     },
-    async ackSourceRequests(requests) {
-      await inner.ackSourceRequests({ requests: [...requests] });
+    async ackFeedRequests(requests) {
+      await inner.ackFeedRequests({ requests: [...requests] });
     },
     async sharedAgentsVersion() {
       const { supported, version } = await inner.agentsState();

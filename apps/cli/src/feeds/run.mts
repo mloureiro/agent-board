@@ -6,17 +6,17 @@ import { isAllowedDir } from '../config/dirs.mts';
 import type { CommandResult, CommandSpec } from '../dispatch/waits.mts';
 import { parseScheduleArgs, schedule } from '../commands/schedule.mts';
 import { errorText } from '../output/text.mts';
-import type { SourceConfig } from './config.mts';
+import type { FeedConfig } from './config.mts';
 import { parseItems } from './items.mts';
-import type { SourceItem } from './items.mts';
+import type { FeedItem } from './items.mts';
 import { zeroCounts } from './store.mts';
-import type { SourceRun, SourceStore } from './store.mts';
+import type { FeedRun, FeedStore } from './store.mts';
 
-export interface SourceRunDeps {
+export interface FeedRunDeps {
   backend: Backend;
   machine: string;
   dirs: readonly DirEntry[] | undefined;
-  store: SourceStore;
+  store: FeedStore;
   run: (spec: CommandSpec) => Promise<CommandResult>;
   link: (taskId: string) => string;
   now: () => Date;
@@ -30,14 +30,14 @@ const ERROR_MAX = 300;
 
 const lastLine = (text: string): string => (text.trim().split('\n').at(-1) ?? '').slice(0, ERROR_MAX);
 
-async function listing(deps: SourceRunDeps, source: SourceConfig): Promise<SourceItem[] | string> {
+async function listing(deps: FeedRunDeps, feed: FeedConfig): Promise<FeedItem[] | string> {
   const result = await deps.run({
-    command: source.command,
-    cwd: source.dir,
-    timeLimitMs: source.timeoutMs,
+    command: feed.command,
+    cwd: feed.dir,
+    timeLimitMs: feed.timeoutMs,
     ...(deps.signal === undefined ? {} : { signal: deps.signal }),
   });
-  if (result.timedOut) return `the command took longer than ${Math.round(source.timeoutMs / 1000)}s`;
+  if (result.timedOut) return `the command took longer than ${Math.round(feed.timeoutMs / 1000)}s`;
   if (result.exitCode !== 0)
     return `the command exited ${result.exitCode ?? 'by a signal'}${result.stderr.trim() === '' ? '' : `: ${lastLine(result.stderr)}`}`;
   if (result.stdout.length >= STDOUT_LIMIT) return 'the command printed more than 200 KB';
@@ -49,32 +49,32 @@ async function listing(deps: SourceRunDeps, source: SourceConfig): Promise<Sourc
 const isWaitingFresh = (task: Task | undefined): boolean => task?.status === 'todo' && task.next === 'fresh';
 
 /**
- * One run of a source: schedules a task per listed item, then moves to Done the Todo task of every item it scheduled before
+ * One run of a feed: schedules a task per listed item, then moves to Done the Todo task of every item it scheduled before
  * that is no longer listed. A listing that failed closes nothing. Returns undefined when another process is running it.
  */
-export async function runSource(deps: SourceRunDeps, source: SourceConfig): Promise<SourceRun | undefined> {
+export async function runFeed(deps: FeedRunDeps, feed: FeedConfig): Promise<FeedRun | undefined> {
   const { store, backend, log } = deps;
-  if (!store.lock(source.name)) return undefined;
+  if (!store.lock(feed.name)) return undefined;
   try {
-    const before = store.read(source.name);
+    const before = store.read(feed.name);
     const counts = zeroCounts();
-    const listed = await listing(deps, source);
+    const listed = await listing(deps, feed);
     if (typeof listed === 'string') {
-      const run: SourceRun = { at: deps.now().toISOString(), ok: false, error: listed, counts };
-      log(`SOURCE ${source.name} failed: ${listed}`);
-      store.write(source.name, { ...store.read(source.name), runNow: false, last: run });
+      const run: FeedRun = { at: deps.now().toISOString(), ok: false, error: listed, counts };
+      log(`FEED ${feed.name} failed: ${listed}`);
+      store.write(feed.name, { ...store.read(feed.name), runNow: false, last: run });
       return run;
     }
     counts.listed = listed.length;
     const tasks: Record<string, string> = {};
     let error: string | undefined;
-    const fail = (item: SourceItem, why: string): void => {
+    const fail = (item: FeedItem, why: string): void => {
       counts.failed++;
       error ??= `${item.key.slice(0, 80)}: ${why}`.slice(0, ERROR_MAX);
-      log(`SOURCE ${source.name} ${item.key.slice(0, 80)} failed: ${why}`);
+      log(`FEED ${feed.name} ${item.key.slice(0, 80)} failed: ${why}`);
     };
     for (const item of listed) {
-      const workdir = item.dir === undefined ? source.dir : expandHome(item.dir);
+      const workdir = item.dir === undefined ? feed.dir : expandHome(item.dir);
       if (!isAllowedDir(deps.dirs, workdir)) {
         fail(item, `${workdir.slice(0, 120)} is not a listed directory on ${deps.machine}`);
         continue;
@@ -82,11 +82,11 @@ export async function runSource(deps: SourceRunDeps, source: SourceConfig): Prom
       try {
         const args = parseScheduleArgs(
           {
-            key: `${source.keyPrefix}${item.key}`,
+            key: `${feed.keyPrefix}${item.key}`,
             title: item.title,
             ...(item.version === undefined ? {} : { version: item.version }),
-            ...(source.agent === undefined ? {} : { agent: source.agent }),
-            ...(source.lane === undefined ? {} : { lane: source.lane }),
+            ...(feed.agent === undefined ? {} : { agent: feed.agent }),
+            ...(feed.lane === undefined ? {} : { lane: feed.lane }),
           },
           [item.prompt],
           deps.now(),
@@ -110,7 +110,7 @@ export async function runSource(deps: SourceRunDeps, source: SourceConfig): Prom
         if (outcome?.result === 'created') counts.created++;
         if (outcome?.result === 'requeued') counts.requeued++;
         if (outcome !== undefined && outcome.result !== 'exists')
-          log(`SOURCE ${source.name} ${outcome.result} ${scheduled.task.id} ${item.key.slice(0, 80)}`);
+          log(`FEED ${feed.name} ${outcome.result} ${scheduled.task.id} ${item.key.slice(0, 80)}`);
       } catch (thrown) {
         fail(item, errorText(thrown));
       }
@@ -123,44 +123,44 @@ export async function runSource(deps: SourceRunDeps, source: SourceConfig): Prom
         try {
           await backend.updateTask(id, { status: 'done', expect: 'todo' });
           counts.closed++;
-          log(`SOURCE ${source.name} done ${id}: ${key.slice(0, 80)} is no longer listed`);
+          log(`FEED ${feed.name} done ${id}: ${key.slice(0, 80)} is no longer listed`);
         } catch (thrown) {
           if (thrown instanceof BackendError && thrown.status === 409) continue;
           // Kept, so the next run tries again.
           tasks[key] = id;
-          log(`SOURCE ${source.name} cannot move ${id} to done: ${errorText(thrown)}`);
+          log(`FEED ${feed.name} cannot move ${id} to done: ${errorText(thrown)}`);
         }
       }
     }
-    const run: SourceRun = {
+    const run: FeedRun = {
       at: deps.now().toISOString(),
       ok: counts.failed === 0,
       ...(error === undefined ? {} : { error }),
       counts,
     };
-    // Read again: `board sources pause` may have written meanwhile.
-    store.write(source.name, { ...store.read(source.name), runNow: false, last: run, tasks });
+    // Read again: `board feeds pause` may have written meanwhile.
+    store.write(feed.name, { ...store.read(feed.name), runNow: false, last: run, tasks });
     return run;
   } catch (thrown) {
-    // Recorded like a failed listing, so the source waits for its interval instead of trying again on every scan.
-    const run: SourceRun = {
+    // Recorded like a failed listing, so the feed waits for its interval instead of trying again on every scan.
+    const run: FeedRun = {
       at: deps.now().toISOString(),
       ok: false,
       error: errorText(thrown).slice(0, ERROR_MAX),
       counts: zeroCounts(),
     };
-    log(`SOURCE ${source.name} failed: ${run.error}`);
-    store.write(source.name, { ...store.read(source.name), runNow: false, last: run });
+    log(`FEED ${feed.name} failed: ${run.error}`);
+    store.write(feed.name, { ...store.read(feed.name), runNow: false, last: run });
     return run;
   } finally {
-    store.unlock(source.name);
+    store.unlock(feed.name);
   }
 }
 
-/** Whether a source should run now: asked for, or its interval has passed since the last run, and it is not paused. */
-export function isSourceDue(source: SourceConfig, store: SourceStore, now: Date): boolean {
-  const state = store.read(source.name);
+/** Whether a feed should run now: asked for, or its interval has passed since the last run, and it is not paused. */
+export function isFeedDue(feed: FeedConfig, store: FeedStore, now: Date): boolean {
+  const state = store.read(feed.name);
   if (state.paused) return false;
   if (state.runNow || state.last === undefined) return true;
-  return now.getTime() - Date.parse(state.last.at) >= source.everyMs;
+  return now.getTime() - Date.parse(state.last.at) >= feed.everyMs;
 }
