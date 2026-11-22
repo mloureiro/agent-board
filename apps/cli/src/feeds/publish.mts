@@ -1,8 +1,8 @@
-import { randomBytes } from 'node:crypto';
 import { parseFeedRequest } from '@agent-board/shared';
 import type { Backend, MachineFeed, MachineFeeds } from '@agent-board/shared';
 import { errorText } from '../output/text.mts';
 import { isFeedName, loadFeeds } from './config.mts';
+import { runAsked } from './run.mts';
 import type { FeedStore } from './store.mts';
 
 export interface FeedsBoardDeps {
@@ -10,32 +10,25 @@ export interface FeedsBoardDeps {
   machine: string;
   configFile: string;
   store: FeedStore;
+  now: () => Date;
   log: (line: string) => void;
 }
 
 const MAX_PROBLEM = 300;
 
-// The id of a feed, made and kept the first time it is needed.
-function idOf(store: FeedStore, name: string): string {
-  const state = store.read(name);
-  if (state.id !== undefined) return state.id;
-  const id = randomBytes(8).toString('hex');
-  store.write(name, { ...state, id });
-  return id;
-}
-
 /** What the board shows of this machine's feeds: every entry of config.json, a broken one with its problem. */
 export function machineFeeds(configFile: string, store: FeedStore): MachineFeeds {
   const { feeds, feedErrors } = loadFeeds(configFile);
   const working = feeds.map((feed): MachineFeed => {
-    const id = idOf(store, feed.name);
-    const { paused, runNow, last } = store.read(feed.name);
+    const control = store.updateControl(feed.name, {});
+    const record = store.readRecord(feed.name);
+    const { last } = record;
     return {
-      id,
+      id: control.id,
       name: feed.name,
       everyMs: feed.everyMs,
-      paused,
-      runNow,
+      paused: control.paused,
+      runNow: runAsked(control, record),
       ...(last === undefined
         ? {}
         : {
@@ -51,7 +44,7 @@ export function machineFeeds(configFile: string, store: FeedStore): MachineFeeds
   const broken = Object.entries(feedErrors)
     .filter(([name]) => isFeedName(name))
     .map(([name, problem]): MachineFeed => ({
-      id: idOf(store, name),
+      id: store.updateControl(name, {}).id,
       name,
       everyMs: 0,
       paused: false,
@@ -61,11 +54,15 @@ export function machineFeeds(configFile: string, store: FeedStore): MachineFeeds
   return { feeds: [...working, ...broken] };
 }
 
-/** Sends this machine's feeds to the board when the board holds another version of them. Never throws. */
-export async function publishFeeds(deps: FeedsBoardDeps): Promise<void> {
+/**
+ * Sends this machine's feeds to the board when the board holds another version of them, or whenever the server has the
+ * feature with `always`, for a process that cannot know what the board holds. Never throws.
+ */
+export async function publishFeeds(deps: FeedsBoardDeps, always = false): Promise<void> {
   try {
     const feeds = machineFeeds(deps.configFile, deps.store);
-    if ((await deps.backend.checkFeeds(deps.machine, feeds)) !== 'stale') return;
+    const held = await deps.backend.checkFeeds(deps.machine, feeds);
+    if (held === 'unsupported' || (held === 'current' && !always)) return;
     await deps.backend.setFeeds(deps.machine, feeds);
   } catch (error) {
     deps.log(`WARN feeds not sent to the board: ${errorText(error)}`);
@@ -84,12 +81,11 @@ export async function applyFeedRequests(deps: FeedsBoardDeps): Promise<void> {
       const names = [...feeds.map(({ name }) => name), ...Object.keys(feedErrors).filter(isFeedName)];
       for (const request of requests) {
         const parsed = parseFeedRequest(request);
-        const name = names.find((candidate) => deps.store.read(candidate).id === parsed?.id);
+        const name = names.find((candidate) => deps.store.readControl(candidate).id === parsed?.id);
         if (parsed === undefined || name === undefined) continue;
-        const state = deps.store.read(name);
-        if (parsed.action === 'pause') deps.store.write(name, { ...state, paused: true });
-        if (parsed.action === 'resume') deps.store.write(name, { ...state, paused: false });
-        if (parsed.action === 'run') deps.store.write(name, { ...state, runNow: true });
+        if (parsed.action === 'pause') deps.store.updateControl(name, { paused: true });
+        if (parsed.action === 'resume') deps.store.updateControl(name, { paused: false });
+        if (parsed.action === 'run') deps.store.updateControl(name, { runRequestedAt: deps.now().toISOString() });
         deps.log(`FEED ${name} ${parsed.action} from the board`);
       }
       await deps.backend.ackFeedRequests(requests);

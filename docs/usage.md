@@ -538,7 +538,7 @@ A feed is a script that `board schedule --key` would otherwise run from a timer 
 ```text
 board feeds                                                    # each feed, its timer and its last run
 board feeds add <name> --every <dur> [--dir d] [--agent a] [--lane l] [--key-prefix p] [--timeout t] -- <command>
-board feeds run <name> [--later]
+board feeds run <name>
 board feeds pause <name>
 board feeds resume <name>
 board feeds rm <name>
@@ -565,9 +565,9 @@ board feeds rm <name>
 - An item that an earlier run scheduled and that is no longer listed: its task is moved to Done if it still waits in Todo for its first start. A task that started, or that waits in Needs me, is left to you.
 - A run that fails schedules nothing and closes nothing. It fails on an exit other than 0, the time limit, more than 200 items or 200 KB of output, or a line that is not a valid item. An item that cannot be scheduled fails alone, for example when its `dir` is not listed.
 
-**The timer.** A feed runs when its interval has passed since its last run, whether that run succeeded or not. The watch unit looks every 15 seconds and reads `config.json` each time, so a feed added or changed takes effect without a restart. `run` runs it at once in the terminal, prints the counts and exits 1 if the run failed. `run --later` leaves it to the watch unit's next look. `pause` stops the timer until `resume`. A feed never runs twice at once.
+**The timer.** A feed runs when its interval has passed since its last run, whether that run succeeded or not. The watch unit looks every 15 seconds and reads `config.json` each time, so a feed added or changed takes effect without a restart. `run` runs it at once in the terminal, prints the counts and exits 1 if the run failed. `pause` stops the timer until `resume`. **Run now** on the board beats a pause, but a feed starts at most once a minute, so a request that arrives sooner waits for the minute. A feed never runs twice at once.
 
-**State.** The task of each item, the last run and the pause are kept in `~/.local/state/agent-board/feeds/<name>.json`. The board cannot read a key back, so this file is how a run finds the tasks of items that went away. `rm` deletes it; the tasks stay on the board.
+**State.** Two files per feed in `~/.local/state/agent-board/feeds/`. `<name>.control.json` holds the pause, a run asked for and the id the board knows the feed by, and only `pause`, `resume` and the board's requests write it. `<name>.json` holds the task of each item and the last ten runs, and only a run writes it. The board cannot read a key back, so the second file is how a run finds the tasks of items that went away. `rm` refuses while the feed runs, then deletes both; the tasks stay on the board.
 
 **On the board.** The **Feeds** page lists every machine's feeds with their timer, last run and result, and a feed that cannot run with the reason. **Pause**, **Resume** and **Run now** reach the machine on its next dispatch tick, which the click starts; the button says "Pausing…" and the like until the machine has applied it. The page shows what the machine last sent: the dispatch tick sends the feeds when they changed, and the watch unit after each run. The commands, keys and items never leave the machine. A server without the feature shows nothing, and the CLI goes on without it.
 

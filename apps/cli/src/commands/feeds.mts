@@ -1,5 +1,3 @@
-import { rmSync } from 'node:fs';
-import { join } from 'node:path';
 import { formatDuration, isRecord } from '@agent-board/shared';
 import { UsageError } from '../cli.mts';
 import { ConfigError, expandHome } from '../config/config.mts';
@@ -9,7 +7,7 @@ import { isAllowedDir } from '../config/dirs.mts';
 import { plainLine } from '../output/terminal.mts';
 import { isFeedName, parseFeed, parseFeeds, FEED_NAME_RULE } from '../feeds/config.mts';
 import type { FeedConfig } from '../feeds/config.mts';
-import { runFeed } from '../feeds/run.mts';
+import { runAsked, runFeed } from '../feeds/run.mts';
 import type { FeedRunDeps } from '../feeds/run.mts';
 import type { FeedRun } from '../feeds/store.mts';
 
@@ -17,7 +15,6 @@ export interface FeedsDeps {
   configFile: string;
   cwd: string;
   dirs: readonly DirEntry[] | undefined;
-  // Whether the watch unit, which runs the feeds, has touched its heartbeat lately.
   unitRunning: boolean;
   now: () => Date;
   print: (line: string) => void;
@@ -70,9 +67,14 @@ export function feedsList(deps: FeedsDeps): void {
     return;
   }
   for (const feed of feeds) {
-    const state = store.read(feed.name);
-    const status = state.paused ? 'paused' : state.runNow ? 'runs next' : `every ${formatDuration(feed.everyMs)}`;
-    deps.print(`${feed.name}  ${status}  ${describeRun(state.last)}`);
+    const control = store.readControl(feed.name);
+    const record = store.readRecord(feed.name);
+    const status = control.paused
+      ? 'paused'
+      : runAsked(control, record)
+        ? 'runs next'
+        : `every ${formatDuration(feed.everyMs)}`;
+    deps.print(`${feed.name}  ${status}  ${describeRun(record.last)}`);
   }
   for (const [name, error] of Object.entries(feedErrors)) deps.print(`${plainLine(name)}  not read: ${error}`);
   if (!deps.unitRunning)
@@ -111,34 +113,34 @@ export function feedsAdd(deps: FeedsDeps, name: string, flags: FeedAddFlags, com
   deps.print(`${replaced ? 'changed' : 'added'} feed ${name}: every ${flags.every} in ${dir}`);
 }
 
-export function feedsRemove(deps: FeedsDeps, name: string, stateDir: string): void {
+export function feedsRemove(deps: FeedsDeps, name: string): void {
+  if (!isFeedName(name)) throw new UsageError(`a feed name must be ${FEED_NAME_RULE}`);
   const { raw, mode } = readConfigFile(deps.configFile);
   const existing = raw['feeds'];
   if (!isRecord(existing) || !Object.hasOwn(existing, name))
     throw new UsageError(`no feed "${plainLine(name).slice(0, 40)}" in config.json`);
-  const { [name]: _removed, ...rest } = existing;
-  writeConfigFile(deps.configFile, { ...raw, feeds: rest }, mode);
-  rmSync(join(stateDir, `${name}.json`), { force: true });
+  const store = deps.runDeps().store;
+  if (!store.lock(name)) throw new UsageError(`feed ${name} is running; try again when it ends`);
+  try {
+    const { [name]: _removed, ...rest } = existing;
+    writeConfigFile(deps.configFile, { ...raw, feeds: rest }, mode);
+    store.discard(name);
+  } finally {
+    store.unlock(name);
+  }
   deps.print(`removed feed ${name}; the tasks it made stay on the board`);
 }
 
 export function feedsSetPaused(deps: FeedsDeps, name: string, paused: boolean): void {
   find(deps, name);
-  const store = deps.runDeps().store;
-  store.write(name, { ...store.read(name), paused });
+  deps.runDeps().store.updateControl(name, { paused });
   deps.print(`${paused ? 'paused' : 'resumed'} feed ${name}`);
 }
 
-/** Runs a feed now, here, and prints what it did; `later` leaves the run to the watch unit's next look instead. */
-export async function feedsRun(deps: FeedsDeps, name: string, later: boolean): Promise<boolean> {
+/** Runs a feed now, here, and prints what it did. */
+export async function feedsRun(deps: FeedsDeps, name: string): Promise<boolean> {
   const feed = find(deps, name);
-  const runDeps = deps.runDeps();
-  if (later) {
-    runDeps.store.write(name, { ...runDeps.store.read(name), runNow: true });
-    deps.print(`feed ${name} runs on the watch unit's next look`);
-    return true;
-  }
-  const run = await runFeed({ ...runDeps, log: deps.print }, feed);
+  const run = await runFeed({ ...deps.runDeps(), log: deps.print }, feed);
   if (run === undefined) {
     deps.print(`feed ${name} is running in another process; nothing done`);
     return true;

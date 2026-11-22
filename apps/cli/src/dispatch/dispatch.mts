@@ -768,7 +768,7 @@ export async function runDispatch(given: DispatchDeps): Promise<void> {
   // After the starts and the checks, so a probe never holds one back.
   await sendCatalog(deps, tickStart);
   if (deps.feeds !== undefined && !deps.dryRun)
-    await applyFeedRequests({ backend, machine: config.machine, log, ...deps.feeds });
+    await applyFeedRequests({ backend, machine: config.machine, now: deps.now, log, ...deps.feeds });
   // Last, so a slow or failing GitHub never holds back a start.
   await refreshPrStatesIfDue({ ...deps.prRefresh, backend, now: deps.now, dryRun: deps.dryRun, print: log }, listed);
 }

@@ -1,6 +1,7 @@
-// What a feed keeps on this machine, in `<stateDir>/feeds/`:
-//   <name>.json   paused, the last run and its outcome, a run asked for now, and the task of every key it scheduled
-//   <name>.lock   the pid of the process running it, so the watch unit and `board feeds run` never run it twice at once
+// What a feed keeps on this machine, in `<stateDir>/feeds/`, split by who writes it:
+//   <name>.control.json   the pause, a run asked for, and the id the board knows the feed by: the verbs and the board's requests
+//   <name>.json           the last runs and the task of every key it scheduled: the runner only
+//   <name>.lock           the pid of the process running it, so the watch unit and `board feeds run` never run it twice at once
 // The board's keys cannot be read back, so the key → task map is how a feed finds the tasks of items that went away.
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
@@ -17,43 +18,57 @@ export interface FeedCounts {
 }
 
 export interface FeedRun {
+  startedAt: string;
   at: string;
   ok: boolean;
-  // Why the listing failed, or the first item that could not be scheduled.
   error?: string;
   counts: FeedCounts;
 }
 
-export interface FeedState {
-  paused: boolean;
-  // Asked for with `board feeds run --later` or from the board: the next scan runs it whatever its timer says.
-  runNow: boolean;
-  // The opaque id the board and its requests know the feed by; made on first publish.
+export interface FeedControl {
   id?: string;
+  paused: boolean;
+  runRequestedAt?: string;
+}
+
+export interface FeedRecord {
   last?: FeedRun;
+  history: FeedRun[];
   tasks: Record<string, string>;
 }
 
-export interface FeedStore {
-  read: (name: string) => FeedState;
-  write: (name: string, state: FeedState) => void;
-  // Takes the run lock; false while another live process holds it.
-  lock: (name: string) => boolean;
-  unlock: (name: string) => void;
+export interface FeedControlPatch {
+  paused?: boolean;
+  runRequestedAt?: string;
 }
 
-const EMPTY: FeedState = { paused: false, runNow: false, tasks: {} };
+export interface FeedStore {
+  readControl: (name: string) => FeedControl;
+  updateControl: (name: string, patch: FeedControlPatch) => FeedControl & { id: string };
+  readRecord: (name: string) => FeedRecord;
+  writeRecord: (name: string, record: FeedRecord) => void;
+  lock: (name: string) => boolean;
+  unlock: (name: string) => void;
+  discard: (name: string) => void;
+}
+
+export const HISTORY_LIMIT = 10;
+
+const EMPTY_CONTROL: FeedControl = { paused: false };
 
 const ZERO: FeedCounts = { listed: 0, created: 0, requeued: 0, closed: 0, failed: 0 };
 
+const isInstant = (value: unknown): value is string => typeof value === 'string' && !Number.isNaN(Date.parse(value));
+
 function parseRun(value: unknown): FeedRun | undefined {
-  if (!isRecord(value) || typeof value['at'] !== 'string' || typeof value['ok'] !== 'boolean') return undefined;
+  if (!isRecord(value) || !isInstant(value['at']) || typeof value['ok'] !== 'boolean') return undefined;
   const counts = isRecord(value['counts']) ? value['counts'] : {};
   const count = (name: keyof FeedCounts): number => {
     const n = counts[name];
     return typeof n === 'number' && Number.isInteger(n) && n >= 0 ? n : 0;
   };
   return {
+    startedAt: isInstant(value['startedAt']) ? value['startedAt'] : value['at'],
     at: value['at'],
     ok: value['ok'],
     ...(typeof value['error'] === 'string' ? { error: value['error'] } : {}),
@@ -67,19 +82,25 @@ function parseRun(value: unknown): FeedRun | undefined {
   };
 }
 
-export function parseFeedState(value: unknown): FeedState {
-  if (!isRecord(value)) return EMPTY;
+export function parseFeedControl(value: unknown): FeedControl {
+  if (!isRecord(value)) return EMPTY_CONTROL;
+  return {
+    ...(isFeedId(value['id']) ? { id: value['id'] } : {}),
+    paused: value['paused'] === true,
+    ...(isInstant(value['runRequestedAt']) ? { runRequestedAt: value['runRequestedAt'] } : {}),
+  };
+}
+
+export function parseFeedRecord(value: unknown): FeedRecord {
+  if (!isRecord(value)) return { history: [], tasks: {} };
   const tasks: Record<string, string> = {};
   if (isRecord(value['tasks']))
     for (const [key, id] of Object.entries(value['tasks'])) if (typeof id === 'string') tasks[key] = id;
   const last = parseRun(value['last']);
-  return {
-    ...(isFeedId(value['id']) ? { id: value['id'] } : {}),
-    paused: value['paused'] === true,
-    runNow: value['runNow'] === true,
-    ...(last === undefined ? {} : { last }),
-    tasks,
-  };
+  const history = Array.isArray(value['history'])
+    ? value['history'].flatMap((run) => parseRun(run) ?? []).slice(0, HISTORY_LIMIT)
+    : [];
+  return { ...(last === undefined ? {} : { last }), history, tasks };
 }
 
 export const zeroCounts = (): FeedCounts => ({ ...ZERO });
@@ -90,21 +111,39 @@ export function createFeedStore(
 ): FeedStore {
   const file = (name: string, ext: string): string => join(dir, `${name}.${ext}`);
   const ensure = (): void => void mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const readJson = (path: string): unknown => {
+    try {
+      return JSON.parse(readFileSync(path, 'utf8'));
+    } catch {
+      return undefined;
+    }
+  };
+  const replace = (target: string, value: unknown): void => {
+    ensure();
+    const temp = `${target}.tmp-${process.pid}-${randomBytes(3).toString('hex')}`;
+    writeFileSync(temp, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
+    renameSync(temp, target);
+  };
+  const readControl = (name: string): FeedControl => parseFeedControl(readJson(file(name, 'control.json')));
   return {
-    read: (name) => {
+    readControl,
+    updateControl: (name, patch) => {
+      ensure();
+      const target = file(name, 'control.json');
+      const fresh = { ...EMPTY_CONTROL, ...patch, id: randomBytes(8).toString('hex') };
       try {
-        return parseFeedState(JSON.parse(readFileSync(file(name, 'json'), 'utf8')));
+        writeFileSync(target, `${JSON.stringify(fresh, null, 2)}\n`, { flag: 'wx', mode: 0o600 });
+        return fresh;
       } catch {
-        return EMPTY;
+        const current = readControl(name);
+        const merged = { ...current, ...patch, id: current.id ?? fresh.id };
+        if (current.id !== undefined && JSON.stringify(merged) === JSON.stringify(current)) return merged;
+        replace(target, merged);
+        return merged;
       }
     },
-    write: (name, state) => {
-      ensure();
-      const target = file(name, 'json');
-      const temp = `${target}.tmp-${process.pid}-${randomBytes(3).toString('hex')}`;
-      writeFileSync(temp, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 });
-      renameSync(temp, target);
-    },
+    readRecord: (name) => parseFeedRecord(readJson(file(name, 'json'))),
+    writeRecord: (name, record) => replace(file(name, 'json'), record),
     lock: (name) => {
       ensure();
       const target = file(name, 'lock');
@@ -120,11 +159,21 @@ export function createFeedStore(
             continue;
           }
           if (Number.isInteger(holder) && holder > 0 && isAlive(holder)) return false;
-          rmSync(target, { force: true });
+          const stale = `${target}.stale-${process.pid}-${randomBytes(3).toString('hex')}`;
+          try {
+            renameSync(target, stale);
+            rmSync(stale, { force: true });
+          } catch {
+            continue;
+          }
         }
       }
       return false;
     },
     unlock: (name) => rmSync(file(name, 'lock'), { force: true }),
+    discard: (name) => {
+      rmSync(file(name, 'json'), { force: true });
+      rmSync(file(name, 'control.json'), { force: true });
+    },
   };
 }

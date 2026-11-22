@@ -15,8 +15,16 @@ function setup(feeds: Record<string, unknown>) {
   const store = createFeedStore(join(dir, 'feeds'), () => false);
   const backend = fakeBackend([]);
   const logs: string[] = [];
-  const deps: FeedsBoardDeps = { backend, machine: 'laptop', configFile, store, log: (line) => logs.push(line) };
-  return { backend, store, logs, deps };
+  const clock = { at: new Date('2026-11-21T12:00:00Z') };
+  const deps: FeedsBoardDeps = {
+    backend,
+    machine: 'laptop',
+    configFile,
+    store,
+    now: () => clock.at,
+    log: (line) => logs.push(line),
+  };
+  return { backend, store, logs, deps, clock };
 }
 
 const GH = { command: 'list-prs', every: '10m', dir: '/work' };
@@ -49,16 +57,39 @@ test('a server without the feature is left alone', async () => {
   assert.deepEqual(backend.writes, []);
 });
 
-test('requests from the board pause, resume or run a feed, are acknowledged, and the new state is sent', async () => {
-  const { backend, store, deps } = setup({ gh: GH });
+test('the feeds are sent again with always, as long as the server has the feature', async () => {
+  const { backend, deps } = setup({ gh: GH });
+  await publishFeeds(deps, true);
+  await publishFeeds(deps, true);
+  assert.deepEqual(backend.writes, ['feeds laptop: gh', 'feeds laptop: gh']);
+  backend.boardFeeds.supported = false;
+  await publishFeeds(deps, true);
+  assert.equal(backend.writes.length, 2);
+});
+
+test('requests from the board pause, resume or ask a run of a feed, are acknowledged, and the new state is sent', async () => {
+  const { backend, store, deps, clock } = setup({ gh: GH });
   const id = machineFeeds(deps.configFile, store).feeds[0]?.id ?? '';
   backend.boardFeeds.requests = [`pause:${id}`, `run:${id}`, 'pause:ffffffffffffffff'];
   await applyFeedRequests(deps);
-  assert.equal(store.read('gh').paused, true);
-  assert.equal(store.read('gh').runNow, true);
+  assert.deepEqual(store.readControl('gh'), { id, paused: true, runRequestedAt: clock.at.toISOString() });
   assert.deepEqual(backend.writes, [`ack feeds pause:${id} run:${id} pause:ffffffffffffffff`, 'feeds laptop: gh']);
   assert.equal(backend.boardFeeds.held?.feeds[0]?.paused, true);
+  assert.equal(backend.boardFeeds.held?.feeds[0]?.runNow, true);
   backend.boardFeeds.requests = [`resume:${id}`];
   await applyFeedRequests(deps);
-  assert.equal(store.read('gh').paused, false);
+  assert.equal(store.readControl('gh').paused, false);
+});
+
+test('a run the feed made after the request clears runNow on the board', async () => {
+  const { store, deps, clock } = setup({ gh: GH });
+  store.updateControl('gh', { runRequestedAt: clock.at.toISOString() });
+  assert.equal(machineFeeds(deps.configFile, store).feeds[0]?.runNow, true);
+  const at = new Date(clock.at.getTime() + 1000).toISOString();
+  store.writeRecord('gh', {
+    last: { startedAt: at, at, ok: true, counts: { listed: 0, created: 0, requeued: 0, closed: 0, failed: 0 } },
+    history: [],
+    tasks: {},
+  });
+  assert.equal(machineFeeds(deps.configFile, store).feeds[0]?.runNow, false);
 });

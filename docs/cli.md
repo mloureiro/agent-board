@@ -1007,8 +1007,7 @@ last run. `add <name> --every <dur> -- <command>` writes `feeds.<name>` to
 config.json (the command runs with `bash -c` in --dir, default the current
 directory, which must be listed in `dirs`); adding a name again replaces it. `rm
 <name>` removes it; the tasks it made stay. `run <name>` runs it now, here, and
-exits 1 when the run failed; `--later` leaves it to the watch unit's next look
-instead. `pause` and `resume` stop and restart its timer.
+exits 1 when the run failed. `pause` and `resume` stop and restart its timer.
 
 A listing that fails (an exit other than 0, a time limit, a line that is not a
 valid item) schedules nothing and closes nothing. The key prefix defaults to
@@ -1028,7 +1027,6 @@ Options:
   --key-prefix <text>   add: put in front of every key (default: feed:<name>:)
   --timeout <duration>  add: the longest one run of the command may take
                         (default 2m, at most 30m)
-  --later               run: leave it to the watch unit's next look
   -h, --help            display help for command
 
 Examples:

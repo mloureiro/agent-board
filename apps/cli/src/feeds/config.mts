@@ -2,15 +2,11 @@ import { isAgentName, isRecord, parseDuration } from '@agent-board/shared';
 import { ConfigError, expandHome } from '../config/config.mts';
 import { readConfigFile } from '../config/config-file.mts';
 
-// A command this machine runs on its own timer, whose output lists the items that should each have a task (see items.mts).
 export interface FeedConfig {
   name: string;
-  // Run with `bash -c` in `dir`, like a command watch.
   command: string;
   everyMs: number;
-  // Where the command runs, and where an item without a `dir` of its own makes its task.
   dir: string;
-  // Put in front of every item's key, so two feeds that list the same thing keep apart tasks.
   keyPrefix: string;
   agent?: string;
   lane?: string;

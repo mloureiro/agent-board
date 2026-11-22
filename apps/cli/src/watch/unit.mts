@@ -17,7 +17,7 @@ import { createWatchStore } from './store.mts';
 import type { WatchDef, WatchEvent, WatchStore } from './store.mts';
 import { publishWatches, PUBLISH_EVERY_MS, REFRESH_MS } from './publish.mts';
 import { forgetWakeTries, isRunLive, tryWake } from './wake.mts';
-import { getPaths, loadConfig } from '../config/config.mts';
+import { getPaths } from '../config/config.mts';
 import { createFeedStore } from '../feeds/store.mts';
 import { dueFeedJobs } from '../feeds/scan.mts';
 import { publishFeeds } from '../feeds/publish.mts';
@@ -36,7 +36,6 @@ export interface UnitDeps {
   now: () => Date;
   isAlive: (pid: number) => boolean;
   log: (line: string) => void;
-  // The runs of the feeds that are due (see feeds/scan.mts).
   feeds?: (signal: AbortSignal) => FeedJob[];
 }
 
@@ -279,7 +278,6 @@ export async function watchUnitMain(): Promise<void> {
           {
             backend,
             machine: context.config.machine,
-            dirs: loadConfig(configFile).dirs,
             store: feedStore,
             run: (spec) => runCommand(spec),
             link: context.taskLink,
@@ -288,7 +286,18 @@ export async function watchUnitMain(): Promise<void> {
             signal,
           },
           configFile,
-          () => publishFeeds({ backend, machine: context.config.machine, configFile, store: feedStore, log: print }),
+          () =>
+            publishFeeds(
+              {
+                backend,
+                machine: context.config.machine,
+                configFile,
+                store: feedStore,
+                now: () => new Date(),
+                log: print,
+              },
+              true,
+            ),
         ),
     },
     stop.signal,

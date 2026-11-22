@@ -6,11 +6,12 @@ import { isAllowedDir } from '../config/dirs.mts';
 import type { CommandResult, CommandSpec } from '../dispatch/waits.mts';
 import { parseScheduleArgs, schedule } from '../commands/schedule.mts';
 import { errorText } from '../output/text.mts';
+import { MIN_EVERY_MS } from './config.mts';
 import type { FeedConfig } from './config.mts';
 import { parseItems } from './items.mts';
 import type { FeedItem } from './items.mts';
-import { zeroCounts } from './store.mts';
-import type { FeedRun, FeedStore } from './store.mts';
+import { HISTORY_LIMIT, zeroCounts } from './store.mts';
+import type { FeedControl, FeedRecord, FeedRun, FeedStore } from './store.mts';
 
 export interface FeedRunDeps {
   backend: Backend;
@@ -55,18 +56,29 @@ const isWaitingFresh = (task: Task | undefined): boolean => task?.status === 'to
 export async function runFeed(deps: FeedRunDeps, feed: FeedConfig): Promise<FeedRun | undefined> {
   const { store, backend, log } = deps;
   if (!store.lock(feed.name)) return undefined;
+  const startedAt = deps.now().toISOString();
+  const before = store.readRecord(feed.name);
+  const tasks: Record<string, string> = {};
+  const finish = (run: FeedRun, kept: Record<string, string>): FeedRun => {
+    store.writeRecord(feed.name, {
+      last: run,
+      history: [run, ...before.history].slice(0, HISTORY_LIMIT),
+      tasks: kept,
+    });
+    return run;
+  };
   try {
-    const before = store.read(feed.name);
     const counts = zeroCounts();
     const listed = await listing(deps, feed);
     if (typeof listed === 'string') {
-      const run: FeedRun = { at: deps.now().toISOString(), ok: false, error: listed, counts };
       log(`FEED ${feed.name} failed: ${listed}`);
-      store.write(feed.name, { ...store.read(feed.name), runNow: false, last: run });
-      return run;
+      return finish({ startedAt, at: deps.now().toISOString(), ok: false, error: listed, counts }, before.tasks);
     }
     counts.listed = listed.length;
-    const tasks: Record<string, string> = {};
+    for (const item of listed) {
+      const known = before.tasks[item.key];
+      if (known !== undefined) tasks[item.key] = known;
+    }
     let error: string | undefined;
     const fail = (item: FeedItem, why: string): void => {
       counts.failed++;
@@ -132,35 +144,41 @@ export async function runFeed(deps: FeedRunDeps, feed: FeedConfig): Promise<Feed
         }
       }
     }
-    const run: FeedRun = {
-      at: deps.now().toISOString(),
-      ok: counts.failed === 0,
-      ...(error === undefined ? {} : { error }),
-      counts,
-    };
-    // Read again: `board feeds pause` may have written meanwhile.
-    store.write(feed.name, { ...store.read(feed.name), runNow: false, last: run, tasks });
-    return run;
+    return finish(
+      {
+        startedAt,
+        at: deps.now().toISOString(),
+        ok: counts.failed === 0,
+        ...(error === undefined ? {} : { error }),
+        counts,
+      },
+      tasks,
+    );
   } catch (thrown) {
     // Recorded like a failed listing, so the feed waits for its interval instead of trying again on every scan.
-    const run: FeedRun = {
-      at: deps.now().toISOString(),
-      ok: false,
-      error: errorText(thrown).slice(0, ERROR_MAX),
-      counts: zeroCounts(),
-    };
-    log(`FEED ${feed.name} failed: ${run.error}`);
-    store.write(feed.name, { ...store.read(feed.name), runNow: false, last: run });
-    return run;
+    const message = errorText(thrown).slice(0, ERROR_MAX);
+    log(`FEED ${feed.name} failed: ${message}`);
+    return finish(
+      { startedAt, at: deps.now().toISOString(), ok: false, error: message, counts: zeroCounts() },
+      { ...before.tasks, ...tasks },
+    );
   } finally {
     store.unlock(feed.name);
   }
 }
 
-/** Whether a feed should run now: asked for, or its interval has passed since the last run, and it is not paused. */
-export function isFeedDue(feed: FeedConfig, store: FeedStore, now: Date): boolean {
-  const state = store.read(feed.name);
-  if (state.paused) return false;
-  if (state.runNow || state.last === undefined) return true;
-  return now.getTime() - Date.parse(state.last.at) >= feed.everyMs;
+/** Whether a run was asked for since the last one started. */
+export function runAsked(control: FeedControl, record: FeedRecord): boolean {
+  if (control.runRequestedAt === undefined) return false;
+  return record.last === undefined || Date.parse(control.runRequestedAt) > Date.parse(record.last.startedAt);
+}
+
+/**
+ * Whether a feed should run now. A request beats the pause, but a run starts at most once every `MIN_EVERY_MS`; otherwise
+ * the feed runs when it never ran or its interval since the last start has passed, and not while paused.
+ */
+export function isFeedDue(feed: FeedConfig, control: FeedControl, record: FeedRecord, now: Date): boolean {
+  const sinceStart = record.last === undefined ? undefined : now.getTime() - Date.parse(record.last.startedAt);
+  if (runAsked(control, record) && (sinceStart === undefined || sinceStart >= MIN_EVERY_MS)) return true;
+  return !control.paused && (sinceStart === undefined || sinceStart >= feed.everyMs);
 }

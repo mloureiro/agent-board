@@ -1,12 +1,10 @@
 import { isRecord } from '@agent-board/shared';
 
-// One thing a feed says should have a task: the line an adapter prints for it.
 export interface FeedItem {
   key: string;
   title: string;
   prompt: string;
   version?: string;
-  // A directory of this machine's `dirs` list the task runs in, instead of the feed's own.
   dir?: string;
 }
 
