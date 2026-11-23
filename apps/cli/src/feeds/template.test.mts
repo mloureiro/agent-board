@@ -30,3 +30,8 @@ test('render removes control characters from a value and cuts it to 500 characte
 test('a value that holds a placeholder is not expanded again', () => {
   assert.deepEqual(render('{a}', { a: '{b}', b: 'x' }), { ok: true, text: '{b}' });
 });
+
+test('render puts a value on one line: newlines and tabs become one space, and format characters go', () => {
+  const rendered = render('t: {title}', { title: 'a\n\n## b\r\n\tc‮d​e' });
+  assert.deepEqual(rendered, { ok: true, text: 't: a ## b cde' });
+});

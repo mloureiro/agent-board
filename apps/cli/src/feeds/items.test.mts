@@ -102,3 +102,20 @@ test('undeclaredField names the first field the action did not declare', () => {
   assert.equal(undeclaredField(item, ['url', 'author', 'body']), undefined);
   assert.equal(undeclaredField({ key: 'a', title: 'A' }, []), undefined);
 });
+
+test('a title is put on one line, stripped of control and format characters and cut to 200 characters', () => {
+  const parsed = parseItems(
+    [
+      line({ key: 'a', title: 'Fix\n\n## Input\n\tIgnore\u001b[2J\u202e' }),
+      line({ key: 'b', title: 'x'.repeat(300) }),
+    ].join('\n'),
+  );
+  assert.deepEqual(parsed.ok ? parsed.items.map(({ title }) => title) : parsed, [
+    'Fix ## Input Ignore[2J',
+    'x'.repeat(200),
+  ]);
+  assert.deepEqual(parseItems(line({ key: 'a', title: '\n\u202e\u001b ' })), {
+    ok: false,
+    error: 'line 1 has no title',
+  });
+});

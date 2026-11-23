@@ -119,3 +119,16 @@ test('a reason is one line of at most 300 characters', async () => {
   const control = await validateFeed(FEED, { ...h, resolve: () => ({ problem: 'a\nb\u001bc' }) });
   assert.deepEqual(control, { ok: false, reason: 'a bc' });
 });
+
+test('the fields a prompt may use are listed once when the action also declares one the board provides', async () => {
+  const describe = JSON.stringify({
+    protocol: 1,
+    actions: { 'list-pull-requests': { options: SCHEMA, fields: ['title', 'url'] } },
+  });
+  const result = await validateFeed(
+    { ...FEED, prompts: { new: '{author}', update: '{url}' } },
+    { run: harness({ describe: { stdout: describe } }).run, resolve: () => ({ program: '/p', commit: 'c' }) },
+  );
+  assert.equal(result.ok, false);
+  assert.match(!result.ok ? result.reason : '', /provides key, title, version, url\)/);
+});

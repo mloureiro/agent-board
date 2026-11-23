@@ -50,7 +50,7 @@ export async function validateFeed(feed: FeedBinding, deps: ValidateDeps): Promi
   }
   const problem = validateOptions(declared.options, feed.options);
   if (problem !== undefined) return refuse(problem);
-  const provided = [...ITEM_BASE_FIELDS, ...declared.fields];
+  const provided = [...new Set([...ITEM_BASE_FIELDS, ...declared.fields])];
   for (const [name, text] of [
     ['prompts.new', feed.prompts.new],
     ['prompts.update', feed.prompts.update],

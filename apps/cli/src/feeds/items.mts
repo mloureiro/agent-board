@@ -1,7 +1,7 @@
 import { isRecord } from '@agent-board/shared';
 import { REPO_PATTERN } from '../config/config.mts';
 import { MAX_FIELDS } from './integration.mts';
-import { FIELD_NAME } from './template.mts';
+import { FIELD_NAME, oneLine } from './template.mts';
 
 export interface FeedItem {
   key: string;
@@ -15,6 +15,7 @@ export interface FeedItem {
 
 export const MAX_FEED_ITEMS = 200;
 export const MAX_FIELD_VALUE = 2000;
+export const TITLE_MAX = 200;
 
 const ITEM_FIELDS = ['key', 'title', 'version', 'dir', 'repo', 'notBefore', 'fields'] as const;
 
@@ -45,11 +46,9 @@ function item(value: unknown, line: number): FeedItem | string {
   if (unknown !== undefined)
     return `line ${line} has no field "${unknown.slice(0, 40)}" (it takes ${ITEM_FIELDS.join(', ')})`;
   const { key, title, version, dir, repo, notBefore } = value;
-  for (const [field, text] of [
-    ['key', key],
-    ['title', title],
-  ] as const)
-    if (typeof text !== 'string' || text.trim() === '') return `line ${line} has no ${field}`;
+  if (typeof key !== 'string' || key.trim() === '') return `line ${line} has no key`;
+  const cleanTitle = typeof title === 'string' ? Array.from(oneLine(title)).slice(0, TITLE_MAX).join('').trim() : '';
+  if (cleanTitle === '') return `line ${line} has no title`;
   if (version !== undefined && typeof version !== 'string') return `line ${line}: version must be text`;
   if (dir !== undefined && typeof dir !== 'string') return `line ${line}: dir must be a path`;
   if (repo !== undefined && (typeof repo !== 'string' || !REPO_PATTERN.test(repo)))
@@ -62,8 +61,8 @@ function item(value: unknown, line: number): FeedItem | string {
   const fields = value['fields'] === undefined ? undefined : fieldValues(value['fields'], line);
   if (typeof fields === 'string') return fields;
   return {
-    key: key as string,
-    title: title as string,
+    key,
+    title: cleanTitle,
     ...(version === undefined ? {} : { version }),
     ...(dir === undefined ? {} : { dir }),
     ...(repo === undefined ? {} : { repo }),
