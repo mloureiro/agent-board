@@ -24,12 +24,12 @@ function FeedActions({ machine, feed, requests }: { machine: string; feed: Machi
   const toggle: FeedAction = feed.paused ? 'resume' : 'pause';
   return (
     <Group gap={4} justify="flex-end" wrap="nowrap">
-      <Tooltip label={pending('run') || feed.runNow ? WAITING.run : 'Run now'}>
+      <Tooltip label={pending('run') || feed.runAsked ? WAITING.run : 'Run now'}>
         <ActionIcon
           variant="subtle"
           color="gray"
           aria-label="Run now"
-          disabled={feed.problem !== undefined || pending('run') || feed.runNow}
+          disabled={feed.problem !== undefined || pending('run') || feed.runAsked}
           onClick={() => ask('run')}
         >
           <IconRefresh size={16} />

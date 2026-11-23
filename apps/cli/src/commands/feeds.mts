@@ -5,7 +5,7 @@ import type { DirEntry } from '../config/config.mts';
 import { readConfigFile, writeConfigFile } from '../config/config-file.mts';
 import { isAllowedDir } from '../config/dirs.mts';
 import { plainLine } from '../output/terminal.mts';
-import { isFeedName, parseFeed, parseFeeds, FEED_NAME_RULE } from '../feeds/config.mts';
+import { feedProblemText, isFeedName, parseFeed, parseFeeds, FEED_NAME_RULE } from '../feeds/config.mts';
 import type { FeedConfig } from '../feeds/config.mts';
 import { doctor } from '../feeds/integration.mts';
 import { runAsked, runFeed } from '../feeds/run.mts';
@@ -45,7 +45,7 @@ function find(deps: FeedsDeps, name: string): FeedConfig {
   const feed = feeds.find((entry) => entry.name === name);
   if (feed !== undefined) return feed;
   const broken = feedErrors[name];
-  if (broken !== undefined) throw new UsageError(broken);
+  if (broken !== undefined) throw new UsageError(feedProblemText(broken));
   const known = feeds.map((entry) => entry.name);
   throw new UsageError(
     `no feed "${plainLine(name).slice(0, 40)}" in config.json; ${known.length === 0 ? 'there are none' : `there are ${known.join(', ')}`}`,
@@ -70,7 +70,8 @@ export function feedsList(deps: FeedsDeps): void {
     deps.print(`  ${describeRun(record.last)}`);
     for (const { id, outcome } of record.last?.tasks ?? []) deps.print(`    ${outcome} ${link(id)}`);
   }
-  for (const [name, error] of Object.entries(feedErrors)) deps.print(`${plainLine(name)}  not read: ${error}`);
+  for (const [name, error] of Object.entries(feedErrors))
+    deps.print(`${plainLine(name)}  not read: ${plainLine(feedProblemText(error))}`);
   if (!deps.unitRunning)
     deps.print(
       'the watch unit is not running, so no feed runs on its timer; run "board setup" or "board restart watch"',
@@ -89,7 +90,7 @@ export async function feedsAdd(deps: FeedsDeps, name: string, text: string): Pro
   try {
     feed = parseFeed(name, entry);
   } catch (error) {
-    if (error instanceof ConfigError) throw new UsageError(error.message.replace(/^config: /, ''));
+    if (error instanceof ConfigError) throw new UsageError(feedProblemText(error.message));
     throw error;
   }
   if (!isAllowedDir(deps.dirs, feed.dir))

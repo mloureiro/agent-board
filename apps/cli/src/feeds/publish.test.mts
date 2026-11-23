@@ -6,7 +6,9 @@ import { fakeBackend } from '../__tests__/helpers/fakes.mts';
 import { tempDir } from '../__tests__/helpers/watch.mts';
 import { applyFeedRequests, machineFeeds, publishFeeds } from './publish.mts';
 import type { FeedsBoardDeps } from './publish.mts';
-import { createFeedStore } from './store.mts';
+import { createFeedStore, zeroCounts } from './store.mts';
+import type { FeedRun } from './store.mts';
+import { feedsProblem } from '@agent-board/shared';
 
 function setup(feeds: Record<string, unknown>) {
   const dir = tempDir('board-feeds-test-');
@@ -81,16 +83,16 @@ test('requests from the board pause, resume or ask a run of a feed, are acknowle
   assert.deepEqual(store.readControl('gh'), { id, paused: true, runRequestedAt: clock.at.toISOString() });
   assert.deepEqual(backend.writes, [`ack feeds pause:${id} run:${id} pause:ffffffffffffffff`, 'feeds laptop: gh']);
   assert.equal(backend.boardFeeds.held?.feeds[0]?.paused, true);
-  assert.equal(backend.boardFeeds.held?.feeds[0]?.runNow, true);
+  assert.equal(backend.boardFeeds.held?.feeds[0]?.runAsked, true);
   backend.boardFeeds.requests = [`resume:${id}`];
   await applyFeedRequests(deps);
   assert.equal(store.readControl('gh').paused, false);
 });
 
-test('a run the feed made after the request clears runNow on the board', async () => {
+test('a run the feed made after the request clears runAsked on the board', async () => {
   const { store, deps, clock } = setup({ gh: GH });
   store.updateControl('gh', { runRequestedAt: clock.at.toISOString() });
-  assert.equal(machineFeeds(deps.configFile, store).feeds[0]?.runNow, true);
+  assert.equal(machineFeeds(deps.configFile, store).feeds[0]?.runAsked, true);
   const at = new Date(clock.at.getTime() + 1000).toISOString();
   store.writeRecord('gh', {
     last: {
@@ -102,5 +104,62 @@ test('a run the feed made after the request clears runNow on the board', async (
     history: [],
     tasks: {},
   });
-  assert.equal(machineFeeds(deps.configFile, store).feeds[0]?.runNow, false);
+  assert.equal(machineFeeds(deps.configFile, store).feeds[0]?.runAsked, false);
+});
+
+test('the document carries the integration, the last run with its tasks, the invalid flag and the history', () => {
+  const { store, deps, clock } = setup({ gh: GH });
+  store.updateControl('gh', { runRequestedAt: clock.at.toISOString() });
+  const run = (at: string, patch: Partial<FeedRun>): FeedRun => ({
+    startedAt: at,
+    at,
+    ok: true,
+    counts: { listed: 2, created: 1, requeued: 0, rescheduled: 1, closed: 0, failed: 0 },
+    ...patch,
+  });
+  const older = run('2026-11-21T11:00:00.000Z', { ok: false, error: 'boom\nsecond line' });
+  const newest = run('2026-11-21T11:30:00.000Z', {
+    ok: false,
+    invalid: true,
+    error: 'plugin is not pinned',
+    tasks: [
+      { id: 'task-1', outcome: 'created' },
+      { id: 'task-2', outcome: 'rescheduled' },
+    ],
+  });
+  store.writeRecord('gh', { last: newest, history: [newest, older], tasks: { key: 'task-1' } });
+  const [feed] = machineFeeds(deps.configFile, store).feeds;
+  assert.equal(feed?.integration, 'acme:github');
+  assert.equal(feed?.action, 'list');
+  assert.equal(feed?.runAsked, true);
+  assert.equal(feed?.last?.invalid, true);
+  assert.deepEqual(feed?.last?.tasks, newest.tasks);
+  assert.equal(feed?.last?.rescheduled, 1);
+  assert.deepEqual(
+    feed?.history.map(({ at, error }) => ({ at, error })),
+    [
+      { at: newest.at, error: 'plugin is not pinned' },
+      { at: older.at, error: 'boom second line' },
+    ],
+  );
+});
+
+test('a feed whose config is not read has no integration or action, only its problem', () => {
+  const { store, deps } = setup({ bad: { ...GH, every: '30s' } });
+  const [feed] = machineFeeds(deps.configFile, store).feeds;
+  assert.equal(feed?.integration, undefined);
+  assert.equal(feed?.action, undefined);
+  assert.match(feed?.problem ?? '', /every/);
+  assert.deepEqual(feed?.history, []);
+});
+
+test('a long error is cut to what the board takes, and the result passes the sender check', () => {
+  const { store, deps } = setup({ gh: GH });
+  const at = '2026-11-21T11:30:00.000Z';
+  const long = { startedAt: at, at, ok: false, error: 'é'.repeat(500), counts: zeroCounts() };
+  store.writeRecord('gh', { last: long, history: [long], tasks: {} });
+  const feeds = machineFeeds(deps.configFile, store);
+  assert.equal(feeds.feeds[0]?.last?.error?.length, 300);
+  assert.equal(feeds.feeds[0]?.history[0]?.error?.length, 120);
+  assert.equal(feedsProblem(feeds), undefined);
 });

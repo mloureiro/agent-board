@@ -210,7 +210,7 @@ test('list shows the integration, action, directory, agent, lane and the task li
   assert.equal(printed[0], 'gh  active  acme:github · list  every 10m  in /work  agent reviewer  lane slow');
   assert.match(printed[1] ?? '', /^ {2}ran .*: 2 listed, 1 created, 1 requeued, 0 closed$/);
   assert.deepEqual(printed.slice(2, 4), ['    created T1', '    requeued T2']);
-  assert.match(printed[4] ?? '', /^broken {2}not read: /);
+  assert.match(printed[4] ?? '', /^broken {2}not read: (?!config:)/);
 });
 
 test('list prints an invalid last run as invalid with its reason', () => {
@@ -275,4 +275,27 @@ test('add reads the entry from stdin and validates it against an installed marke
     feeds: Record<string, unknown>;
   };
   assert.deepEqual(Object.keys(saved.feeds), ['gh']);
+});
+
+test('add names a file it cannot read instead of reporting an unexpected error', async () => {
+  const root = tempDir('board-feeds-missing-');
+  const configDir = join(root, 'config');
+  mkdirSync(configDir, { recursive: true });
+  writeFileSync(join(configDir, 'config.json'), JSON.stringify({ machine: 'laptop' }));
+  const missing = join(root, 'nope.json');
+  await assert.rejects(
+    runBoard(['feeds', 'add', 'gh', missing], {
+      env: { AGENT_BOARD_STATE_DIR: join(root, 'state'), AGENT_BOARD_CONFIG_DIR: configDir },
+      context: (dryRun) => ({
+        config: CONFIG,
+        backend: fakeBackend([]),
+        dryRun,
+        taskLink: linkTo,
+        print: () => undefined,
+      }),
+      writeOut: () => undefined,
+      writeErr: () => undefined,
+    }),
+    (error) => error instanceof UsageError && error.message === `cannot read ${missing} (ENOENT)`,
+  );
 });

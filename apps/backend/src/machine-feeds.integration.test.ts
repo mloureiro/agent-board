@@ -21,7 +21,18 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const ID = '0123456789abcdef';
 
 const FEEDS: MachineFeeds = {
-  feeds: [{ id: ID, name: 'github-reviews', everyMs: 600_000, paused: false, runNow: false }],
+  feeds: [
+    {
+      id: ID,
+      name: 'github-reviews',
+      integration: 'acme:github',
+      action: 'list-pull-requests',
+      everyMs: 600_000,
+      paused: false,
+      runAsked: false,
+      history: [],
+    },
+  ],
 };
 
 async function body(machine: string, feeds = FEEDS) {

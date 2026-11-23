@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
 import { readStdin, ReportedFailure, UsageError } from '../cli.mts';
@@ -14,6 +13,7 @@ import { isUnitRunning } from '../watch/tick.mts';
 import { isProcessAlive } from '../worker/process.mts';
 import { examples, paragraphs, SCHEDULING } from './help-text.mts';
 import type { ProgramShared } from './program-shared.mts';
+import { readTextFile } from './read-text-file.mts';
 import { feedsAdd, feedsList, feedsRemove, feedsRun, feedsSetPaused } from './feeds.mts';
 import type { FeedsDeps } from './feeds.mts';
 
@@ -87,7 +87,7 @@ export function registerFeedsCommand(shared: ProgramShared): void {
         await feedsAdd(
           deps,
           feed,
-          rest[0] === '-' ? await (options.readStdin ?? readStdin)() : readFileSync(rest[0] ?? '', 'utf8'),
+          rest[0] === '-' ? await (options.readStdin ?? readStdin)() : readTextFile(rest[0] ?? ''),
         );
       else if (action === 'rm') feedsRemove(deps, feed);
       else if (action === 'pause' || action === 'resume') feedsSetPaused(deps, feed, action === 'pause');

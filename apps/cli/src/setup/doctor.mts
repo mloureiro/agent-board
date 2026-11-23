@@ -34,7 +34,7 @@ import type { Keys } from '@agent-board/shared';
 import { runGit } from '../config/checkout-repo.mts';
 import { runCommand } from '../dispatch/waits.mts';
 import type { CommandResult, CommandSpec } from '../dispatch/waits.mts';
-import { parseFeeds } from '../feeds/config.mts';
+import { feedProblemText, parseFeeds } from '../feeds/config.mts';
 import { doctor } from '../feeds/integration.mts';
 import { validateFeed } from '../feeds/validate.mts';
 import { verifyPin } from '../plugins/pin.mts';
@@ -1071,7 +1071,7 @@ const checkPluginsAndFeeds: Check = async (deps) => {
       ),
     );
   for (const [name, message] of Object.entries(parsed.feedErrors))
-    results.push(problem(`feeds.${plainLine(name)}`, 'fail', plainLine(message.replace(/^config: /, '')), FEED_HINT));
+    results.push(problem(`feeds.${plainLine(name)}`, 'fail', plainLine(feedProblemText(message)), FEED_HINT));
   const programs = new Map<string, { program: string; dir: string }>();
   for (const feed of parsed.feeds) {
     const validated = await validateFeed(feed, { resolve: deps.plugins.resolve, run: deps.runCommand });

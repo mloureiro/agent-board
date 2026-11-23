@@ -1,9 +1,9 @@
-import { parseFeedRequest } from '@agent-board/shared';
-import type { Backend, MachineFeed, MachineFeeds } from '@agent-board/shared';
+import { MAX_HISTORY_ERROR, MAX_LAST_ERROR, MAX_LAST_TASKS, parseFeedRequest } from '@agent-board/shared';
+import type { Backend, FeedRun as BoardRun, MachineFeed, MachineFeeds } from '@agent-board/shared';
 import { errorText } from '../output/text.mts';
 import { isFeedName, loadFeeds } from './config.mts';
 import { runAsked } from './run.mts';
-import type { FeedStore } from './store.mts';
+import type { FeedRecord, FeedRun, FeedStore } from './store.mts';
 
 export interface FeedsBoardDeps {
   backend: Pick<Backend, 'checkFeeds' | 'setFeeds' | 'feedRequests' | 'ackFeedRequests'>;
@@ -16,33 +16,53 @@ export interface FeedsBoardDeps {
 
 const MAX_PROBLEM = 300;
 
+const oneLine = (text: string, max: number): string =>
+  Array.from(text.replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, ' '))
+    .slice(0, max)
+    .join('');
+
+function boardRun(run: FeedRun, maxError: number): BoardRun {
+  const { counts, error } = run;
+  return {
+    startedAt: run.startedAt,
+    at: run.at,
+    ok: run.ok,
+    ...(run.invalid === undefined ? {} : { invalid: run.invalid }),
+    ...(error === undefined ? {} : { error: oneLine(error, maxError) }),
+    listed: counts.listed,
+    created: counts.created,
+    requeued: counts.requeued,
+    rescheduled: counts.rescheduled,
+    closed: counts.closed,
+    failed: counts.failed,
+  };
+}
+
+function boardRuns(record: FeedRecord): Pick<MachineFeed, 'last' | 'history'> {
+  const { last } = record;
+  return {
+    ...(last === undefined
+      ? {}
+      : { last: { ...boardRun(last, MAX_LAST_ERROR), tasks: (last.tasks ?? []).slice(0, MAX_LAST_TASKS) } }),
+    history: record.history.map((run) => boardRun(run, MAX_HISTORY_ERROR)),
+  };
+}
+
 /** What the board shows of this machine's feeds: every entry of config.json, a broken one with its problem. */
 export function machineFeeds(configFile: string, store: FeedStore): MachineFeeds {
   const { feeds, feedErrors } = loadFeeds(configFile);
   const working = feeds.map((feed): MachineFeed => {
     const control = store.updateControl(feed.name, {});
     const record = store.readRecord(feed.name);
-    const { last } = record;
     return {
       id: control.id,
       name: feed.name,
+      integration: feed.integration,
+      action: feed.action,
       everyMs: feed.everyMs,
       paused: control.paused,
-      runNow: runAsked(control, record),
-      ...(last === undefined
-        ? {}
-        : {
-            last: {
-              at: last.at,
-              ok: last.ok,
-              ...(last.error === undefined ? {} : { error: last.error }),
-              listed: last.counts.listed,
-              created: last.counts.created,
-              requeued: last.counts.requeued,
-              closed: last.counts.closed,
-              failed: last.counts.failed,
-            },
-          }),
+      runAsked: runAsked(control, record),
+      ...boardRuns(record),
     };
   });
   const broken = Object.entries(feedErrors)
@@ -52,8 +72,9 @@ export function machineFeeds(configFile: string, store: FeedStore): MachineFeeds
       name,
       everyMs: 0,
       paused: false,
-      runNow: false,
-      problem: problem.slice(0, MAX_PROBLEM),
+      runAsked: false,
+      problem: oneLine(problem, MAX_PROBLEM),
+      ...boardRuns(store.readRecord(name)),
     }));
   return { feeds: [...working, ...broken] };
 }

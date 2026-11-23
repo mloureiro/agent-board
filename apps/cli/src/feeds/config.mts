@@ -150,6 +150,8 @@ export function parseFeeds(raw: unknown): { feeds: FeedConfig[]; feedErrors: Rec
   return { feeds, feedErrors };
 }
 
+export const feedProblemText = (message: string): string => message.replace(/^config: /, '');
+
 // Read on every use, not once per process: the watch unit runs for days, and `board feeds add` must not need a restart.
 export function loadFeeds(configFile: string): { feeds: FeedConfig[]; feedErrors: Record<string, string> } {
   return parseFeeds(readConfigFile(configFile).raw['feeds']);

@@ -1,6 +1,5 @@
-import { isRecord } from '@agent-board/shared';
+import { INTEGRATION_NAME, MARKETPLACE_NAME, isRecord } from '@agent-board/shared';
 import type { GitRunner } from '../config/checkout-repo.mts';
-import { INTEGRATION_NAME, MARKETPLACE_NAME } from './names.mts';
 
 export const MANIFEST_PATH = '.agent-board/marketplace.json';
 export const PROTOCOL = 1;

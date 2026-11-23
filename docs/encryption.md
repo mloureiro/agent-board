@@ -66,7 +66,7 @@ The operator can read, swap, replay and forge anything in the database and in AP
   - `machine.dirs` is `{"dirs":[{"path":…,"label":…}]}`, with `label` only when the directory has one.
   - `machine.catalog` is `{"claude":…,"models":[…],"skills":[…],"dirs":{…},"lanes":[…]}`, with `lanes` only when the machine has some: the names of its lanes.
   - `machine.usage` is `{"limits":…,"windows":{…},"reached":[…],"held":[…],"open":[…]}`.
-  - `machine.feeds` is `{"feeds":[{"id":…,"name":…,"everyMs":…,"paused":…,"runNow":…,"problem":…,"last":{…}}]}`, with `problem` and `last` only when there is one. The commands are not in it.
+  - `machine.feeds` is `{"feeds":[{"id":…,"name":…,"integration":…,"action":…,"everyMs":…,"paused":…,"runAsked":…,"problem":…,"last":{…},"history":[…]}]}`, with `integration`, `action`, `problem` and `last` only when there is one. The last run lists the ids of the tasks it touched, never their titles. The commands, options and plugin details are not in it.
 - `agents.shared` is `{"version":…,"agents":{"<name>":{…}}}`, see [The agents on the board](#the-agents-on-the-board). Its `<version>` is the clear version the server keeps beside it, and the document says the same version inside.
 - `links` is `{"version":…,"rules":[{"pattern":…,"url":…,"flags":…}]}`, with `flags` (`i`) only on a case-insensitive rule, see [The link rules](#the-link-rules). Its `<version>` works as that of `agents.shared`.
 - `titles` is `{"version":…,"rules":[{"pattern":…,"flags":…,"icon":…,"instruction":…}]}`, with `flags` (`i`), `icon` and `instruction` only where the rule sets them, see [The title rules](#the-title-rules). Its `<version>` works as that of `agents.shared`.
@@ -312,7 +312,7 @@ Each machine sends the board three sealed documents: its directory list, its cat
 | `machine.dirs`    | the listed directories that exist, each with its label                                              | the New task form's Working directory field              | `dirs:<machine>:<document>`    | `dirsIndex`        |
 | `machine.catalog` | the skills and models `claude` reports on the machine, and the names of its lanes                   | completing `/skill` and offering models                  | `catalog:<machine>:<document>` | `catalogIndex`     |
 | `machine.usage`   | the usage limits, the last readings, and the ids of Todo tasks the machine held back or could serve | a badge on a task card and a line in Settings › Machines | `usage:<machine>:<document>`   | `usageIndex`       |
-| `machine.feeds`   | the names, timers, pauses and last runs of the machine's feeds, each with a random id               | the Feeds page                                           | `feeds:<machine>:<document>`   | `feedsIndex`       |
+| `machine.feeds`   | the names, timers, pauses, last tasks and recent runs of the machine's feeds, each with a random id | the Feeds page                                           | `feeds:<machine>:<document>`   | `feedsIndex`       |
 
 **Feed requests.** The browser's Pause, Resume and Run now are stored in the clear on the machine row as `<action>:<id>`, where the id is random and names no feed. A hostile board can drop, replay or invent one. The worst it does is pause, resume or run one of the user's own feeds out of turn: the machine applies it only to a feed it has, and a run is what the feed's timer would do anyway.
 
