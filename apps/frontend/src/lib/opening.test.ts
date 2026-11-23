@@ -4,6 +4,8 @@ import {
   inputBinding,
   machineCatalogBinding,
   machineUsageBinding,
+  machineFeedsBinding,
+  sealMachineFeeds,
   machineDirsBinding,
   prBinding,
   seal,
@@ -15,7 +17,15 @@ import {
 } from '@agent-board/shared';
 import type { PrState, TaskWatch } from '@agent-board/shared';
 import { describe, expect, it } from 'vitest';
-import { openBoardTask, openCatalogs, openContext, openEvent, openListedTasks, openMachines } from './opening';
+import {
+  openBoardTask,
+  openCatalogs,
+  openContext,
+  openEvent,
+  openFeeds,
+  openListedTasks,
+  openMachines,
+} from './opening';
 import { sealerFor } from './contexts';
 import type { RouterOutputs } from './wire';
 
@@ -453,5 +463,43 @@ describe('the context reading of a task, as the browser opens it', () => {
 
   it('refuses a run id that is not an id without throwing', async () => {
     expect(await openContext(keys, taskId, { ...(await wire(7)), runId: 'bad id\n' })).toBe('unreadable');
+  });
+});
+
+describe('the feeds of a machine, as the browser opens them', () => {
+  const feed = {
+    id: '0123456789abcdef',
+    name: 'reviews',
+    everyMs: 600_000,
+    paused: false,
+    runAsked: false,
+    history: [],
+  };
+  const row = async (name: string, overrides: Partial<RouterOutputs['feeds']['list'][number]> = {}) => ({
+    name,
+    feeds: await sealMachineFeeds(sealerFor(keys), name, { feeds: [feed] }),
+    feedsUpdatedAt: '2026-11-23T12:00:00.000Z',
+    feedRequests: [],
+    lastSeenAt: '2026-11-23T12:01:00.000Z',
+    ...overrides,
+  });
+
+  it('opens the feeds and keeps the pending requests that name a known action and a feed id', async () => {
+    const requests = ['pause:0123456789abcdef', 'run:short', 'delete:0123456789abcdef', 'run:0123456789abcdef:x'];
+    const [opened] = await openFeeds(keys, [await row('laptop', { feedRequests: requests })]);
+    expect(opened?.feeds).toEqual([feed]);
+    expect(opened?.requests).toEqual(['pause:0123456789abcdef']);
+    expect(opened?.lastSeenAt).toBe('2026-11-23T12:01:00.000Z');
+  });
+
+  it('gives no feeds for a document sealed for another machine, and for one that is not a feeds document', async () => {
+    const other = await sealerFor(keys)(machineFeedsBinding('desktop'), JSON.stringify({ feeds: [feed] }));
+    const notFeeds = await sealerFor(keys)(machineFeedsBinding('laptop'), JSON.stringify({ nothing: true }));
+    const opened = await openFeeds(keys, [
+      await row('laptop', { feeds: other }),
+      await row('tablet', { feeds: notFeeds }),
+      await row('phone', { feeds: 'abe1.notanenvelope' }),
+    ]);
+    expect(opened.map((entry) => entry.feeds)).toEqual([null, null, null]);
   });
 });

@@ -82,13 +82,13 @@ function SignedInApp() {
                 <Route path="backlog" element={<BacklogPage />} />
                 <Route path="t/:id" element={<TaskPage />} />
                 <Route path="schedules" element={<SchedulesPage />} />
-                <Route path="feeds" element={<FeedsPage />} />
                 <Route path="closed" element={<ClosedPage />} />
                 <Route path="settings" element={<SettingsLayout />}>
                   <Route index element={<Navigate to="/settings/machines" replace />} />
                   <Route path="machines" element={<MachinesSettings />} />
                   <Route path="notifications" element={<NotificationsSettings />} />
                   <Route path="encryption" element={<EncryptionSettings />} />
+                  <Route path="feeds" element={<FeedsPage />} />
                   <Route path="agents" element={<AgentsPage />} />
                   <Route path="links" element={<LinksSettings />} />
                   <Route path="titles" element={<TitlesSettings />} />

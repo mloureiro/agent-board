@@ -1,162 +1,266 @@
-import { formatDuration, feedRequest, type MachineFeed, type FeedAction } from '@agent-board/shared';
-import { ActionIcon, Badge, Code, Group, Paper, Stack, Table, Text, Title, Tooltip } from '@mantine/core';
-import { IconPlayerPause, IconPlayerPlay, IconRefresh } from '@tabler/icons-react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import {
+  feedRequest,
+  formatDuration,
+  type FeedAction,
+  type FeedOutcome,
+  type FeedRun,
+  type MachineFeed,
+} from '@agent-board/shared';
+import { Anchor, Badge, Button, Code, Collapse, Group, Paper, Stack, Table, Text, Title } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { QueryStatus } from '../components/QueryStatus';
+import { feedStatus } from '../lib/feedStatus';
 import type { OpenedFeeds } from '../lib/opening';
 import { ago, stamp } from '../lib/time';
-import { POLL_MS, useTRPC } from '../lib/trpc';
+import { errorMessage, POLL_MS, useTRPC } from '../lib/trpc';
+import { useNow } from '../lib/useNow';
 
 const WAITING: Record<FeedAction, string> = { pause: 'Pausing…', resume: 'Resuming…', run: 'Run asked for…' };
 
-function lastRun(feed: MachineFeed): string {
+const OUTCOME_COLOR: Record<FeedOutcome, string> = {
+  created: 'green',
+  requeued: 'blue',
+  rescheduled: 'grape',
+  closed: 'gray',
+};
+
+function counts(run: FeedRun): string {
+  const parts = [`${run.listed} listed`, `${run.created} created`, `${run.requeued} requeued`, `${run.closed} closed`];
+  return run.failed > 0 ? [...parts, `${run.failed} failed`].join(', ') : parts.join(', ');
+}
+
+function runSummary(feed: MachineFeed, errorShown: boolean): string {
   const { last } = feed;
-  if (last === undefined) return 'never run';
-  const counts = `${last.listed} listed, ${last.created} created, ${last.requeued} requeued, ${last.closed} closed${last.failed > 0 ? `, ${last.failed} failed` : ''}`;
-  return last.ok ? counts : `failed: ${last.error ?? 'unknown error'}${last.listed > 0 ? ` (${counts})` : ''}`;
+  if (last === undefined) return 'Never run.';
+  if (last.ok) return counts(last);
+  const outcome = last.invalid === true ? 'Invalid' : 'Failed';
+  const reason = errorShown ? '' : `: ${last.error ?? 'unknown error'}`;
+  return `${outcome}${reason}${last.listed > 0 ? ` (${counts(last)})` : ''}`;
 }
 
 function FeedActions({ machine, feed, requests }: { machine: string; feed: MachineFeed; requests: string[] }) {
   const trpc = useTRPC();
-  const request = useMutation(trpc.feeds.request.mutationOptions());
+  const queryClient = useQueryClient();
+  const request = useMutation({
+    ...trpc.feeds.request.mutationOptions(),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: trpc.feeds.list.queryOptions().queryKey }),
+  });
   const pending = (action: FeedAction): boolean => requests.includes(feedRequest(action, feed.id));
   const ask = (action: FeedAction) => request.mutate({ machine, action, id: feed.id });
   const toggle: FeedAction = feed.paused ? 'resume' : 'pause';
+  const unreadable = feed.problem !== undefined;
   return (
-    <Group gap={4} justify="flex-end" wrap="nowrap">
-      <Tooltip label={pending('run') || feed.runAsked ? WAITING.run : 'Run now'}>
-        <ActionIcon
-          variant="subtle"
+    <Stack gap={4} align="flex-end">
+      <Group gap="xs" wrap="nowrap">
+        <Button
+          size="compact-sm"
+          variant="light"
           color="gray"
-          aria-label="Run now"
-          disabled={feed.problem !== undefined || pending('run') || feed.runAsked}
+          disabled={unreadable || pending('run') || feed.runAsked}
+          loading={request.isPending && request.variables.action === 'run'}
           onClick={() => ask('run')}
         >
-          <IconRefresh size={16} />
-        </ActionIcon>
-      </Tooltip>
-      <Tooltip label={pending(toggle) ? WAITING[toggle] : feed.paused ? 'Resume' : 'Pause'}>
-        <ActionIcon
-          variant="subtle"
+          Run now
+        </Button>
+        <Button
+          size="compact-sm"
+          variant="light"
           color="gray"
-          aria-label={feed.paused ? 'Resume' : 'Pause'}
-          disabled={feed.problem !== undefined || pending(toggle)}
-          loading={request.isPending}
+          disabled={unreadable || pending(toggle)}
+          loading={request.isPending && request.variables.action === toggle}
           onClick={() => ask(toggle)}
         >
-          {feed.paused ? <IconPlayerPlay size={16} /> : <IconPlayerPause size={16} />}
-        </ActionIcon>
-      </Tooltip>
-    </Group>
-  );
-}
-
-function FeedRow({ machine, feed, requests }: { machine: string; feed: MachineFeed; requests: string[] }) {
-  const waiting = (['pause', 'resume', 'run'] as const).find((action) =>
-    requests.includes(feedRequest(action, feed.id)),
-  );
-  return (
-    <Table.Tr>
-      <Table.Td>
-        <Group gap="xs" wrap="nowrap">
-          <Text size="sm">{feed.name}</Text>
-          {feed.paused && (
-            <Badge size="xs" color="yellow" variant="light">
-              paused
-            </Badge>
-          )}
-          {feed.problem !== undefined && (
-            <Badge size="xs" color="red" variant="light">
-              not read
-            </Badge>
-          )}
-          {feed.last !== undefined && !feed.last.ok && feed.problem === undefined && (
-            <Badge size="xs" color="red" variant="light">
-              failed
-            </Badge>
-          )}
-        </Group>
-        {waiting !== undefined && (
-          <Text size="xs" c="dimmed">
-            {WAITING[waiting]}
+          {feed.paused ? 'Resume' : 'Pause'}
+        </Button>
+      </Group>
+      {(['pause', 'resume', 'run'] as const)
+        .filter((action) => pending(action))
+        .map((action) => (
+          <Text key={action} size="xs" c="dimmed">
+            {WAITING[action]}
           </Text>
-        )}
-      </Table.Td>
-      <Table.Td>
-        <Text size="sm">{feed.problem === undefined ? `every ${formatDuration(feed.everyMs)}` : '-'}</Text>
-      </Table.Td>
-      <Table.Td>
-        {feed.last === undefined ? (
-          <Text size="sm" c="dimmed">
-            -
-          </Text>
-        ) : (
-          <Text size="sm">
-            {stamp(feed.last.at)}{' '}
-            <Text span size="xs" c="dimmed">
-              {ago(feed.last.at)}
-            </Text>
-          </Text>
-        )}
-      </Table.Td>
-      <Table.Td maw={420}>
-        <Text size="sm" c={feed.problem !== undefined || feed.last?.ok === false ? 'red' : undefined}>
-          {feed.problem ?? lastRun(feed)}
+        ))}
+      {request.isError && (
+        <Text size="xs" c="red">
+          {errorMessage(request.error)}
         </Text>
-      </Table.Td>
-      <Table.Td>
-        <FeedActions machine={machine} feed={feed} requests={requests} />
-      </Table.Td>
-    </Table.Tr>
+      )}
+    </Stack>
   );
 }
 
-function MachineFeeds({ entry }: { entry: OpenedFeeds }) {
+function Tasks({ feed, titles }: { feed: MachineFeed; titles: Map<string, string> }) {
+  const tasks = feed.last?.tasks ?? [];
+  if (tasks.length === 0) {
+    return (
+      <Text size="sm" c="dimmed">
+        The last run touched no task.
+      </Text>
+    );
+  }
+  return (
+    <Stack gap={4}>
+      {tasks.map(({ id, outcome }) => (
+        <Group key={id} gap="xs" wrap="nowrap">
+          <Badge size="xs" variant="light" color={OUTCOME_COLOR[outcome]} style={{ flexShrink: 0 }}>
+            {outcome}
+          </Badge>
+          <Anchor component={Link} to={`/t/${id}`} size="sm" lineClamp={1}>
+            {titles.get(id) ?? id}
+          </Anchor>
+        </Group>
+      ))}
+    </Stack>
+  );
+}
+
+function History({ feed }: { feed: MachineFeed }) {
+  if (feed.history.length === 0) {
+    return (
+      <Text size="sm" c="dimmed">
+        No run recorded yet.
+      </Text>
+    );
+  }
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <Table>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>Started</Table.Th>
+            <Table.Th>Result</Table.Th>
+            <Table.Th>Items</Table.Th>
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
+          {feed.history.map((run) => (
+            <Table.Tr key={run.startedAt}>
+              <Table.Td style={{ whiteSpace: 'nowrap' }}>{stamp(run.startedAt)}</Table.Td>
+              <Table.Td c={run.ok ? undefined : 'red'}>
+                {run.invalid === true ? 'invalid' : run.ok ? 'ok' : 'failed'}
+                {run.error === undefined ? '' : `: ${run.error}`}
+              </Table.Td>
+              <Table.Td style={{ whiteSpace: 'nowrap' }}>{counts(run)}</Table.Td>
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+      </Table>
+    </div>
+  );
+}
+
+function FeedCard({
+  machine,
+  feed,
+  requests,
+  titles,
+  now,
+}: {
+  machine: string;
+  feed: MachineFeed;
+  requests: string[];
+  titles: Map<string, string>;
+  now: number;
+}) {
+  const [open, { toggle }] = useDisclosure(false);
+  const status = feedStatus(feed, now);
+  const what = feed.integration === undefined ? undefined : `${feed.integration} · ${feed.action ?? 'unknown action'}`;
+  return (
+    <Paper withBorder p="sm">
+      <Stack gap="xs">
+        <Group justify="space-between" align="flex-start" wrap="wrap" gap="sm">
+          <Stack gap={2} miw={0} style={{ flex: '1 1 240px' }}>
+            <Group gap="xs">
+              <Text fw={500}>{feed.name}</Text>
+              {status !== undefined && (
+                <Badge size="sm" variant="light" color={status.color}>
+                  {status.label}
+                </Badge>
+              )}
+            </Group>
+            <Text size="xs" c="dimmed">
+              {what === undefined ? '' : `${what} · `}every {formatDuration(feed.everyMs)}
+            </Text>
+            {status?.detail !== undefined && (
+              <Text size="sm" c={status.color === 'red' ? 'red' : 'dimmed'}>
+                {status.detail}
+              </Text>
+            )}
+          </Stack>
+          <FeedActions machine={machine} feed={feed} requests={requests} />
+        </Group>
+        <Text size="sm" c={feed.last?.ok === false ? 'red' : undefined}>
+          {feed.last === undefined ? '' : `Last run ${ago(feed.last.startedAt)}. `}
+          {runSummary(feed, status?.detail !== undefined && status.detail === feed.last?.error)}
+        </Text>
+        <div>
+          <Button variant="subtle" size="compact-xs" onClick={toggle} aria-expanded={open}>
+            {open ? 'Hide details' : 'Show details'}
+          </Button>
+        </div>
+        <Collapse expanded={open}>
+          <Stack gap="md" pt="xs">
+            <Stack gap={4}>
+              <Text size="sm" fw={500}>
+                Tasks of the last run
+              </Text>
+              <Tasks feed={feed} titles={titles} />
+            </Stack>
+            <Stack gap={4}>
+              <Text size="sm" fw={500}>
+                Last runs
+              </Text>
+              <History feed={feed} />
+            </Stack>
+          </Stack>
+        </Collapse>
+      </Stack>
+    </Paper>
+  );
+}
+
+function MachineFeeds({ entry, titles, now }: { entry: OpenedFeeds; titles: Map<string, string>; now: number }) {
   return (
     <Stack gap="xs">
       <Group gap="xs">
-        <Title order={5}>{entry.machine}</Title>
-        {entry.updatedAt !== null && (
-          <Text size="xs" c="dimmed">
-            sent {ago(entry.updatedAt)}
-          </Text>
-        )}
+        <Title order={6}>{entry.machine}</Title>
+        <Text size="xs" c="dimmed">
+          {entry.lastSeenAt === null ? 'never seen' : `last seen ${ago(entry.lastSeenAt)}`}
+          {entry.updatedAt === null ? '' : ` · feeds sent ${ago(entry.updatedAt)}`}
+        </Text>
       </Group>
-      <Paper withBorder style={{ overflowX: 'auto' }}>
-        {entry.feeds === null ? (
-          <Text size="sm" c="dimmed" p="md">
-            The feeds of this machine cannot be read here.
-          </Text>
-        ) : (
-          <Table>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Feed</Table.Th>
-                <Table.Th>Timer</Table.Th>
-                <Table.Th>Last run</Table.Th>
-                <Table.Th>Result</Table.Th>
-                <Table.Th />
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {entry.feeds.map((feed) => (
-                <FeedRow key={feed.id} machine={entry.machine} feed={feed} requests={entry.requests} />
-              ))}
-            </Table.Tbody>
-          </Table>
-        )}
-      </Paper>
+      {entry.feeds === null ? (
+        <Text size="sm" c="dimmed">
+          The feeds of this machine cannot be read here.
+        </Text>
+      ) : (
+        entry.feeds.map((feed) => (
+          <FeedCard
+            key={feed.id}
+            machine={entry.machine}
+            feed={feed}
+            requests={entry.requests}
+            titles={titles}
+            now={now}
+          />
+        ))
+      )}
     </Stack>
   );
 }
 
 export function FeedsPage() {
   const trpc = useTRPC();
+  const now = useNow(30_000);
   const feeds = useQuery({ ...trpc.feeds.list.queryOptions(), refetchInterval: POLL_MS });
+  const tasks = useQuery(trpc.tasks.list.queryOptions());
+  const titles = new Map((tasks.data ?? []).map((task) => [task.id, task.title]));
   const machines = (feeds.data ?? []).filter((entry) => entry.feeds === null || entry.feeds.length > 0);
   return (
-    <Stack maw={1100} mx="auto">
-      <Title order={3}>Feeds</Title>
+    <Stack>
+      <Title order={5}>Feeds</Title>
       <Text size="sm" c="dimmed">
         A feed is a command a machine runs on a timer to make tasks from another tool, one task per item it lists. Each
         machine shows its own; the commands stay on the machine. Pause, Resume and Run now reach the machine on its next
@@ -166,10 +270,11 @@ export function FeedsPage() {
       {machines.length === 0
         ? feeds.data !== undefined && (
             <Text size="sm" c="dimmed">
-              No feeds yet.
+              No machine sent feeds. Install a plugin with <Code>board plugins install</Code> and add a feed with{' '}
+              <Code>board feeds add</Code> on a machine.
             </Text>
           )
-        : machines.map((entry) => <MachineFeeds key={entry.machine} entry={entry} />)}
+        : machines.map((entry) => <MachineFeeds key={entry.machine} entry={entry} titles={titles} now={now} />)}
     </Stack>
   );
 }

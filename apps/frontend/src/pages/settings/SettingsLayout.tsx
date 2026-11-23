@@ -1,10 +1,20 @@
 import { Button, Group, NavLink as MantineNavLink, ScrollArea, Stack, Title } from '@mantine/core';
-import { IconBell, IconKey, IconLink, IconRobot, IconServer, IconTag, IconUser } from '@tabler/icons-react';
+import {
+  IconBell,
+  IconKey,
+  IconLink,
+  IconPlugConnected,
+  IconRobot,
+  IconServer,
+  IconTag,
+  IconUser,
+} from '@tabler/icons-react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { Revision } from './Revision';
 
 const SUBPAGES = [
   { to: '/settings/machines', label: 'Machines', icon: IconServer },
+  { to: '/settings/feeds', label: 'Feeds', icon: IconPlugConnected },
   { to: '/settings/agents', label: 'Agents', icon: IconRobot },
   { to: '/settings/links', label: 'Links', icon: IconLink },
   { to: '/settings/titles', label: 'Titles', icon: IconTag },
