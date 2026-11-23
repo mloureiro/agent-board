@@ -139,6 +139,33 @@ test('an update replaces the binary beside itself with mode 755 and leaves nothi
   }
 });
 
+test('releases are listed and downloaded from mloureiro/agent-board', async () => {
+  const { gh, deps, clean } = fixture([{ tag: 'cli-v0.10.0', assets: { [ASSET]: 'the new binary' } }]);
+  const releaseCalls: string[][] = [];
+  const real = realGh(gh.env);
+  try {
+    await selfUpdate(
+      {
+        ...deps,
+        gh: (args) => {
+          if (args[0] === 'release') releaseCalls.push(args);
+          return real(args);
+        },
+      },
+      {},
+    );
+    assert.deepEqual(
+      releaseCalls.map((args) => [args[1], args[args.indexOf('--repo') + 1]]),
+      [
+        ['list', 'mloureiro/agent-board'],
+        ['download', 'mloureiro/agent-board'],
+      ],
+    );
+  } finally {
+    clean();
+  }
+});
+
 test('the listener is restarted after the binary was replaced, and only then', async () => {
   const updated = fixture([{ tag: 'cli-v0.4.0', assets: { [ASSET]: 'new' } }], {
     restartListener: async () => 'restarted the listener',

@@ -1,10 +1,10 @@
 #!/bin/sh
 # Installs the newest released board binary.
-#   gh release download --repo codeplant-de/agent-board --pattern install.sh -O - | sh
+#   gh release download --repo mloureiro/agent-board --pattern install.sh -O - | sh
 # Needs gh, logged in. BOARD_INSTALL_DIR chooses where `board` goes (default ~/.local/bin).
 # Everything is inside main, called on the last line, so a download cut short runs nothing at all.
 
-repo=codeplant-de/agent-board
+repo=mloureiro/agent-board
 
 die() {
   echo "install.sh: $*" >&2
