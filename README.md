@@ -71,7 +71,7 @@ Then work from the task page:
 
 Agents report with `board comment`, ask with `board ask`, wait for CI with `board watch`, report the PRs they open with `board pr`, and propose follow-up work with `board add`. A proposal only runs after you press **Start**.
 
-A script such as `github-reviews` can turn GitHub review requests into review tasks on a timer. Those tasks run as an agent with a narrow allow-list, because their input is PR text nobody chose to read.
+A feed turns the items of an outside tool into tasks on a timer, with the integration coming from a plugin marketplace ([docs/plugins.md](docs/plugins.md)). A script such as `github-reviews` can turn GitHub review requests into review tasks on a timer too. Those tasks run as an agent with a narrow allow-list, because their input is PR text nobody chose to read.
 
 The [documentation](#documentation) table below lists where to read more.
 
@@ -105,6 +105,7 @@ pnpm typecheck && pnpm lint && pnpm format:check && pnpm test
 | [architecture.md](docs/architecture.md) | Components, data flow, design decisions and the rules a change must keep. |
 | [usage.md](docs/usage.md) | Tasks, scheduling, questions and resume, waiting, proposals, polish, export and import of your data. |
 | [workers.md](docs/workers.md) | Multiple machines, lanes, liveness, transcripts, permissions, how dispatch decides. |
+| [plugins.md](docs/plugins.md) | Plugin marketplaces, installing one, writing a feed integration. |
 | [setup.md](docs/setup.md) | Installing the CLI, `config.json`, upgrading. |
 | [cli.md](docs/cli.md) | Generated `board` command reference. |
 | [encryption.md](docs/encryption.md) | Threat model, sealing contexts, what the server can still do. |

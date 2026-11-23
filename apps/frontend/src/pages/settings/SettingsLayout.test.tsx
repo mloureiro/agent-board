@@ -488,7 +488,7 @@ describe('the settings subpages', () => {
     renderPage();
     // jsdom applies Mantine's visibleFrom and hiddenFrom rules to both navs, so neither has a computed role to query by.
     const nav = screen.getAllByLabelText('Settings sections', { selector: 'nav' })[0] as HTMLElement;
-    for (const name of ['Machines', 'Notifications', 'Encryption', 'Account']) {
+    for (const name of ['Machines', 'Feeds', 'Agents', 'Notifications', 'Encryption', 'Account']) {
       expect(within(nav).getByRole('link', { hidden: true, name })).toBeInTheDocument();
     }
     await userEvent.click(within(nav).getByRole('link', { hidden: true, name: 'Encryption' }));

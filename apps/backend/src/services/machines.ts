@@ -2,19 +2,19 @@ import {
   compareVersions,
   isSafeMachineName,
   MACHINE_NAME_RULE,
-  MAX_SOURCE_REQUESTS,
+  MAX_FEED_REQUESTS,
   MIN_CLIENT,
-  sourceRequest,
+  feedRequest,
 } from '@agent-board/shared';
-import type { SourceAction } from '@agent-board/shared';
+import type { FeedAction } from '@agent-board/shared';
 import { and, asc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 import { createHash, randomBytes } from 'node:crypto';
 import type { DbOrTx } from '../db/client';
 import { machines } from '../db/schema';
 import { AppError } from './errors';
 
-export interface SourceRequest {
-  action: SourceAction;
+export interface FeedRequest {
+  action: FeedAction;
   id: string;
 }
 
@@ -45,10 +45,10 @@ export async function issueToken(db: DbOrTx, name: string): Promise<string> {
         usage: null,
         usageIndex: null,
         usageUpdatedAt: null,
-        sources: null,
-        sourcesIndex: null,
-        sourcesUpdatedAt: null,
-        sourceRequests: [],
+        feeds: null,
+        feedsIndex: null,
+        feedsUpdatedAt: null,
+        feedRequests: [],
       },
     });
   return token;
@@ -148,10 +148,10 @@ export async function revokeMachine(db: DbOrTx, name: string): Promise<void> {
       usage: null,
       usageIndex: null,
       usageUpdatedAt: null,
-      sources: null,
-      sourcesIndex: null,
-      sourcesUpdatedAt: null,
-      sourceRequests: [],
+      feeds: null,
+      feedsIndex: null,
+      feedsUpdatedAt: null,
+      feedRequests: [],
     })
     .where(eq(machines.name, name));
 }
@@ -202,83 +202,79 @@ export async function machineUsageIndex(db: DbOrTx, name: string): Promise<strin
   return row?.index ?? null;
 }
 
-/** Stores the sealed sources a machine sent, with the blind index of what they hold. */
-export async function setMachineSources(
-  db: DbOrTx,
-  name: string,
-  sent: { sources: string; index: string },
-): Promise<void> {
+/** Stores the sealed feeds a machine sent, with the blind index of what they hold. */
+export async function setMachineFeeds(db: DbOrTx, name: string, sent: { feeds: string; index: string }): Promise<void> {
   await db
     .update(machines)
-    .set({ sources: sent.sources, sourcesIndex: sent.index, sourcesUpdatedAt: new Date() })
+    .set({ feeds: sent.feeds, feedsIndex: sent.index, feedsUpdatedAt: new Date() })
     .where(eq(machines.name, name));
 }
 
-/** The blind index of the sources a machine last sent (null when it sent none), and the requests that wait for it. */
-export async function machineSourcesState(
+/** The blind index of the feeds a machine last sent (null when it sent none), and the requests that wait for it. */
+export async function machineFeedsState(
   db: DbOrTx,
   name: string,
 ): Promise<{ index: string | null; requests: string[] }> {
   const [row] = await db
-    .select({ index: machines.sourcesIndex, requests: machines.sourceRequests })
+    .select({ index: machines.feedsIndex, requests: machines.feedRequests })
     .from(machines)
     .where(eq(machines.name, name));
   return { index: row?.index ?? null, requests: row?.requests ?? [] };
 }
 
 /** The machine applied these requests: they stop being pending. A request that is not pending changes nothing. */
-export async function ackSourceRequests(db: DbOrTx, name: string, done: readonly string[]): Promise<void> {
+export async function ackFeedRequests(db: DbOrTx, name: string, done: readonly string[]): Promise<void> {
   await db.transaction(async (tx) => {
     const [row] = await tx
-      .select({ requests: machines.sourceRequests })
+      .select({ requests: machines.feedRequests })
       .from(machines)
       .where(eq(machines.name, name))
       .for('update');
     if (row === undefined) return;
     const requests = row.requests.filter((request) => !done.includes(request));
     if (requests.length !== row.requests.length)
-      await tx.update(machines).set({ sourceRequests: requests }).where(eq(machines.name, name));
+      await tx.update(machines).set({ feedRequests: requests }).where(eq(machines.name, name));
   });
 }
 
 /**
- * The user's Pause, Resume or Run now of one source: the request waits in `sourceRequests` until the machine applies it on its
- * next dispatch tick. A request that already waits changes nothing; a pause and a resume of one source replace each other.
+ * The user's Pause, Resume or Run now of one feed: the request waits in `feedRequests` until the machine applies it on its
+ * next dispatch tick. A request that already waits changes nothing; a pause and a resume of one feed replace each other.
  */
-export async function requestSource(db: DbOrTx, name: string, request: SourceRequest): Promise<void> {
+export async function requestFeed(db: DbOrTx, name: string, request: FeedRequest): Promise<void> {
   await db.transaction(async (tx) => {
     const [row] = await tx
-      .select({ requests: machines.sourceRequests, revokedAt: machines.revokedAt })
+      .select({ requests: machines.feedRequests, revokedAt: machines.revokedAt })
       .from(machines)
       .where(eq(machines.name, name))
       .for('update');
     if (row === undefined || row.revokedAt !== null) throw new AppError('NOT_FOUND', `No machine ${name}.`);
-    const wanted = sourceRequest(request.action, request.id);
+    const wanted = feedRequest(request.action, request.id);
     if (row.requests.includes(wanted)) return;
     const opposite = request.action === 'pause' ? 'resume' : request.action === 'resume' ? 'pause' : undefined;
     const kept = row.requests.filter(
-      (pending) => opposite === undefined || pending !== sourceRequest(opposite, request.id),
+      (pending) => opposite === undefined || pending !== feedRequest(opposite, request.id),
     );
-    if (kept.length >= MAX_SOURCE_REQUESTS)
-      throw new AppError('BAD_REQUEST', `${MAX_SOURCE_REQUESTS} requests already wait for the machine`);
+    if (kept.length >= MAX_FEED_REQUESTS)
+      throw new AppError('BAD_REQUEST', `${MAX_FEED_REQUESTS} requests already wait for the machine`);
     await tx
       .update(machines)
-      .set({ sourceRequests: [...kept, wanted] })
+      .set({ feedRequests: [...kept, wanted] })
       .where(eq(machines.name, name));
   });
 }
 
-/** The sealed sources and pending requests of the machines that sent sources; kept out of `listMachines` like the catalogues. */
-export async function listMachineSources(db: DbOrTx) {
+/** The sealed feeds and pending requests of the machines that sent feeds; kept out of `listMachines` like the catalogues. */
+export async function listMachineFeeds(db: DbOrTx) {
   return db
     .select({
       name: machines.name,
-      sources: machines.sources,
-      sourcesUpdatedAt: machines.sourcesUpdatedAt,
-      sourceRequests: machines.sourceRequests,
+      feeds: machines.feeds,
+      feedsUpdatedAt: machines.feedsUpdatedAt,
+      feedRequests: machines.feedRequests,
       lastSeenAt: machines.lastSeenAt,
     })
     .from(machines)
-    .where(and(isNull(machines.revokedAt), isNotNull(machines.sources)))
+    .where(and(isNull(machines.revokedAt), isNotNull(machines.feeds)))
     .orderBy(asc(machines.name));
 }

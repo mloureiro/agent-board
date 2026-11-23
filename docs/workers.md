@@ -254,7 +254,7 @@ The directory matters beyond the files. Claude Code loads a checkout's `.claude/
 
 The hook records the agent's working directory on every tool call. When a run ends somewhere else, typically in a worktree the agent entered with `/worktree` (`EnterWorktree`), the worker stores that as the task's `workdir`.
 
-A resume after an answer, a reply or a pause starts `claude --resume` in the `workdir`, so the session continues in the worktree it left. The resume is pinned to the same machine, where that directory exists. Claude Code (2.1.323) also restores a session's worktree when it is resumed from the original directory. The `workdir` makes the board independent of that and shows the directory on the task page.
+A resume after an answer, a reply, a pause or a feed's update of the item starts `claude --resume` in the `workdir`, so the session continues in the worktree it left. The resume is pinned to the same machine, where that directory exists. Claude Code (2.1.323) also restores a session's worktree when it is resumed from the original directory. The `workdir` makes the board independent of that and shows the directory on the task page.
 
 ### Re-run fresh
 

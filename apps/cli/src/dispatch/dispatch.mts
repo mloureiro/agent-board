@@ -81,9 +81,9 @@ import { isBoardStale, publishWatches } from '../watch/publish.mts';
 import { handleWatchStops } from '../watch/stops.mts';
 import { isRunLive, wakeReason } from '../watch/wake.mts';
 import { isProcessAlive } from '../worker/process.mts';
-import { applySourceRequests } from '../sources/publish.mts';
-import { createSourceStore } from '../sources/store.mts';
-import type { SourceStore } from '../sources/store.mts';
+import { applyFeedRequests } from '../feeds/publish.mts';
+import { createFeedStore } from '../feeds/store.mts';
+import type { FeedStore } from '../feeds/store.mts';
 
 // Below the tick's 110 s limit: a stalled gh must not take the tick down with it.
 const PR_REFRESH_GH_TIMEOUT_MS = 30_000;
@@ -114,8 +114,8 @@ export interface DispatchDeps extends Context {
   // Where the board's agent definitions are applied, and how the tick reads its agents again after an apply; undefined: the
   // tick leaves them alone.
   sharedAgents?: { configFile: string; reload: () => Config };
-  // Where this machine's sources are configured and kept; undefined: the tick leaves the board's source requests alone.
-  sources?: { configFile: string; store: SourceStore };
+  // Where this machine's feeds are configured and kept; undefined: the tick leaves the board's feed requests alone.
+  feeds?: { configFile: string; store: FeedStore };
 }
 
 // Ends a wait on the board: the woken task, or undefined when it no longer waited or the call failed.
@@ -767,8 +767,8 @@ export async function runDispatch(given: DispatchDeps): Promise<void> {
   );
   // After the starts and the checks, so a probe never holds one back.
   await sendCatalog(deps, tickStart);
-  if (deps.sources !== undefined && !deps.dryRun)
-    await applySourceRequests({ backend, machine: config.machine, log, ...deps.sources });
+  if (deps.feeds !== undefined && !deps.dryRun)
+    await applyFeedRequests({ backend, machine: config.machine, now: deps.now, log, ...deps.feeds });
   // Last, so a slow or failing GitHub never holds back a start.
   await refreshPrStatesIfDue({ ...deps.prRefresh, backend, now: deps.now, dryRun: deps.dryRun, print: log }, listed);
 }
@@ -826,7 +826,7 @@ export async function dispatchMain({ dryRun }: { dryRun: boolean }): Promise<voi
         },
         usage: createUsageStore(usageFile(getPaths().stateDir)),
         sharedAgents: { configFile: getPaths().configFile, reload: () => loadConfig(getPaths().configFile) },
-        sources: { configFile: getPaths().configFile, store: createSourceStore(undefined, isProcessAlive) },
+        feeds: { configFile: getPaths().configFile, store: createFeedStore(undefined, isProcessAlive) },
         prRefresh: {
           github:
             whichOnPath('gh') === undefined

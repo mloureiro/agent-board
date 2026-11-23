@@ -46,13 +46,15 @@ Scheduling:
   schedule <prompt...>       a task from a prompt, run here on this machine
   schedules [action...]      list, edit, pause, resume or delete repeating
                              schedules
-  sources [action...]        list, add, remove, run or pause the commands that
-                             make this machine's tasks from other tools
+  feeds [action...]          list, add, remove, run or pause the feeds that make
+                             this machine's tasks from other tools
   delay <task>               delay a task in Todo, or make it due at once
 
 Setup:
   dirs [action...]           list, add, remove or set up the directories workers
                              may run in on this machine
+  plugins [action...]        install, update, remove or list the marketplaces of
+                             feed integrations
   config [action...]         show or change this machine's config.json
   agents [action...]         list, show, export, add or remove the agents of
                              this machine, or push one to every machine
@@ -988,55 +990,57 @@ Examples:
   board schedules edit s1b2c3d4 --dir none --agent none --max-concurrent none
 ```
 
-### board sources
+### board feeds
 
 ```
-Usage: board sources [options] [list | add <name> --every <dur> -- <command> | rm <name> | run <name> | pause <name> | resume <name>]
+Usage: board feeds [options] [list | add <name> <file | -> | rm <name> | run <name> | pause <name> | resume <name>]
 
-A source is a command this machine runs on a timer, such as a script that asks
-GitHub for the PRs that wait for your review. It prints one JSON object per
-line, one per item that should have a task: `key`, `title` and `prompt`, and
-optionally `version` and `dir`. For each item the machine runs `board schedule
---key` with the source's key prefix in front of the key, so the board keeps one
-task per item, and a new `version` sends a task that waits in Needs me or is
-Done back to Todo. A task of an earlier run whose item is no longer listed, and
-that still waits in Todo for its first start, is moved to Done.
+A feed asks an integration, a program of an installed plugin marketplace (see
+`board plugins`), for the items that should have a task, on a timer this machine
+runs. Its entry in config.json names the `integration`
+(`<marketplace>:<integration>`), the `action` to run, the `options` that action
+takes, how often it runs (`every`), the listed directory it runs in (`dir`),
+optionally an `agent`, a `lane` and a `timeout`, and the `prompts` its tasks
+start from: `new` for a task that is made, `update` for one whose item changed.
+A prompt takes placeholders such as `{url}` from the fields the item carries.
+For each item the machine makes the task of the key `feed:<name>:<item key>`, so
+the board keeps one task per item. A task of an earlier run whose item is no
+longer listed, and that still waits in Todo for its first start, is moved to
+Done.
 
-The watch unit runs every source that is due; `board sources` lists them with
-their last run. `add <name> --every <dur> -- <command>` writes `sources.<name>`
-to config.json (the command runs with `bash -c` in --dir, default the current
-directory, which must be listed in `dirs`); adding a name again replaces it. `rm
-<name>` removes it; the tasks it made stay. `run <name>` runs it now, here, and
-exits 1 when the run failed; `--later` leaves it to the watch unit's next look
-instead. `pause` and `resume` stop and restart its timer.
+The watch unit runs every feed that is due; `board feeds` lists them with their
+last run. `add <name> <file | ->` reads the entry as JSON from a file or from
+stdin and validates it as a run would (the plugin, the action, the options, the
+prompts and the check of the integration) and only then writes `feeds.<name>` to
+config.json; adding a name again replaces it. It then runs the `doctor` of the
+integration and warns when a prerequisite is missing, such as a login; the feed
+stays added. `rm <name>` removes it; the tasks it made stay. `run <name>` runs
+it now, here, and exits 1 when the run failed. `pause` and `resume` stop and
+restart its timer.
 
-A listing that fails (an exit other than 0, a time limit, a line that is not a
-valid item) schedules nothing and closes nothing. The key prefix defaults to
-`source:<name>:`.
+Before every run the feed is validated: the plugin must be installed and at the
+commit that was installed, the action must exist, the options must fit what the
+integration describes, the prompts may use only the fields it provides, and its
+own check must pass. A feed that does not validate is reported and never runs. A
+listing that fails (an exit other than 0, a time limit, a line that is not a
+valid item) schedules nothing and closes nothing. Each item carries a `key`, a
+`title` and a `version`, and the fields its action declares; the full contract,
+with the entry format, is in docs/plugins.md.
 
 Arguments:
-  action                list, add, rm, run, pause or resume, the source name,
-                        and for add the command
+  action      list, add, rm, run, pause or resume, the feed name, and for add
+              the file of its entry
 
 Options:
-  --every <duration>    add: how often it runs (at least 1m)
-  --dir <path>          add: where the command runs and the tasks are made
-                        (default: the current directory)
-  --agent <name>        add: the agent of this machine's config.json its tasks
-                        run as
-  --lane <name>         add: the lane its tasks ask for
-  --key-prefix <text>   add: put in front of every key (default: source:<name>:)
-  --timeout <duration>  add: the longest one run of the command may take
-                        (default 2m, at most 30m)
-  --later               run: leave it to the watch unit's next look
-  -h, --help            display help for command
+  -h, --help  display help for command
 
 Examples:
-  board sources
-  board sources add github-reviews --every 10m --agent reviewer -- '~/bin/review-requests acme/app'
-  board sources run github-reviews
-  board sources pause github-reviews
-  board sources rm github-reviews
+  board feeds
+  board plugins install <repository URL>
+  board feeds add gh-reviews ./gh-reviews.json
+  board feeds run gh-reviews
+  board feeds pause gh-reviews
+  board feeds rm gh-reviews
 ```
 
 ### board delay
@@ -1158,6 +1162,42 @@ Examples:
   board dirs set lane reviews ~/workspace/reviews
   board dirs set ciIgnore 'policy-bot*,hold *' ~/workspace/acme/app
   board dirs unset label
+```
+
+### board plugins
+
+```
+Usage: board plugins [list | install <url> | update <name> | remove <name>]
+
+A marketplace is a git repository that lists integrations, programs a feed runs
+to read another tool such as GitHub. `install <url>` clones it under the state
+directory and pins the commit it was at; a feed then names an integration as
+`<marketplace>:<integration>`. The code of a marketplace runs with your
+authority, so install only repositories you trust.
+
+The pin is the commit you installed. Only `update <name>` moves it: it fetches
+the default branch of the marketplace, checks it, moves the pin and prints the
+commits you accept. Nothing else fetches, and no timer does. A checkout that is
+at another commit than its pin, or whose tracked files were edited, is not used
+until you run `update` or discard the edits.
+
+`remove <name>` deletes the checkout and the entry, and refuses while a feed in
+config.json names the marketplace. `list` shows each marketplace with its pin
+state and integrations. Install, update and remove are not available inside a
+board run.
+
+Arguments:
+  action      list, install, update or remove, then the git URL (install) or the
+              marketplace name
+
+Options:
+  -h, --help  display help for command
+
+Examples:
+  board plugins install https://github.com/mloureiro/agent-board-plugins
+  board plugins list
+  board plugins update mloureiro
+  board plugins remove mloureiro
 ```
 
 ### board config
@@ -1383,13 +1423,16 @@ token is never printed.
 Checks: Node 24+ (checkout only), the config directory, web.json, env (mode 600
 or 400, token, data key), the board (reachable, token accepted, API version
 range, and whether it has a data key and this machine holds the same one),
-config.json, and for a worker machine claude, gh, flock, systemd-run, systemctl
-and the installed units with their timers and the listener (on macOS: claude,
-gh, lockf, the launchd agents and whether launchd has loaded them, the run
-directory, and a warning for a checkout under ~/Documents, ~/Desktop,
-~/Downloads or iCloud Drive, which macOS keeps background jobs out of). The
-worker checks only warn on a machine with no unit or agent installed, and are
-left out on a system other than Linux and macOS, where no worker runs.
+config.json, each installed plugin marketplace (still at the commit that was
+installed), each feed (it validates) and each integration the feeds use (its own
+`doctor`, run with the PATH the units run with), and for a worker machine
+claude, gh, flock, systemd-run, systemctl and the installed units with their
+timers and the listener (on macOS: claude, gh, lockf, the launchd agents and
+whether launchd has loaded them, the run directory, and a warning for a checkout
+under ~/Documents, ~/Desktop, ~/Downloads or iCloud Drive, which macOS keeps
+background jobs out of). The worker checks only warn on a machine with no unit
+or agent installed, and are left out on a system other than Linux and macOS,
+where no worker runs.
 
 Options:
   --json      print JSON on stdout instead of text

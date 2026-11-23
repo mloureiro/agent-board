@@ -378,13 +378,13 @@ export const machines = pgTable(
     /** The blind index of that status, which the machine compares with its own to know whether to send again. */
     usageIndex: text('usage_index'),
     usageUpdatedAt: timestamp('usage_updated_at', { withTimezone: true }),
-    /** The sealed sources the machine's CLI runs (`machine.sources`): names, timers and last runs, display only; null until it sends them. */
-    sources: text('sources'),
-    /** The blind index of those sources, which the machine compares with its own to know whether to send again. */
-    sourcesIndex: text('sources_index'),
-    sourcesUpdatedAt: timestamp('sources_updated_at', { withTimezone: true }),
-    /** Requests of the user the machine has not acknowledged, each `<action>:<source id>`; clear text, ids only. */
-    sourceRequests: text('source_requests')
+    /** The sealed feeds the machine's CLI runs (`machine.feeds`): names, timers and last runs, display only; null until it sends them. */
+    feeds: text('feeds'),
+    /** The blind index of those feeds, which the machine compares with its own to know whether to send again. */
+    feedsIndex: text('feeds_index'),
+    feedsUpdatedAt: timestamp('feeds_updated_at', { withTimezone: true }),
+    /** Requests of the user the machine has not acknowledged, each `<action>:<feed id>`; clear text, ids only. */
+    feedRequests: text('feed_requests')
       .array()
       .notNull()
       .default(sql`'{}'::text[]`),
@@ -397,8 +397,8 @@ export const machines = pgTable(
     check('machine_catalog_index_blind', isBlindIndex(t.catalogIndex)),
     check('machine_usage_sealed', isEnvelope(t.usage)),
     check('machine_usage_index_blind', isBlindIndex(t.usageIndex)),
-    check('machine_sources_sealed', isEnvelope(t.sources)),
-    check('machine_sources_index_blind', isBlindIndex(t.sourcesIndex)),
+    check('machine_feeds_sealed', isEnvelope(t.feeds)),
+    check('machine_feeds_index_blind', isBlindIndex(t.feedsIndex)),
     tenant(),
   ],
 ).enableRLS();

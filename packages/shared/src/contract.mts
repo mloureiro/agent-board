@@ -6,8 +6,8 @@ import { isRecord } from './guards.mts';
 import type { SharedAgentsDocument } from './sharedAgents.mts';
 import type { TitleRule } from './titleRules.mts';
 import type { MachineUsage } from './machineUsage.mts';
-import { MAX_SOURCE_REQUESTS, parseSourceRequest } from './machineSources.mts';
-import type { MachineSources } from './machineSources.mts';
+import { MAX_FEED_REQUESTS, parseFeedRequest } from './machineFeeds.mts';
+import type { MachineFeeds } from './machineFeeds.mts';
 import { isKeyId } from './keys.mts';
 import type { Answer, Question } from './questions.mts';
 import type { TranscriptBatch, WireTranscriptBatch } from './transcript.mts';
@@ -561,15 +561,15 @@ export interface Backend {
   checkUsage(machine: string, usage: MachineUsage): Promise<UsageOnBoard>;
   // Replaces the board's copy of this machine's usage status. Display only, never read back by a CLI.
   setUsage(machine: string, usage: MachineUsage): Promise<void>;
-  // Whether the board holds `sources` as this machine's sources, by comparing blind indexes; 'unsupported' for a server without the feature.
-  checkSources(machine: string, sources: MachineSources): Promise<SourcesOnBoard>;
-  // Replaces the board's copy of this machine's sources. Display only, never read back by a CLI.
-  setSources(machine: string, sources: MachineSources): Promise<void>;
-  // The requests the user made of this machine's sources (`pause:<id>` and the like), as the `version` answer said; empty for a
+  // Whether the board holds `feeds` as this machine's feeds, by comparing blind indexes; 'unsupported' for a server without the feature.
+  checkFeeds(machine: string, feeds: MachineFeeds): Promise<FeedsOnBoard>;
+  // Replaces the board's copy of this machine's feeds. Display only, never read back by a CLI.
+  setFeeds(machine: string, feeds: MachineFeeds): Promise<void>;
+  // The requests the user made of this machine's feeds (`pause:<id>` and the like), as the `version` answer said; empty for a
   // server without the feature. Costs no call of its own.
-  sourceRequests(): Promise<string[]>;
+  feedRequests(): Promise<string[]>;
   // The machine applied these requests; the board forgets them.
-  ackSourceRequests(requests: readonly string[]): Promise<void>;
+  ackFeedRequests(requests: readonly string[]): Promise<void>;
   // The version of the agent definitions the board holds (`agents.shared`), as the `version` answer said: null when it holds
   // none, 'unsupported' for a server without the feature. Costs no call of its own.
   sharedAgentsVersion(): Promise<number | null | 'unsupported'>;
@@ -607,7 +607,7 @@ export type CatalogOnBoard = DirsOnBoard;
 
 export type UsageOnBoard = DirsOnBoard;
 
-export type SourcesOnBoard = DirsOnBoard;
+export type FeedsOnBoard = DirsOnBoard;
 
 // What the board server stores and returns: the sealed fields are envelopes (`abe1.…`) it cannot read. Values the server
 // returns may also be legacy plain text from before encryption; only what a client sends is checked to be sealed.
@@ -884,23 +884,23 @@ export interface WireUsageState {
   index: string | null;
 }
 
-// Body of set-sources: the sealed sources ("machine.sources") and the blind index of what they hold.
-export interface WireSources {
-  sources: string;
+// Body of set-feeds: the sealed feeds ("machine.feeds") and the blind index of what they hold.
+export interface WireFeeds {
+  feeds: string;
   index: string;
 }
 
-// What the `version` answer says of the calling machine's sources.
-export interface WireSourcesState {
+// What the `version` answer says of the calling machine's feeds.
+export interface WireFeedsState {
   supported: boolean;
-  // The blind index the board holds for this machine's sources; null when it holds none.
+  // The blind index the board holds for this machine's feeds; null when it holds none.
   index: string | null;
-  // Pending requests of the user, each `<action>:<source id>` (see machineSources.mts).
+  // Pending requests of the user, each `<action>:<feed id>` (see machineFeeds.mts).
   requests: string[];
 }
 
-// Body of ack-source-requests: the requests the machine applied.
-export interface WireSourceRequestAck {
+// Body of ack-feed-requests: the requests the machine applied.
+export interface WireFeedRequestAck {
   requests: string[];
 }
 
@@ -1020,9 +1020,9 @@ export interface WireBackend {
   catalogState(): Promise<WireCatalogState>;
   setUsage(body: WireUsage): Promise<void>;
   usageState(): Promise<WireUsageState>;
-  setSources(body: WireSources): Promise<void>;
-  sourcesState(): Promise<WireSourcesState>;
-  ackSourceRequests(body: WireSourceRequestAck): Promise<void>;
+  setFeeds(body: WireFeeds): Promise<void>;
+  feedsState(): Promise<WireFeedsState>;
+  ackFeedRequests(body: WireFeedRequestAck): Promise<void>;
   getAgents(): Promise<WireSharedAgents | null>;
   setAgents(body: WireSetAgents): Promise<void>;
   agentsState(): Promise<WireAgentsState>;
@@ -1047,7 +1047,7 @@ export const SEALED_LIMITS: Record<Field, number> = {
   'machine.dirs': 256 * 1024,
   'machine.catalog': 256 * 1024,
   'machine.usage': 64 * 1024,
-  'machine.sources': 64 * 1024,
+  'machine.feeds': 320 * 1024,
   'agents.shared': 256 * 1024,
   links: 512 * 1024,
   titles: 512 * 1024,
@@ -1827,24 +1827,24 @@ export function parseVersionUsageIndex(value: unknown): string | null {
   return typeof usageIndex === 'string' && isBlindIndex(usageIndex) ? usageIndex : null;
 }
 
-/** The blind index of the calling machine's sources and the pending requests in a `version` answer. Lenient: a bad request is dropped. */
-export function parseVersionSources(value: unknown): { index: string | null; requests: string[] } {
-  const sourcesIndex = isRecord(value) ? value['sourcesIndex'] : undefined;
-  const requests = isRecord(value) ? value['sourceRequests'] : undefined;
-  const entries: unknown[] = Array.isArray(requests) ? requests.slice(0, MAX_SOURCE_REQUESTS) : [];
+/** The blind index of the calling machine's feeds and the pending requests in a `version` answer. Lenient: a bad request is dropped. */
+export function parseVersionFeeds(value: unknown): { index: string | null; requests: string[] } {
+  const feedsIndex = isRecord(value) ? value['feedsIndex'] : undefined;
+  const requests = isRecord(value) ? value['feedRequests'] : undefined;
+  const entries: unknown[] = Array.isArray(requests) ? requests.slice(0, MAX_FEED_REQUESTS) : [];
   return {
-    index: typeof sourcesIndex === 'string' && isBlindIndex(sourcesIndex) ? sourcesIndex : null,
+    index: typeof feedsIndex === 'string' && isBlindIndex(feedsIndex) ? feedsIndex : null,
     requests: entries.filter(
-      (request): request is string => typeof request === 'string' && parseSourceRequest(request) !== undefined,
+      (request): request is string => typeof request === 'string' && parseFeedRequest(request) !== undefined,
     ),
   };
 }
 
-/** A list of source requests (`<action>:<id>`) of at most the cap, or undefined. */
-export function parseSourceRequests(value: unknown): string[] | undefined {
-  if (!Array.isArray(value) || value.length > MAX_SOURCE_REQUESTS) return undefined;
+/** A list of feed requests (`<action>:<id>`) of at most the cap, or undefined. */
+export function parseFeedRequests(value: unknown): string[] | undefined {
+  if (!Array.isArray(value) || value.length > MAX_FEED_REQUESTS) return undefined;
   const entries: unknown[] = value;
-  return entries.every((request) => typeof request === 'string' && parseSourceRequest(request) !== undefined)
+  return entries.every((request) => typeof request === 'string' && parseFeedRequest(request) !== undefined)
     ? (entries as string[])
     : undefined;
 }
@@ -1950,24 +1950,24 @@ export function parseWireUsage(value: unknown): WireUsage {
   };
 }
 
-// Body of set-sources: the sealed sources and their blind index.
-export function parseWireSources(value: unknown): WireSources {
-  const obj = record(value, 'sources');
-  rejectUnknownKeys(obj, ['sources', 'index'], 'sources');
+// Body of set-feeds: the sealed feeds and their blind index.
+export function parseWireFeeds(value: unknown): WireFeeds {
+  const obj = record(value, 'feeds');
+  rejectUnknownKeys(obj, ['feeds', 'index'], 'feeds');
   return {
-    sources: sealedField(obj, 'sources', 'sources', 'machine.sources'),
-    index: parseBlindIndex(obj['index'], 'sources.index'),
+    feeds: sealedField(obj, 'feeds', 'feeds', 'machine.feeds'),
+    index: parseBlindIndex(obj['index'], 'feeds.index'),
   };
 }
 
-// Body of ack-source-requests: the requests the machine applied.
-export function parseWireSourceRequestAck(value: unknown): WireSourceRequestAck {
-  const obj = record(value, 'sourceRequestAck');
-  rejectUnknownKeys(obj, ['requests'], 'sourceRequestAck');
-  const requests = parseSourceRequests(obj['requests']);
+// Body of ack-feed-requests: the requests the machine applied.
+export function parseWireFeedRequestAck(value: unknown): WireFeedRequestAck {
+  const obj = record(value, 'feedRequestAck');
+  rejectUnknownKeys(obj, ['requests'], 'feedRequestAck');
+  const requests = parseFeedRequests(obj['requests']);
   if (requests === undefined)
     throw new ContractError(
-      `sourceRequestAck.requests must be a list of at most ${MAX_SOURCE_REQUESTS} requests of the form <action>:<source id>`,
+      `feedRequestAck.requests must be a list of at most ${MAX_FEED_REQUESTS} requests of the form <action>:<feed id>`,
     );
   return { requests };
 }

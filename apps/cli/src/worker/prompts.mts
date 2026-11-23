@@ -125,12 +125,13 @@ export function buildResumePrompt(
   task: Task,
   notes: Note[],
   watches: ResumeWatches = { events: [], open: [] },
+  feedUpdate?: string,
 ): string | undefined {
   const reply = userReply(notes, task.runStartedAt);
   const paused = task.paused;
   const woken = task.woken;
   const { events, open } = watches;
-  if (reply.length === 0 && !paused && !woken && events.length === 0) return undefined;
+  if (reply.length === 0 && !paused && !woken && events.length === 0 && feedUpdate === undefined) return undefined;
   const pausedLine = `You were paused on board task ${task.id} to free the slot for other work. Continue where you left off; check the state of anything you were in the middle of before you go on.`;
   // The events say what ended the wait, and end with the open watches: nothing more is added for a wake by a watch.
   const watching =
@@ -140,7 +141,16 @@ export function buildResumePrompt(
           ...(woken ? [wokenLine(task, notes), ''] : []),
           ...(open.length > 0 ? [openWatchesLine(open, watches.now), ''] : []),
         ];
-  const lead = [...watching, ...(paused ? [pausedLine, ''] : [])];
+  const updateLead =
+    feedUpdate === undefined
+      ? []
+      : [
+          `The item board task ${task.id} was made for has changed. The user's instructions for this update:`,
+          '',
+          feedUpdate,
+          '',
+        ];
+  const lead = [...updateLead, ...watching, ...(paused ? [pausedLine, ''] : [])];
   if (reply.length === 0) {
     return [...lead, CONTINUE_LINE].join('\n');
   }

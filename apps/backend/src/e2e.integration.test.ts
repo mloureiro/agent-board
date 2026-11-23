@@ -26,6 +26,7 @@ import {
   fakeWorktreeLocks,
   fakeWaitStore,
 } from '../../cli/src/__tests__/helpers/fakes.mts';
+import { createFeedUpdates } from '../../cli/src/feeds/updates.mts';
 import { createWatchStore } from '../../cli/src/watch/store.mts';
 import { createKeySetup, exportDataKey } from '../../frontend/src/crypto/keySlots';
 import { inspectStoredKeys } from '../../frontend/src/crypto/keyStore';
@@ -382,6 +383,7 @@ describe('an agent’s proposal', () => {
   });
   const workerDeps = (invocations: { args: string[]; prompt: string }[], failures: string[]): WorkerDeps => ({
     watches: watchDeps().watches,
+    feedUpdates: createFeedUpdates(mkdtempSync(join(tmpdir(), 'board-e2e-updates-'))),
     backend: ctx.cli,
     config: { ...CONFIG, machine: 'laptop' },
     dryRun: false,
@@ -530,6 +532,7 @@ describe('a wait', () => {
     const invocations: { args: string[]; prompt: string }[] = [];
     const worker = (agent: (taskId: string) => Promise<void>): WorkerDeps => ({
       watches: watchDeps().watches,
+      feedUpdates: createFeedUpdates(mkdtempSync(join(tmpdir(), 'board-e2e-updates-'))),
       backend: ctx.cli,
       config,
       dryRun: false,
