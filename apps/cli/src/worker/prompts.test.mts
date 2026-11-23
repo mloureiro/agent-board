@@ -209,6 +209,24 @@ test('events also go into a reply and a pause resume', () => {
   );
 });
 
+test('a feed update alone makes a resume prompt, and leads one that has a reply or watch events', () => {
+  const update = 'Review https://gh/7 again.';
+  const alone = buildResumePrompt(resumable(), [], undefined, update);
+  assert.equal(
+    alone,
+    `The item board task p was made for has changed. The user's instructions for this update:\n\n${update}\n\nThe board's rules from the start of this session still hold.`,
+  );
+  const reply = makeNote('also check the tests', at(5), { author: 'user' });
+  const replied = buildResumePrompt(resumable(), [reply], undefined, update) ?? '';
+  assert.match(
+    replied,
+    /^The item board task p[\s\S]*Review https:\/\/gh\/7 again\.[\s\S]*The user replied on board task p:[\s\S]*also check the tests/,
+  );
+  const withEvents = buildResumePrompt(resumable(), [], { events: [EVENT], open: [] }, update) ?? '';
+  assert.match(withEvents, /^The item board task p[\s\S]*Review https:\/\/gh\/7 again\.[\s\S]*<watch-event/);
+  assert.equal(buildResumePrompt(resumable(), []), undefined);
+});
+
 test('a reply to questions the user dismissed says so, and an answered question keeps the plain line', () => {
   const asked = makeNote('Which one?', at(1), { author: 'agent', kind: 'question' });
   const comment = makeNote('start over with option B', at(3), { author: 'user', kind: 'comment' });

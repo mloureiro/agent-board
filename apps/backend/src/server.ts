@@ -47,6 +47,8 @@ export async function buildServer(config: Config, root: Db, options: ServerOptio
     logger: config.nodeEnv === 'test' ? false : { level: 'info' },
     // The machine API sets its own limits per route; this is the UI's.
     bodyLimit: 16 * 1024 * 1024,
+    // A batched tRPC request names every procedure in one path segment, and the router refuses a segment over 100 characters.
+    maxParamLength: 2048,
     // Behind Caddy or the ingress: makes req.ip, which the request log writes as remoteAddress, the client's address, not the proxy's.
     trustProxy: true,
   });

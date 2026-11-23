@@ -219,8 +219,8 @@ describe('machine API', () => {
       dirsIndex: null,
       catalogIndex: null,
       usageIndex: null,
-      sourcesIndex: null,
-      sourceRequests: [],
+      feedsIndex: null,
+      feedRequests: [],
       agentsVersion: null,
     });
     expect(LEGACY_CONTRACT).toBe(9);
