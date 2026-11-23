@@ -972,7 +972,7 @@ The user's Stop adds an id to `watchStops` through the browser (`tasks.stopWatch
 | `set-dirs`    | `machine.dirs`    | `dirs`     | `dirs:<machine>:<document>`    | 256 KiB    |
 | `set-catalog` | `machine.catalog` | `catalog`  | `catalog:<machine>:<document>` | 256 KiB    |
 | `set-usage`   | `machine.usage`   | `usage`    | `usage:<machine>:<document>`   | 64 KiB     |
-| `set-feeds`   | `machine.feeds`   | `feeds`    | `feeds:<machine>:<document>`   | 192 KiB    |
+| `set-feeds`   | `machine.feeds`   | `feeds`    | `feeds:<machine>:<document>`   | 320 KiB    |
 
 #### `set-dirs`
 
@@ -1097,7 +1097,7 @@ The machine's [feeds](usage.md#feeds), for the Feeds page: each one's name, inte
 - `integration` is `<marketplace>:<integration>` and `action` the action's name; both are absent on a feed whose `config.json` entry cannot be read. `runAsked` says a run was asked for and has not happened yet.
 - `problem` says why the `config.json` entry cannot be used; such a feed does not run. It is one line of at most 300 characters, a name at most 40.
 - `last` is the most recent run: `error` (at most 300 characters, one line) says why it failed, `invalid` that the integration was refused (an unpinned or missing plugin) so nothing was listed, and `tasks` the ids of at most 20 tasks it touched, each with its `outcome` (`created`, `requeued`, `rescheduled` or `closed`). No titles go in. `history` holds the last 10 runs, newest first, in the same fields without `tasks` and with `error` at most 120 characters.
-- At most 30 feeds, and the document at most 192 KiB. A feed of the wrong shape is dropped and the rest kept, and so is a task or a run of the wrong shape inside it; a longer list makes the document unreadable. A reader opens it with `parseMachineFeeds` in `packages/shared/src/machineFeeds.mts`, which is also where the machine checks the document before it seals it.
+- At most 30 feeds, and the document at most 320 KiB. A feed of the wrong shape is dropped and the rest kept, and so is a task or a run of the wrong shape inside it; a longer list makes the document unreadable. A reader opens it with `parseMachineFeeds` in `packages/shared/src/machineFeeds.mts`, which is also where the machine checks the document before it seals it.
 
 The dispatch tick sends the feeds when they changed, and the watch unit after every run.
 

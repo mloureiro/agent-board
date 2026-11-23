@@ -209,35 +209,45 @@ test('feedsProblem rejects a document over a cap or with an entry that would be 
   assert.equal(feedsProblem(FEEDS), undefined);
 });
 
-test('the largest document the caps allow stays within what the board takes', () => {
+const worstCase = (text: string): MachineFeeds => {
   const run = {
     ...RUN,
     ok: false,
     invalid: true as const,
-    error: 'x'.repeat(MAX_HISTORY_ERROR),
+    error: text.repeat(MAX_HISTORY_ERROR),
     startedAt: '2026-11-21T11:59:58.123456789Z',
   };
   const feed: MachineFeed = {
     id: ID,
-    name: 'n'.repeat(40),
+    name: text.repeat(40),
     integration: `${'m'.repeat(40)}:${'i'.repeat(40)}`,
     action: 'a'.repeat(64),
     everyMs: Number.MAX_SAFE_INTEGER,
     paused: true,
     runAsked: true,
-    problem: 'p'.repeat(300),
+    problem: text.repeat(300),
     last: {
       ...run,
-      error: 'e'.repeat(MAX_LAST_ERROR),
+      error: text.repeat(MAX_LAST_ERROR),
       tasks: Array.from({ length: MAX_LAST_TASKS }, () => ({ id: 't'.repeat(64), outcome: 'rescheduled' as const })),
     },
     history: Array.from({ length: MAX_HISTORY_RUNS }, () => run),
   };
-  const document = { feeds: Array.from({ length: MAX_MACHINE_FEEDS }, () => feed) };
-  assert.equal(feedsProblem(document), undefined);
-  const bytes = new TextEncoder().encode(machineFeedsJson(document)).length;
-  assert.ok(bytes <= SEALED_LIMITS['machine.feeds'], `${bytes} bytes`);
-});
+  return { feeds: Array.from({ length: MAX_MACHINE_FEEDS }, () => feed) };
+};
+
+for (const [what, text] of [
+  ['three-byte characters', '€'],
+  ['ASCII that JSON escapes', '"'],
+  ['plain ASCII', 'x'],
+] as const) {
+  test(`the largest document the caps allow stays within what the board takes: ${what}`, () => {
+    const document = worstCase(text);
+    assert.equal(feedsProblem(document), undefined);
+    const bytes = new TextEncoder().encode(machineFeedsJson(document)).length;
+    assert.ok(bytes <= SEALED_LIMITS['machine.feeds'], `${bytes} bytes`);
+  });
+}
 
 test('sealing refuses an entry the board would drop', async () => {
   const [first] = FEEDS.feeds;

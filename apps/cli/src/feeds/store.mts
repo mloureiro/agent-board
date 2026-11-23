@@ -6,7 +6,8 @@
 import { linkSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
-import { isRecord, isFeedId, isSafeTaskId } from '@agent-board/shared';
+import { FEED_OUTCOMES, MAX_HISTORY_RUNS, isRecord, isFeedId, isSafeTaskId } from '@agent-board/shared';
+import type { FeedTaskOutcome } from '@agent-board/shared';
 import { getPaths } from '../config/config.mts';
 
 export interface FeedCounts {
@@ -16,13 +17,6 @@ export interface FeedCounts {
   rescheduled: number;
   closed: number;
   failed: number;
-}
-
-export type FeedTaskOutcomeName = 'created' | 'requeued' | 'rescheduled' | 'closed';
-
-export interface FeedTaskOutcome {
-  id: string;
-  outcome: FeedTaskOutcomeName;
 }
 
 export interface FeedRun {
@@ -62,10 +56,7 @@ export interface FeedStore {
   discard: (name: string) => void;
 }
 
-export const HISTORY_LIMIT = 10;
 export const LAST_TASKS_LIMIT = 20;
-
-const OUTCOMES: readonly FeedTaskOutcomeName[] = ['created', 'requeued', 'rescheduled', 'closed'];
 
 const EMPTY_CONTROL: FeedControl = { paused: false };
 
@@ -79,7 +70,7 @@ function parseTasks(value: unknown): FeedTaskOutcome[] {
     .flatMap((entry): FeedTaskOutcome[] => {
       if (!isRecord(entry)) return [];
       const { id } = entry;
-      const outcome = OUTCOMES.find((name) => name === entry['outcome']);
+      const outcome = FEED_OUTCOMES.find((name) => name === entry['outcome']);
       return typeof id === 'string' && isSafeTaskId(id) && outcome !== undefined ? [{ id, outcome }] : [];
     })
     .slice(0, LAST_TASKS_LIMIT);
@@ -126,7 +117,7 @@ export function parseFeedRecord(value: unknown): FeedRecord {
     for (const [key, id] of Object.entries(value['tasks'])) if (typeof id === 'string') tasks[key] = id;
   const last = parseRun(value['last'], true);
   const history = Array.isArray(value['history'])
-    ? value['history'].flatMap((run) => parseRun(run, false) ?? []).slice(0, HISTORY_LIMIT)
+    ? value['history'].flatMap((run) => parseRun(run, false) ?? []).slice(0, MAX_HISTORY_RUNS)
     : [];
   return { ...(last === undefined ? {} : { last }), history, tasks };
 }

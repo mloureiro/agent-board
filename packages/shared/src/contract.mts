@@ -1047,7 +1047,7 @@ export const SEALED_LIMITS: Record<Field, number> = {
   'machine.dirs': 256 * 1024,
   'machine.catalog': 256 * 1024,
   'machine.usage': 64 * 1024,
-  'machine.feeds': 192 * 1024,
+  'machine.feeds': 320 * 1024,
   'agents.shared': 256 * 1024,
   links: 512 * 1024,
   titles: 512 * 1024,

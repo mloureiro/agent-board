@@ -16,10 +16,10 @@ export interface FeedsBoardDeps {
 
 const MAX_PROBLEM = 300;
 
-const oneLine = (text: string, max: number): string =>
-  Array.from(text.replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, ' '))
-    .slice(0, max)
-    .join('');
+export const boardLine = (text: string, max: number): string => {
+  const cut = text.replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, ' ').slice(0, max);
+  return /[\uD800-\uDBFF]$/.test(cut) ? cut.slice(0, -1) : cut;
+};
 
 function boardRun(run: FeedRun, maxError: number): BoardRun {
   const { counts, error } = run;
@@ -28,7 +28,7 @@ function boardRun(run: FeedRun, maxError: number): BoardRun {
     at: run.at,
     ok: run.ok,
     ...(run.invalid === undefined ? {} : { invalid: run.invalid }),
-    ...(error === undefined ? {} : { error: oneLine(error, maxError) }),
+    ...(error === undefined ? {} : { error: boardLine(error, maxError) }),
     listed: counts.listed,
     created: counts.created,
     requeued: counts.requeued,
@@ -73,7 +73,7 @@ export function machineFeeds(configFile: string, store: FeedStore): MachineFeeds
       everyMs: 0,
       paused: false,
       runAsked: false,
-      problem: oneLine(problem, MAX_PROBLEM),
+      problem: boardLine(problem, MAX_PROBLEM),
       ...boardRuns(store.readRecord(name)),
     }));
   return { feeds: [...working, ...broken] };

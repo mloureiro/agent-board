@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { fakeBackend } from '../__tests__/helpers/fakes.mts';
 import { tempDir } from '../__tests__/helpers/watch.mts';
-import { applyFeedRequests, machineFeeds, publishFeeds } from './publish.mts';
+import { applyFeedRequests, boardLine, machineFeeds, publishFeeds } from './publish.mts';
 import type { FeedsBoardDeps } from './publish.mts';
 import { createFeedStore, zeroCounts } from './store.mts';
 import type { FeedRun } from './store.mts';
@@ -162,4 +162,23 @@ test('a long error is cut to what the board takes, and the result passes the sen
   assert.equal(feeds.feeds[0]?.last?.error?.length, 300);
   assert.equal(feeds.feeds[0]?.history[0]?.error?.length, 120);
   assert.equal(feedsProblem(feeds), undefined);
+});
+
+test('an emoji at the cut is not split, and the document still passes the sender check', () => {
+  const { store, deps } = setup({ gh: GH });
+  const at = '2026-11-21T11:30:00.000Z';
+  const error = `${'a'.repeat(299)}😀😀`;
+  const run = { startedAt: at, at, ok: false, error, counts: zeroCounts() };
+  store.writeRecord('gh', { last: run, history: [{ ...run, error: `${'a'.repeat(119)}😀😀` }], tasks: {} });
+  const feeds = machineFeeds(deps.configFile, store);
+  assert.equal(feeds.feeds[0]?.last?.error, 'a'.repeat(299));
+  assert.equal(feeds.feeds[0]?.history[0]?.error, 'a'.repeat(119));
+  assert.equal(feedsProblem(feeds), undefined);
+});
+
+test('a text cut at the problem length keeps whole characters and no control characters', () => {
+  const cut = boardLine(`${'a'.repeat(299)}😀\n`, 300);
+  assert.equal(cut, 'a'.repeat(299));
+  assert.equal(boardLine(`${'a'.repeat(298)}😀\nb`, 300), `${'a'.repeat(298)}😀`);
+  assert.equal(boardLine('x\ny', 10), 'x y');
 });

@@ -1,5 +1,5 @@
-import { isSafeWorkdir } from '@agent-board/shared';
-import type { Backend, Task } from '@agent-board/shared';
+import { MAX_HISTORY_RUNS, isSafeWorkdir } from '@agent-board/shared';
+import type { Backend, FeedTaskOutcome, Task } from '@agent-board/shared';
 import { BackendError } from '../backend/backend.mts';
 import { expandHome } from '../config/config.mts';
 import type { DirEntry } from '../config/config.mts';
@@ -14,8 +14,8 @@ import type { FeedConfig } from './config.mts';
 import { list } from './integration.mts';
 import { parseItems, undeclaredField } from './items.mts';
 import type { FeedItem } from './items.mts';
-import { HISTORY_LIMIT, LAST_TASKS_LIMIT, zeroCounts } from './store.mts';
-import type { FeedControl, FeedRecord, FeedRun, FeedStore, FeedTaskOutcome } from './store.mts';
+import { LAST_TASKS_LIMIT, zeroCounts } from './store.mts';
+import type { FeedControl, FeedRecord, FeedRun, FeedStore } from './store.mts';
 import { render } from './template.mts';
 import type { FeedUpdates } from './updates.mts';
 import { validateFeed } from './validate.mts';
@@ -62,7 +62,7 @@ export async function runFeed(deps: FeedRunDeps, feed: FeedConfig): Promise<Feed
     const { tasks: _tasks, ...summary } = run;
     store.writeRecord(feed.name, {
       last: { ...run, tasks: run.tasks ?? [] },
-      history: [summary, ...before.history].slice(0, HISTORY_LIMIT),
+      history: [summary, ...before.history].slice(0, MAX_HISTORY_RUNS),
       tasks: kept,
     });
     return run;
