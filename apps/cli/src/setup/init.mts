@@ -1,12 +1,16 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { decodeDataKey, isSafeMachineName, MACHINE_NAME_RULE } from '@agent-board/shared';
+import { checkDataKey, keyProblemMessage } from '../backend/contract-check.mts';
+import type { ServerIdentity } from '../backend/contract-check.mts';
+import { BackendError } from '../backend/backend.mts';
 import { checkBoardUrl, looksLikeMachineToken, webUrlOf } from '../backend/web-config.mts';
 import { ConfigError, readSecretFile } from '../config/config.mts';
 import { CREDENTIALS_COMMAND_VARIABLE, runCredentialsCommand } from '../config/credentials-source.mts';
 import { parseEnv } from '../config/env-file.mts';
 import exampleConfig from '../../config.example.json' with { type: 'json' };
 import { UsageError } from '../cli.mts';
+import { errorText } from '../output/text.mts';
 
 export interface InitFlags {
   url?: string;
@@ -38,6 +42,7 @@ export interface InitDeps {
   // AGENT_BOARD_CREDENTIALS_COMMAND when set: it supplies the token and the data key, so no env file is written.
   credentialsCommand?: string;
   runCredentials?: (command: string) => Record<string, string>;
+  verifyServer: (config: { url: string; token: string }) => Promise<ServerIdentity>;
 }
 
 export interface InitResult {
@@ -198,6 +203,35 @@ interface Pending {
   mode: number;
 }
 
+function readConfigFile(path: string): Record<string, unknown> | undefined {
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'));
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// Asks the board before anything is written: the token must be accepted and the data key must be the board's.
+async function verifyBoard(deps: InitDeps, url: string, token: string, dataKey: string): Promise<ServerIdentity> {
+  let identity: ServerIdentity;
+  try {
+    identity = await deps.verifyServer({ url, token });
+  } catch (error) {
+    // Only the API's own answer says the token is refused; a login page or proxy with a 401 is something else.
+    if (error instanceof BackendError && error.fromApi && (error.status === 401 || error.status === 403))
+      throw new UsageError(
+        `${url} refused the token: create a machine token on the board's Settings page and give that one; nothing was written`,
+      );
+    throw new UsageError(`cannot check the token with ${url}: ${errorText(error)}; nothing was written`);
+  }
+  const checked = await checkDataKey(decodeDataKey(dataKey), identity);
+  if (!('keys' in checked)) throw new UsageError(`${keyProblemMessage(checked)}; nothing was written`);
+  return identity;
+}
+
 export async function init(deps: InitDeps, flags: InitFlags): Promise<InitResult> {
   const { configDir } = deps;
   const webPath = join(configDir, 'web.json');
@@ -235,6 +269,7 @@ export async function init(deps: InitDeps, flags: InitFlags): Promise<InitResult
     throw new UsageError(`${what}: ${problem}`);
   };
   const files: Pending[] = [];
+  let boardUrl = webMissing ? undefined : readWebUrl(webPath);
   if (webMissing || force) {
     // --force keeps the current URL when none is given, as it keeps the secrets.
     const current = webMissing ? undefined : readWebUrl(webPath);
@@ -253,6 +288,7 @@ export async function init(deps: InitDeps, flags: InitFlags): Promise<InitResult
       const problem = urlProblem(url);
       if (problem) fail(flags.url === undefined ? "the board's URL" : '--url', problem);
     }
+    if (url !== undefined) boardUrl = checkBoardUrl(url);
     if (url === undefined || checkBoardUrl(url) === current) {
       result.skipped.push(webPath);
       kept.push(
@@ -265,6 +301,8 @@ export async function init(deps: InitDeps, flags: InitFlags): Promise<InitResult
     result.skipped.push(webPath);
     kept.push(`kept ${webPath} (it exists; --force replaces it after a backup)`);
   }
+  let credentials: { token: string; dataKey: string } | undefined =
+    !viaCommand && have.token && have.dataKey ? { token: have.token, dataKey: have.dataKey } : undefined;
   if (viaCommand) {
     let values: Record<string, string>;
     try {
@@ -276,6 +314,7 @@ export async function init(deps: InitDeps, flags: InitFlags): Promise<InitResult
     if (tokenIssue) fail(`the token from ${credentialsCommand}`, tokenIssue);
     const keyIssue = dataKeyProblem(values[DATA_KEY] ?? '');
     if (keyIssue) fail(`the data key from ${credentialsCommand}`, keyIssue);
+    credentials = { token: values[TOKEN] ?? '', dataKey: values[DATA_KEY] ?? '' };
   }
   if (writeEnv) {
     if (flags.tokenFile !== undefined && flags.tokenFile === flags.dataKeyFile)
@@ -370,6 +409,7 @@ export async function init(deps: InitDeps, flags: InitFlags): Promise<InitResult
       const problem = dataKeyProblem(dataKey.value);
       if (problem) fail('the data key', problem);
     }
+    credentials = { token: token.value, dataKey: dataKey.value };
     // Everything else the file held stays too.
     const others = Object.entries(existingEnv ?? {}).filter(([name]) => name !== TOKEN && name !== DATA_KEY);
     const content = [[TOKEN, token.value], [DATA_KEY, dataKey.value], ...others]
@@ -377,9 +417,49 @@ export async function init(deps: InitDeps, flags: InitFlags): Promise<InitResult
       .join('\n');
     files.push({ path: envPath, content: `${content}\n`, mode: 0o600 });
   }
+  // The board is asked before the first file is touched, whenever a file is about to be written.
+  const due = files.length > 0 || writeConfig;
+  if (due && (boardUrl === undefined || credentials === undefined))
+    fail(
+      'the board',
+      `there is no ${boardUrl === undefined ? 'readable board URL (web.json is unreadable: give --url with --force)' : 'token and data key'} to check with; nothing was written`,
+    );
+  // --force asks the board even when no file is due: rotated credentials must not be accepted unchecked.
+  const board =
+    (due || force) && boardUrl !== undefined && credentials !== undefined
+      ? await verifyBoard(deps, boardUrl, credentials.token, credentials.dataKey)
+      : undefined;
+  if (board?.machine !== undefined && flags.machine !== undefined && flags.machine.trim() !== board.machine)
+    fail(
+      '--machine',
+      `the token belongs to the machine ${board.machine}, not ${flags.machine.trim()}; nothing was written`,
+    );
+  if (!writeConfig && board?.machine !== undefined) {
+    const current = readConfigFile(configPath);
+    const named = current?.['machine'];
+    if (typeof named === 'string' && named !== board.machine) {
+      if (force && current !== undefined) {
+        const existing = statSync(configPath);
+        files.push({
+          path: configPath,
+          content: `${JSON.stringify({ ...current, machine: board.machine }, null, 2)}\n`,
+          mode: existing.mode & 0o777,
+        });
+        result.skipped.splice(result.skipped.indexOf(configPath), 1);
+        kept.splice(
+          kept.findIndex((line) => line.startsWith(`kept ${configPath}`)),
+          1,
+        );
+      } else
+        deps.print(
+          `warning: ${configPath} names the machine ${named}, but the token belongs to ${board.machine}; every claim is refused until config.json says ${board.machine} (--force sets it)`,
+        );
+    }
+  }
   if (writeConfig) {
     const fallback = deps.hostName;
     const raw =
+      board?.machine ??
       flags.machine ??
       (deps.interactive
         ? await deps.prompts.text('Machine name', {

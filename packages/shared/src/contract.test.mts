@@ -21,6 +21,7 @@ import {
   parseVersion,
   parseVersionCli,
   parseVersionIdentity,
+  parseVersionMachine,
   parseWireAddScheduleResult,
   parseWireAsk,
   parseWireFailResult,
@@ -1395,4 +1396,17 @@ test('an edit-schedule body refuses what the tRPC update refuses', () => {
   refuse({ lane: 3 }, /lane is not a safe name/);
   refuse({ maxConcurrent: 0 }, /maxConcurrent must be a positive integer/);
   refuse({ maxConcurrent: 101 }, /maxConcurrent must be at most 100/);
+});
+
+test('parseVersionMachine reads a machine name and treats anything else as unknown', () => {
+  const cases: [unknown, string | null][] = [
+    [{ machine: 'tnk_one' }, 'tnk_one'],
+    [{}, null],
+    [{ machine: 7 }, null],
+    [{ machine: null }, null],
+    [{ machine: 'has space' }, null],
+    [{ machine: '../etc' }, null],
+    [{ machine: '' }, null],
+  ];
+  for (const [answer, expected] of cases) assert.equal(parseVersionMachine(answer), expected, JSON.stringify(answer));
 });

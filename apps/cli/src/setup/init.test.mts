@@ -15,6 +15,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { encodeDataKey } from '@agent-board/shared';
+import { BackendError } from '../backend/backend.mts';
+import type { ServerIdentity } from '../backend/contract-check.mts';
 import { DATA_KEY, KEYS, OWNER, SERVER_API, SERVER_HAS } from '../__tests__/helpers/fakes.mts';
 import { UsageError } from '../cli.mts';
 import { runBoard } from '../commands/program.mts';
@@ -43,6 +45,7 @@ function deps(configDir: string, overrides: Partial<InitDeps> = {}): InitDeps & 
     hostName: 'laptop',
     now: () => new Date('2026-11-14T10:20:30.123Z'),
     print: (line) => printed.push(line),
+    verifyServer: async () => board(),
     printed,
     ...overrides,
   };
@@ -58,6 +61,10 @@ function tokenFile(dir: string, token = TOKEN, name = 'token'): string {
   const path = join(dir, name);
   writeFileSync(path, `${token}\n`, { mode: 0o600 });
   return path;
+}
+
+function board(overrides: Partial<ServerIdentity> = {}): ServerIdentity {
+  return { owner: OWNER, keyId: KEYS.keyId, api: SERVER_API, features: SERVER_HAS, ...overrides };
 }
 
 const mode = (path: string): number => statSync(path).mode & 0o777;
@@ -264,7 +271,7 @@ test('board init runs the doctor checks after writing, and is refused inside a r
         platform: 'linux',
       },
     );
-    assert.deepEqual(verified, ['https://board.example.com']);
+    assert.deepEqual(verified, ['https://board.example.com', 'https://board.example.com']);
     const text = out.join('');
     assert.match(text, /wrote .*web\.json/);
     assert.match(text, /✓ server: https:\/\/board\.example\.com answers/);
@@ -308,7 +315,7 @@ test('board init points to board setup on Linux and macOS, and not on another sy
   }
 });
 
-test('a failing check after init fails the command', async () => {
+test('an unreachable board fails init before anything is written', async () => {
   const dir = tempDir();
   try {
     await assert.rejects(
@@ -325,8 +332,9 @@ test('a failing check after init fails the command', async () => {
           platform: 'linux',
         },
       ),
-      /a check failed/,
+      /nothing was written/,
     );
+    assert.throws(() => statSync(join(dir, 'cfg', 'env')));
   } finally {
     rmSync(dir, { recursive: true });
   }
@@ -919,6 +927,33 @@ test('with AGENT_BOARD_CREDENTIALS_COMMAND set, init writes web.json and no env,
   }
 });
 
+const FLAGS = (dir: string) => ({
+  url: 'https://board.example.com',
+  tokenFile: tokenFile(dir),
+  dataKeyFile: keyFile(dir),
+});
+
+test('init names the machine as the board does, and writes that name to config.json', async () => {
+  const dir = tempDir();
+  try {
+    const verified: { url: string; token: string }[] = [];
+    await init(
+      deps(join(dir, 'cfg'), {
+        verifyServer: async (config) => {
+          verified.push(config);
+          return board({ machine: 'tnk_one' });
+        },
+      }),
+      FLAGS(dir),
+    );
+    assert.deepEqual(verified, [{ url: 'https://board.example.com', token: TOKEN }]);
+    const config = JSON.parse(readFileSync(join(dir, 'cfg', 'config.json'), 'utf8')) as { machine: string };
+    assert.equal(config.machine, 'tnk_one');
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
 test('init through a command that returns a malformed token writes nothing', async () => {
   const dir = tempDir();
   const configDir = join(dir, 'cfg');
@@ -934,6 +969,255 @@ test('init through a command that returns a malformed token writes nothing', asy
       UsageError,
     );
     assert.equal(existsSync(configDir), false);
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test('init does not ask for a machine name when the board names it', async () => {
+  const dir = tempDir();
+  const asked: string[] = [];
+  const prompts: Prompts = {
+    text: async (message) => {
+      asked.push(message);
+      return '';
+    },
+    secret: async () => assert.fail('no secret expected'),
+  };
+  try {
+    await init(
+      deps(join(dir, 'cfg'), { interactive: true, prompts, verifyServer: async () => board({ machine: 'tnk_one' }) }),
+      FLAGS(dir),
+    );
+    assert.deepEqual(asked, []);
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test('init accepts --machine when it is the board’s name and refuses it otherwise, writing nothing', async () => {
+  const dir = tempDir();
+  const cfg = join(dir, 'cfg');
+  try {
+    await assert.rejects(
+      init(deps(cfg, { verifyServer: async () => board({ machine: 'tnk_one' }) }), { ...FLAGS(dir), machine: 'mac' }),
+      /--machine: the token belongs to the machine tnk_one, not mac/,
+    );
+    assert.throws(() => statSync(cfg));
+    await init(deps(cfg, { verifyServer: async () => board({ machine: 'tnk_one' }) }), {
+      ...FLAGS(dir),
+      machine: 'tnk_one',
+    });
+    assert.equal(statSync(join(cfg, 'config.json')).isFile(), true);
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test('init refused by the board for its token writes nothing and says so', async () => {
+  const dir = tempDir();
+  const cfg = join(dir, 'cfg');
+  try {
+    await assert.rejects(
+      init(
+        deps(cfg, {
+          verifyServer: async () => {
+            throw new BackendError('unauthorized', 401, true);
+          },
+        }),
+        FLAGS(dir),
+      ),
+      (error) => error instanceof UsageError && /refused the token.*nothing was written/.test(error.message),
+    );
+    assert.throws(() => statSync(cfg));
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test('init that cannot reach the board writes nothing', async () => {
+  const dir = tempDir();
+  const cfg = join(dir, 'cfg');
+  try {
+    await assert.rejects(
+      init(
+        deps(cfg, {
+          verifyServer: async () => {
+            throw new BackendError('cannot reach https://board.example.com');
+          },
+        }),
+        FLAGS(dir),
+      ),
+      /cannot check the token with https:\/\/board\.example\.com: .*nothing was written/,
+    );
+    assert.throws(() => statSync(cfg));
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test('init with a data key that is not the board’s writes nothing', async () => {
+  const dir = tempDir();
+  const cfg = join(dir, 'cfg');
+  try {
+    await assert.rejects(
+      init(deps(cfg, { verifyServer: async () => board({ keyId: '0123456789abcdef' }) }), FLAGS(dir)),
+      /different data key.*nothing was written/,
+    );
+    await assert.rejects(
+      init(deps(cfg, { verifyServer: async () => board({ keyId: null }) }), FLAGS(dir)),
+      /no data key yet.*nothing was written/,
+    );
+    assert.throws(() => statSync(cfg));
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+const viaCommand = (token = TOKEN) => ({
+  credentialsCommand: '/usr/local/bin/creds',
+  runCredentials: () => ({ AGENT_BOARD_TOKEN: token, AGENT_BOARD_DATA_KEY: KEY_TEXT }),
+});
+
+const OTHER_KEYS = { lanes: [{ name: 'main' }], dirs: [{ label: 'a' }], machine: 'mac' };
+
+async function withThreeFiles(run: (cfg: string) => Promise<void>): Promise<void> {
+  const dir = tempDir();
+  const cfg = join(dir, 'cfg');
+  try {
+    mkdirSync(cfg);
+    writeFileSync(join(cfg, 'web.json'), `${JSON.stringify({ url: 'https://board.example.com' })}\n`);
+    writeFileSync(join(cfg, 'config.json'), `${JSON.stringify(OTHER_KEYS)}\n`, { mode: 0o640 });
+    await run(cfg);
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+}
+
+test('init --force in credentials-command mode with nothing due still asks the board, and a refusal changes nothing', async () => {
+  await withThreeFiles(async (cfg) => {
+    const before = readdirSync(cfg).sort();
+    await assert.rejects(
+      init(
+        deps(cfg, {
+          ...viaCommand(),
+          verifyServer: async () => {
+            throw new BackendError('unauthorized', 401, true);
+          },
+        }),
+        { force: true },
+      ),
+      /refused the token.*nothing was written/,
+    );
+    assert.deepEqual(readdirSync(cfg).sort(), before);
+    assert.equal(readFileSync(join(cfg, 'config.json'), 'utf8'), `${JSON.stringify(OTHER_KEYS)}\n`);
+  });
+});
+
+test('init --force in credentials-command mode accepts a matching token and writes nothing when the name agrees', async () => {
+  await withThreeFiles(async (cfg) => {
+    const checked: string[] = [];
+    const run = deps(cfg, {
+      ...viaCommand(),
+      verifyServer: async (config) => {
+        checked.push(config.token);
+        return board({ machine: 'mac' });
+      },
+    });
+    const result = await init(run, { force: true });
+    assert.deepEqual(checked, [TOKEN]);
+    assert.deepEqual(result.written, []);
+  });
+});
+
+test('init without --force and nothing due does not ask the board', async () => {
+  await withThreeFiles(async (cfg) => {
+    const result = await init(
+      deps(cfg, {
+        ...viaCommand(),
+        verifyServer: async () => assert.fail('the board is not asked'),
+      }),
+      {},
+    );
+    assert.deepEqual(result.written, []);
+  });
+});
+
+test('init --force renames only the machine in config.json, with a backup, when the board names another', async () => {
+  await withThreeFiles(async (cfg) => {
+    const run = deps(cfg, { ...viaCommand(), verifyServer: async () => board({ machine: 'tnk_one' }) });
+    const result = await init(run, { force: true });
+    const config = JSON.parse(readFileSync(join(cfg, 'config.json'), 'utf8')) as Record<string, unknown>;
+    assert.deepEqual(config, { ...OTHER_KEYS, machine: 'tnk_one' });
+    assert.deepEqual(result.written, [join(cfg, 'config.json')]);
+    assert.equal(result.backedUp.length, 1);
+    assert.deepEqual(JSON.parse(readFileSync(result.backedUp[0] ?? '', 'utf8')), OTHER_KEYS);
+    assert.equal(mode(join(cfg, 'config.json')), 0o640);
+    assert.ok(run.printed.some((line) => line === `wrote ${join(cfg, 'config.json')}`));
+    assert.ok(!run.printed.some((line) => line.startsWith('warning:')));
+    assert.deepEqual(
+      readdirSync(cfg).filter((name) => name.includes('.tmp-')),
+      [],
+    );
+  });
+});
+
+test('init without --force only warns when the board names another machine than config.json', async () => {
+  await withThreeFiles(async (cfg) => {
+    rmSync(join(cfg, 'web.json'));
+    const run = deps(cfg, { ...viaCommand(), verifyServer: async () => board({ machine: 'tnk_one' }) });
+    await init(run, { url: 'https://board.example.com' });
+    assert.ok(
+      run.printed.some((line) => /warning: .*names the machine mac, but the token belongs to tnk_one/.test(line)),
+    );
+    assert.equal(readFileSync(join(cfg, 'config.json'), 'utf8'), `${JSON.stringify(OTHER_KEYS)}\n`);
+  });
+});
+
+test('init asks the board before writing a web.json that is the only file missing', async () => {
+  const dir = tempDir();
+  const cfg = join(dir, 'cfg');
+  try {
+    await init(deps(cfg), FLAGS(dir));
+    rmSync(join(cfg, 'web.json'));
+    await assert.rejects(
+      init(
+        deps(cfg, {
+          verifyServer: async () => {
+            throw new BackendError('unauthorized', 401, true);
+          },
+        }),
+        { url: 'https://other.example.com' },
+      ),
+      /refused the token.*nothing was written/,
+    );
+    assert.throws(() => statSync(join(cfg, 'web.json')));
+    const checked: string[] = [];
+    await init(
+      deps(cfg, {
+        verifyServer: async (config) => {
+          checked.push(config.url);
+          return board();
+        },
+      }),
+      { url: 'https://other.example.com' },
+    );
+    assert.deepEqual(checked, ['https://other.example.com']);
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test('init with an unreadable web.json and files to write fails without writing', async () => {
+  const dir = tempDir();
+  const cfg = join(dir, 'cfg');
+  try {
+    await init(deps(cfg), FLAGS(dir));
+    writeFileSync(join(cfg, 'web.json'), 'not json');
+    rmSync(join(cfg, 'config.json'));
+    await assert.rejects(init(deps(cfg), {}), /no readable board URL.*nothing was written/);
+    assert.throws(() => statSync(join(cfg, 'config.json')));
+    assert.equal(readFileSync(join(cfg, 'web.json'), 'utf8'), 'not json');
   } finally {
     rmSync(dir, { recursive: true });
   }

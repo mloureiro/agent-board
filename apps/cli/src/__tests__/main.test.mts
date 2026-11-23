@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { encodeDataKey } from '@agent-board/shared';
 import { DATA_KEY, ENV_FILE, VERSION_ANSWER, wireTask } from './helpers/fakes.mts';
 import { keepLoopbackOffProxy } from '../cli.mts';
+import { fakeBoard } from './helpers/fake-board.mts';
 
 const BIN = fileURLToPath(new URL('../../bin/', import.meta.url));
 const sealedTask = await wireTask({ id: 'Ab3dEf9x', title: 'Fix the thing' });
@@ -291,6 +292,7 @@ test('__complete is gone after about two seconds of wall time, whatever is in fl
 
 test('init reads the token from a pipe with --token-file /dev/stdin, and writes env with mode 600', async () => {
   const dir = emptyConfigDir();
+  const board = await fakeBoard();
   try {
     const keyFile = join(dir, 'datakey');
     writeFileSync(keyFile, `${encodeDataKey(DATA_KEY)}\n`, { mode: 0o600 });
@@ -299,13 +301,14 @@ test('init reads the token from a pipe with --token-file /dev/stdin, and writes 
         'sh',
         [
           '-c',
-          'printf %s "$TOKEN" | "$BOARD" init --url http://127.0.0.1:1 --token-file /dev/stdin --data-key-file "$KEYFILE" --machine box',
+          'printf %s "$TOKEN" | "$BOARD" init --url "$URL" --token-file /dev/stdin --data-key-file "$KEYFILE" --machine box',
         ],
         {
           env: {
             ...process.env,
             AGENT_BOARD_CONFIG_DIR: dir,
             TOKEN: 'abm_piped',
+            URL: board.url,
             KEYFILE: keyFile,
             BOARD: join(BIN, 'board'),
             AGENT_BOARD_TASK: '',
@@ -315,8 +318,7 @@ test('init reads the token from a pipe with --token-file /dev/stdin, and writes 
           resolve({ code: error === null ? 0 : typeof error.code === 'number' ? error.code : -1, stdout, stderr }),
       );
     });
-    // The doctor at the end cannot reach the board on port 1, so the command exits 1; the files are written.
-    assert.equal(result.code, 1, result.stderr);
+    assert.equal(result.code, 0, result.stderr);
     assert.equal(
       readFileSync(join(dir, 'env'), 'utf8'),
       `AGENT_BOARD_TOKEN=abm_piped\nAGENT_BOARD_DATA_KEY=${encodeDataKey(DATA_KEY)}\n`,
@@ -324,6 +326,29 @@ test('init reads the token from a pipe with --token-file /dev/stdin, and writes 
     assert.equal(statSync(join(dir, 'env')).mode & 0o777, 0o600);
     assert.ok(!result.stdout.includes('abm_piped'));
   } finally {
+    await board.close();
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test('init without --machine names the machine as the board does', async () => {
+  const dir = emptyConfigDir();
+  const board = await fakeBoard('tnk_one');
+  try {
+    const keyFile = join(dir, 'datakey');
+    writeFileSync(keyFile, `${encodeDataKey(DATA_KEY)}\n`, { mode: 0o600 });
+    const tokenFile = join(dir, 'token');
+    writeFileSync(tokenFile, 'abm_piped\n', { mode: 0o600 });
+    const result = await run(
+      'board',
+      ['init', '--url', board.url, '--token-file', tokenFile, '--data-key-file', keyFile],
+      dir,
+    );
+    assert.equal(result.code, 0, result.stderr);
+    const config = JSON.parse(readFileSync(join(dir, 'config.json'), 'utf8')) as { machine: string };
+    assert.equal(config.machine, 'tnk_one');
+  } finally {
+    await board.close();
     rmSync(dir, { recursive: true });
   }
 });

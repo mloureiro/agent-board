@@ -42,6 +42,7 @@ export const ADDED_SERVER_FEATURES = [
   'transcript.context',
   'task.title-rules',
   'task.title-rule-labels',
+  'version.machine',
 ] as const;
 
 export const SERVER_FEATURES = [...BASELINE_SERVER_FEATURES, ...ADDED_SERVER_FEATURES] as const;
@@ -85,6 +86,7 @@ export const SERVER_FEATURE_LABELS: Record<ServerFeature, string> = {
   'transcript.context': 'context usage in transcripts',
   'task.title-rules': 'title rules',
   'task.title-rule-labels': 'labels from title rules',
+  'version.machine': 'naming the machine a token belongs to',
   wait: 'waiting',
 };
 
