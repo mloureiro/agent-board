@@ -351,6 +351,20 @@
       "when": 1795389484236,
       "tag": "0049_task-labels",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1795390257067,
+      "tag": "0050_drop-machine-sources",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1795390260760,
+      "tag": "0051_machine-feeds",
+      "breakpoints": true
     }
   ]
 }

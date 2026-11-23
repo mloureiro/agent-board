@@ -348,11 +348,11 @@ export function dryRunBackend(inner: Backend, print: (line: string) => void): Ba
         `DRY set-usage ${usage.held.length} held and ${usage.open.length} open tasks, reached ${usage.reached.join(', ') || 'none'}`,
       );
     },
-    async setSources(_machine, sources) {
-      print(`DRY set-sources ${sources.sources.length} sources`);
+    async setFeeds(_machine, feeds) {
+      print(`DRY set-feeds ${feeds.feeds.length} feeds`);
     },
-    async ackSourceRequests(requests) {
-      print(`DRY ack-source-requests ${requests.join(' ')}`);
+    async ackFeedRequests(requests) {
+      print(`DRY ack-feed-requests ${requests.join(' ')}`);
     },
     async setSharedAgents(document, expectedVersion) {
       print(

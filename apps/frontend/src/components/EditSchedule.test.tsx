@@ -5,6 +5,8 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Machine } from '../lib/opening';
 import type { Schedule } from '../lib/trpc';
+import { createMemoryDraftStorage, draftKeys } from '../test/draftStorage';
+import { DraftsProvider } from './DraftsProvider';
 import { EditScheduleModal } from './EditSchedule';
 
 type Outcome = 'updated' | 'started' | 'none' | 'removed' | 'created';
@@ -304,5 +306,33 @@ describe('EditScheduleModal', () => {
     await retype('Agent', 'Not An Agent');
     expect(await screen.findByText(/Use lowercase letters/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+  });
+});
+
+describe('EditScheduleModal unsent text', () => {
+  const identity = { username: 'jascha', keyId: 'k1' };
+  const reopen = (row: Schedule, storage: ReturnType<typeof createMemoryDraftStorage>) =>
+    render(
+      <MantineProvider>
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <DraftsProvider identity={identity} storage={storage}>
+            <EditScheduleModal schedule={row} opened onClose={() => undefined} />
+          </DraftsProvider>
+        </QueryClientProvider>
+      </MantineProvider>,
+    );
+
+  it('restores the title and prompt after a remount, and Cancel drops them', async () => {
+    const storage = createMemoryDraftStorage();
+    reopen(schedule(), storage).unmount();
+    const first = reopen(schedule(), storage);
+    await retype('Prompt', 'sweep harder');
+    await retype('Title', 'Weekly');
+    first.unmount();
+    reopen(schedule(), storage);
+    expect(await screen.findByLabelText('Prompt')).toHaveValue('sweep harder');
+    expect(screen.getByLabelText('Title')).toHaveValue('Weekly');
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(draftKeys(storage)).toHaveLength(0);
   });
 });

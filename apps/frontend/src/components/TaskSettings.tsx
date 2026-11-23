@@ -2,6 +2,8 @@ import { ActionIcon, Button, Group, Modal, Select, Stack, Switch, Text, TextInpu
 import { IconPencil } from '@tabler/icons-react';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
+import { titleSlot } from '../lib/drafts';
+import { useDraft } from '../lib/draftsContext';
 import { DEFAULT_EFFORT, EFFORT_OPTIONS, effortFromOption } from '../lib/effort';
 import { DEFAULT_LANE, laneFromOption } from '../lib/lane';
 import { DEFAULT_MODEL, modelFromOption } from '../lib/model';
@@ -22,10 +24,10 @@ const SCHEDULE_HINT =
 export function TitleSetting({ task }: { task: BoardTask }) {
   const trpc = useTRPC();
   const configure = useMutation(trpc.tasks.configure.mutationOptions());
-  const [draft, setDraft] = useState<string | null>(null);
+  const [draft, setDraft, clearDraft] = useDraft(titleSlot(task));
   const unreadable = task.unreadable.includes('title');
   const cancel = () => {
-    setDraft(null);
+    clearDraft();
     configure.reset();
   };
   if (draft === null)

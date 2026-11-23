@@ -17,15 +17,11 @@ import { useHotkeys } from '@mantine/hooks';
 import { IconAlertTriangle, IconMessageQuestion, IconPlayerPlay } from '@tabler/icons-react';
 import { modals } from '@mantine/modals';
 import { useState } from 'react';
+import { answerSlot, type AnswerPick } from '../lib/drafts';
+import { useDraft } from '../lib/draftsContext';
 import { MarkdownEditor } from './MarkdownEditor';
 
-interface Draft {
-  selected: string[];
-  other: string;
-}
-
-const initial = (questions: Question[]): Draft[] =>
-  questions.map((q) => ({ selected: q.options.filter((o) => o.recommended).map((o) => o.label), other: '' }));
+type Draft = AnswerPick;
 
 export const isAnswered = (draft: Draft): boolean => draft.selected.length > 0 || draft.other.trim() !== '';
 
@@ -36,6 +32,9 @@ export function toAnswers(drafts: Draft[]): Answer[] {
 }
 
 interface Props {
+  /** With `noteId` and the round, what keeps the unsent answer apart from the answers of other questions. */
+  taskId: string;
+  noteId: string;
   /** What the board serves now under the open question's note id. The panel shows the first value it saw. */
   questions: Question[];
   submitting: boolean;
@@ -44,10 +43,15 @@ interface Props {
   /** Drops the questions without an answer. The panel asks the user to confirm first. */
   onDismiss: () => void;
   dismissing: boolean;
+  /** Text typed in the reply box before the question arrived: the start value of the note. */
+  handover?: string;
+  /** Focus the note, caret at its end. */
+  focusNote?: boolean;
 }
 
 interface FormProps extends Props {
   questions: Question[];
+  round: number;
 }
 
 function confirmDismiss(onConfirm: () => void): void {
@@ -81,7 +85,17 @@ const sameQuestions = (a: Question[], b: Question[]): boolean => JSON.stringify(
  * under the same note id, nothing is swapped in silently: the form is replaced by a notice, the picks are dropped, and the
  * user chooses to look at the changed questions, which starts a new set of picks.
  */
-export function QuestionPanel({ questions, submitting, onSubmit, onDismiss, dismissing }: Props) {
+export function QuestionPanel({
+  taskId,
+  noteId,
+  questions,
+  submitting,
+  onSubmit,
+  onDismiss,
+  dismissing,
+  handover,
+  focusNote,
+}: Props) {
   const [shown, setShown] = useState(questions);
   const [round, setRound] = useState(0);
   if (!sameQuestions(shown, questions))
@@ -113,11 +127,16 @@ export function QuestionPanel({ questions, submitting, onSubmit, onDismiss, dism
   return (
     <QuestionForm
       key={round}
+      taskId={taskId}
+      noteId={noteId}
+      round={round}
       questions={shown}
       submitting={submitting}
       onSubmit={onSubmit}
       onDismiss={onDismiss}
       dismissing={dismissing}
+      handover={handover}
+      focusNote={focusNote}
     />
   );
 }
@@ -125,14 +144,26 @@ export function QuestionPanel({ questions, submitting, onSubmit, onDismiss, dism
 /** A drawer or modal covers the form, so a key pressed there must not change the answer behind it. */
 const isOverlayOpen = (): boolean => document.querySelector('[role="dialog"]') !== null;
 
-function QuestionForm({ questions, submitting, onSubmit, onDismiss, dismissing }: FormProps) {
-  const [drafts, setDrafts] = useState<Draft[]>(() => initial(questions));
+function QuestionForm({
+  taskId,
+  noteId,
+  round,
+  questions,
+  submitting,
+  onSubmit,
+  onDismiss,
+  dismissing,
+  handover = '',
+  focusNote,
+}: FormProps) {
+  const [answer, setAnswer, clearAnswer] = useDraft(answerSlot(taskId, noteId, round, questions, handover));
+  const { picks: drafts, note: message } = answer;
+  const setMessage = (note: string) => setAnswer({ ...answer, note });
   const [active, setActive] = useState(0);
-  const [message, setMessage] = useState('');
   const ready = drafts.every((draft, index) => questions[index]?.multiSelect || isAnswered(draft));
 
   const update = (index: number, change: Partial<Draft>) =>
-    setDrafts((current) => current.map((d, i) => (i === index ? { ...d, ...change } : d)));
+    setAnswer({ ...answer, picks: drafts.map((d, i) => (i === index ? { ...d, ...change } : d)) });
 
   const pick = (index: number, label: string) => {
     const question = questions[index];
@@ -300,6 +331,7 @@ function QuestionForm({ questions, submitting, onSubmit, onDismiss, dismissing }
           onChange={setMessage}
           minRows={2}
           onSubmit={submit}
+          autoFocus={focusNote}
           placeholder="Anything else the agent should know (optional)"
         />
         <Group justify="space-between">
@@ -308,7 +340,13 @@ function QuestionForm({ questions, submitting, onSubmit, onDismiss, dismissing }
             <Kbd size="xs">⌘</Kbd>+<Kbd size="xs">Enter</Kbd> sends.
           </Text>
           <Group gap="xs">
-            <DismissButton onDismiss={onDismiss} dismissing={dismissing} />
+            <DismissButton
+              onDismiss={() => {
+                clearAnswer();
+                onDismiss();
+              }}
+              dismissing={dismissing}
+            />
             <Button leftSection={<IconPlayerPlay size={16} />} onClick={submit} disabled={!ready} loading={submitting}>
               Answer &amp; continue
             </Button>

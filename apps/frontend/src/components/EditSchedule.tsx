@@ -6,6 +6,8 @@ import { skillsFor } from '../lib/catalog';
 import { DEFAULT_LANE, laneFromOption } from '../lib/lane';
 import { DEFAULT_EFFORT, effortFromOption } from '../lib/effort';
 import { DEFAULT_MODEL, modelFromOption } from '../lib/model';
+import { scheduleSlot } from '../lib/drafts';
+import { useDraft } from '../lib/draftsContext';
 import { parseDelay, parseRepeatRule } from '../lib/repeat';
 import { localInputValue } from '../lib/time';
 import { errorMessage, useTRPC, type Schedule } from '../lib/trpc';
@@ -84,8 +86,7 @@ function EditScheduleForm({ schedule, onClose }: { schedule: Schedule; onClose: 
   const directories = withCurrentPlace(useDirectoryChoices(), schedule);
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const firstRun = localInputValue(schedule.anchorAt);
-  const [title, setTitle] = useState(schedule.title);
-  const [input, setInput] = useState(schedule.input);
+  const [{ title, input }, setText, clearText] = useDraft(scheduleSlot(schedule));
   const [directory, setDirectory] = useState<string | null>(
     schedule.machine !== null && schedule.workdir !== null ? placeValue(schedule.machine, schedule.workdir) : null,
   );
@@ -169,7 +170,12 @@ function EditScheduleForm({ schedule, onClose }: { schedule: Schedule; onClose: 
         maxConcurrent: limit === '' ? null : Number(limit),
         unreadable: schedule.unreadable,
       },
-      { onSuccess: ({ pending }) => setSaved(pending) },
+      {
+        onSuccess: ({ pending }) => {
+          clearText();
+          setSaved(pending);
+        },
+      },
     );
   };
 
@@ -189,7 +195,7 @@ function EditScheduleForm({ schedule, onClose }: { schedule: Schedule; onClose: 
       <MarkdownEditor
         label="Prompt"
         value={input}
-        onChange={setInput}
+        onChange={(next) => setText({ title, input: next })}
         minRows={8}
         onSubmit={save}
         autoFocus
@@ -201,7 +207,7 @@ function EditScheduleForm({ schedule, onClose }: { schedule: Schedule; onClose: 
         label="Title"
         placeholder="Defaults to the prompt's first line"
         value={title}
-        onChange={(event) => setTitle(event.currentTarget.value)}
+        onChange={(event) => setText({ title: event.currentTarget.value, input })}
       />
       <PriorityField value={priority} onChange={setPriority} />
       <ModelField value={model} onChange={setModel} models={models} />
@@ -244,7 +250,13 @@ function EditScheduleForm({ schedule, onClose }: { schedule: Schedule; onClose: 
         </Alert>
       )}
       <Group justify="flex-end">
-        <Button variant="default" onClick={onClose}>
+        <Button
+          variant="default"
+          onClick={() => {
+            clearText();
+            onClose();
+          }}
+        >
           Cancel
         </Button>
         <Button onClick={save} disabled={!ready} loading={update.isPending}>

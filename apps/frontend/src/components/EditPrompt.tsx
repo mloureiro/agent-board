@@ -4,12 +4,13 @@ import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import type { CatalogSkill } from '@agent-board/shared';
 import { canEditPrompt } from '../lib/editPrompt';
+import { promptSlot, type DraftSlot, type TextPair } from '../lib/drafts';
+import { useDraft, useDraftStore } from '../lib/draftsContext';
 import { errorMessage, useTRPC, type BoardTask } from '../lib/trpc';
 import { MarkdownEditor } from './MarkdownEditor';
 
 interface FormProps {
-  title: string;
-  input: string;
+  slot: DraftSlot<TextPair>;
   skills?: readonly CatalogSkill[] | undefined;
   hint?: string | undefined;
   pending: boolean;
@@ -18,20 +19,24 @@ interface FormProps {
   onSave: (title: string, input: string) => void;
 }
 
-function PromptForm({ title, input, skills, hint, pending, error, onCancel, onSave }: FormProps) {
-  const [newTitle, setNewTitle] = useState(title);
-  const [newInput, setNewInput] = useState(input);
-  const unchanged = newTitle === title && newInput === input;
+function PromptForm({ slot, skills, hint, pending, error, onCancel, onSave }: FormProps) {
+  const [draft, setDraft, clearDraft] = useDraft(slot);
+  const { title: newTitle, input: newInput } = draft;
+  const unchanged = slot.isEmpty(draft);
   const save = () => {
     if (!unchanged && !pending) onSave(newTitle, newInput);
   };
   return (
     <Stack>
-      <TextInput label="Title" value={newTitle} onChange={(event) => setNewTitle(event.currentTarget.value)} />
+      <TextInput
+        label="Title"
+        value={newTitle}
+        onChange={(event) => setDraft({ ...draft, title: event.currentTarget.value })}
+      />
       <MarkdownEditor
         label="Prompt"
         value={newInput}
-        onChange={setNewInput}
+        onChange={(input) => setDraft({ ...draft, input })}
         minRows={8}
         onSubmit={save}
         autoFocus
@@ -48,7 +53,13 @@ function PromptForm({ title, input, skills, hint, pending, error, onCancel, onSa
         </Alert>
       )}
       <Group justify="flex-end" gap="xs">
-        <Button variant="default" onClick={onCancel}>
+        <Button
+          variant="default"
+          onClick={() => {
+            clearDraft();
+            onCancel();
+          }}
+        >
           Cancel
         </Button>
         <Button onClick={save} disabled={unchanged} loading={pending}>
@@ -67,6 +78,7 @@ function PromptForm({ title, input, skills, hint, pending, error, onCancel, onSa
 export function EditTaskPrompt({ task, skills }: { task: BoardTask; skills?: readonly CatalogSkill[] }) {
   const trpc = useTRPC();
   const edit = useMutation(trpc.tasks.edit.mutationOptions());
+  const drafts = useDraftStore();
   const [opened, setOpened] = useState(false);
   const close = () => {
     setOpened(false);
@@ -87,15 +99,22 @@ export function EditTaskPrompt({ task, skills }: { task: BoardTask; skills?: rea
       )}
       <Modal opened={opened} onClose={close} title="Edit prompt" size="lg">
         <PromptForm
-          title={task.title}
-          input={task.input}
+          slot={promptSlot(task)}
           skills={skills}
           hint="What it says now stays in a note on the task."
           pending={edit.isPending}
           error={edit.error}
           onCancel={close}
           onSave={(title, input) =>
-            edit.mutate({ target: { ...task, agent: task.agent ?? null }, title, input }, { onSuccess: close })
+            edit.mutate(
+              { target: { ...task, agent: task.agent ?? null }, title, input },
+              {
+                onSuccess: () => {
+                  drafts?.clear(promptSlot(task).key);
+                  close();
+                },
+              },
+            )
           }
         />
       </Modal>

@@ -1,4 +1,5 @@
 import { Badge, Center, Loader, Text } from '@mantine/core';
+import { modals } from '@mantine/modals';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
@@ -9,6 +10,7 @@ import { AccountDeletedProvider } from './components/AccountDeletedProvider';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { LinkRulesProvider } from './components/LinkRulesProvider';
 import { KeyGate } from './crypto/KeyGate';
+import { removeDrafts } from './lib/drafts';
 import { subscribeToSession } from './lib/session';
 import { errorMessage, POLL_MS, useTRPC } from './lib/trpc';
 import { isUnauthorized } from './lib/unauthorized';
@@ -16,7 +18,7 @@ import { BacklogPage, BoardPage } from './pages/BoardPage';
 import { ClosedPage } from './pages/ClosedPage';
 import { AgentsPage } from './pages/AgentsPage';
 import { SchedulesPage } from './pages/SchedulesPage';
-import { SourcesPage } from './pages/SourcesPage';
+import { FeedsPage } from './pages/FeedsPage';
 import { AccountSettings } from './pages/settings/AccountSettings';
 import { EncryptionSettings } from './pages/settings/EncryptionSettings';
 import { LinksSettings } from './pages/settings/LinksSettings';
@@ -37,6 +39,12 @@ function SignedInApp() {
       query.state.status === 'error' && !isUnauthorized(query.state.error) ? POLL_MS : false,
   });
   const signedOut = isUnauthorized(me.error);
+  useEffect(() => {
+    if (signedOut) {
+      removeDrafts();
+      modals.closeAll();
+    }
+  }, [signedOut]);
   // Another tab signing in or out changes what this one is allowed to see.
   useEffect(() => subscribeToSession(() => void queryClient.resetQueries()), [queryClient]);
 
@@ -82,13 +90,13 @@ function SignedInApp() {
                 <Route path="backlog" element={<BacklogPage />} />
                 <Route path="t/:id" element={<TaskPage />} />
                 <Route path="schedules" element={<SchedulesPage />} />
-                <Route path="sources" element={<SourcesPage />} />
                 <Route path="closed" element={<ClosedPage />} />
                 <Route path="settings" element={<SettingsLayout />}>
                   <Route index element={<Navigate to="/settings/machines" replace />} />
                   <Route path="machines" element={<MachinesSettings />} />
                   <Route path="notifications" element={<NotificationsSettings />} />
                   <Route path="encryption" element={<EncryptionSettings />} />
+                  <Route path="feeds" element={<FeedsPage />} />
                   <Route path="agents" element={<AgentsPage />} />
                   <Route path="links" element={<LinksSettings />} />
                   <Route path="titles" element={<TitlesSettings />} />

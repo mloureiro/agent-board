@@ -3,6 +3,8 @@ import { ModalsProvider } from '@mantine/modals';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import { createMemoryDraftStorage } from '../test/draftStorage';
+import { DraftsProvider } from './DraftsProvider';
 import { QuestionPanel } from './QuestionPanel';
 
 const questions = [
@@ -31,6 +33,8 @@ const renderPanel = (onSubmit = vi.fn(), onDismiss = vi.fn()) => {
     <MantineProvider>
       <ModalsProvider>
         <QuestionPanel
+          taskId="task0001"
+          noteId="note0001"
           questions={questions}
           submitting={false}
           onSubmit={onSubmit}
@@ -158,6 +162,8 @@ describe('QuestionPanel', () => {
       <MantineProvider>
         <ModalsProvider>
           <QuestionPanel
+            taskId="task0001"
+            noteId="note0001"
             questions={questions}
             submitting={false}
             onSubmit={vi.fn()}
@@ -171,6 +177,8 @@ describe('QuestionPanel', () => {
       <MantineProvider>
         <ModalsProvider>
           <QuestionPanel
+            taskId="task0001"
+            noteId="note0001"
             questions={questions.slice(0, 1)}
             submitting={false}
             onSubmit={vi.fn()}
@@ -184,5 +192,47 @@ describe('QuestionPanel', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Dismiss questions' }));
     await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Dismiss questions' }));
     await waitFor(() => expect(onDismiss).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe('QuestionPanel unsent answer', () => {
+  const view = (storage: ReturnType<typeof createMemoryDraftStorage>, shown = questions, onSubmit = vi.fn()) => (
+    <MantineProvider>
+      <ModalsProvider>
+        <DraftsProvider identity={{ username: 'jascha', keyId: 'k1' }} storage={storage}>
+          <QuestionPanel
+            taskId="task0001"
+            noteId="note0001"
+            questions={shown}
+            submitting={false}
+            onSubmit={onSubmit}
+            onDismiss={vi.fn()}
+            dismissing={false}
+          />
+        </DraftsProvider>
+      </ModalsProvider>
+    </MantineProvider>
+  );
+
+  it('restores the picks and the note after a remount', async () => {
+    const storage = createMemoryDraftStorage();
+    const first = render(view(storage));
+    await userEvent.click(screen.getByText('Nit'));
+    await userEvent.type(screen.getByPlaceholderText('Anything else the agent should know (optional)'), 'because');
+    first.unmount();
+    const onSubmit = vi.fn();
+    render(view(storage, questions, onSubmit));
+    expect(screen.getByPlaceholderText('Anything else the agent should know (optional)')).toHaveValue('because');
+    await userEvent.click(screen.getByRole('button', { name: /Answer & continue/ }));
+    expect(onSubmit).toHaveBeenCalledWith(questions, [{ selected: ['Nit'] }, { selected: [] }], 'because');
+  });
+
+  it('is not restored once the questions changed', async () => {
+    const storage = createMemoryDraftStorage();
+    const first = render(view(storage));
+    await userEvent.type(screen.getByPlaceholderText('Anything else the agent should know (optional)'), 'because');
+    first.unmount();
+    render(view(storage, [{ ...questions[0]!, question: 'Blocking, really?' }, questions[1]!]));
+    expect(screen.getByPlaceholderText('Anything else the agent should know (optional)')).toHaveValue('');
   });
 });

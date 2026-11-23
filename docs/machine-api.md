@@ -67,8 +67,8 @@ The CLI sends `version` once per process, before its first other call. The answe
   "dirsIndex": "abh1.…",
   "catalogIndex": "abh1.…",
   "usageIndex": "abh1.…",
-  "sourcesIndex": "abh1.…",
-  "sourceRequests": ["pause:<16 hex>"],
+  "feedsIndex": "abh1.…",
+  "feedRequests": ["pause:<16 hex>"],
   "agentsVersion": 4
 }
 ```
@@ -84,10 +84,10 @@ The CLI sends `version` once per process, before its first other call. The answe
 | `cli`                                     | The newest CLI release the server knows of (`CLI_VERSION`). Left out when it knows none.                                                  |
 | `dirsIndex`, `catalogIndex`, `usageIndex` | The blind index of the document the calling machine last sent with `set-dirs`, `set-catalog` or `set-usage`, or `null` when it sent none. |
 | `agentsVersion`                           | The version of the user's [shared agents](#shared-agents), or `null` when they pushed none.                                               |
-| `sourcesIndex`                            | The blind index of the sources the calling machine last sent with `set-sources`, or `null`.                                               |
-| `sourceRequests`                          | The user's requests for the calling machine's sources that it has not acknowledged, see [`set-sources`](#set-sources).                    |
+| `feedsIndex`                              | The blind index of the feeds the calling machine last sent with `set-feeds`, or `null`.                                                   |
+| `feedRequests`                            | The user's requests for the calling machine's feeds that it has not acknowledged, see [`set-feeds`](#set-feeds).                          |
 
-A server without `machine.dirs`, `machine.catalog`, `machine.usage`, `machine.sources` or `agents.shared` leaves the matching key out. A client reads them leniently: anything that is not a blind index, or a whole number from 1 for `agentsVersion`, counts as `null`, never as an error, and a request that is not `<action>:<source id>` is dropped.
+A server without `machine.dirs`, `machine.catalog`, `machine.usage`, `machine.feeds` or `agents.shared` leaves the matching key out. A client reads them leniently: anything that is not a blind index, or a whole number from 1 for `agentsVersion`, counts as `null`, never as an error, and a request that is not `<action>:<feed id>` is dropped.
 
 **The numbers.** `API_VERSION`, `MIN_CLIENT` and `MIN_SERVER` are in `packages/shared/src/contract.mts`. `MIN_SERVER` is the oldest server break level a CLI works with. None of them counts changes. They rise only with a breaking change, never with an additive one (see [Wire rules](#wire-rules)). They start at 9, the contract number that servers and CLIs already had when the range was introduced.
 
@@ -130,7 +130,7 @@ Capabilities and vocabulary have names. An additive change then needs no version
 | `machine.dirs`            | The `set-dirs` command and `dirsIndex` in the `version` answer.                                                                                 |          |
 | `machine.catalog`         | The `set-catalog` command and `catalogIndex` in the `version` answer.                                                                           |          |
 | `machine.usage`           | The `set-usage` command and `usageIndex` in the `version` answer.                                                                               |          |
-| `machine.sources`         | The `set-sources` and `ack-source-requests` commands, and `sourcesIndex` and `sourceRequests` in the `version` answer.                          |          |
+| `machine.feeds`           | The `set-feeds` and `ack-feed-requests` commands, and `feedsIndex` and `feedRequests` in the `version` answer.                                  |          |
 | `transcript.context`      | The `context` event kind in `transcript`, see [`transcript`](#transcript).                                                                      |          |
 | `task.agent`              | The sealed `agent` key of `add-task` and `add-schedule`, and of a task and a schedule.                                                          |          |
 | `task.run`                | The task's `run` field and the `run` key of a request, see [Runs](#runs).                                                                       |          |
@@ -242,7 +242,7 @@ A failed or rolled back call sends nothing.
 **What sends none.**
 
 - `heartbeat` and `transcript`, which every running task sends every 15 seconds.
-- `set-dirs`, `set-catalog`, `set-usage`, `set-sources` and `ack-source-requests`, which change no dispatch decision.
+- `set-dirs`, `set-catalog`, `set-usage`, `set-feeds` and `ack-feed-requests`, which change no dispatch decision.
 - `set-pr-states` and `set-pr-state`, `run-inbox` and `ack-messages`.
 - The reads: `version`, `list-tasks`, `get-task`, `attach-session`, `read-notes`, `list-schedules`, `get-agents` and `get-title-rules`.
 - The UI's changes to machines and keys.
@@ -655,50 +655,50 @@ A resume prompt is built from the `user` notes after the last `agent` note. Two 
 
 ## Commands
 
-| Command               | Request                                                                                                                                                                                                                                       | `result`                                                                                                |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `version`             | -                                                                                                                                                                                                                                             | See [Version handshake](#version-handshake)                                                             |
-| `list-tasks`          | `all?`                                                                                                                                                                                                                                        | `[Task, ...]` in pickup order                                                                           |
-| `get-task`            | `id`                                                                                                                                                                                                                                          | `Task`                                                                                                  |
-| `attach-session`      | `id`                                                                                                                                                                                                                                          | `Task`                                                                                                  |
-| `add-task`            | `body`: `{"id", "title", "input", "status"?, "priority"?, "model"?, "effort"?, "lane"?, "autoDone"?, "dedupeKey"?, "parentId"?, "createdBy"?, "machine"?, "workdir"?, "agent"?, "head"?, "notBefore"?}`                                       | `{"task": Task, "created": bool}`                                                                       |
-| `update-task`         | `id`, `body`: `{"status"?, "priority"?, "input"?, "sessionId"?, "workdir"?, "next"?, "head"?, "notBefore"?, "expect"?}`                                                                                                                       | the updated `Task`, or 409                                                                              |
-| `configure-task`      | `id`, `body`: `{"priority"?, "model"?, "effort"?, "lane"?, "autoDone"?, "place"?}`                                                                                                                                                            | the updated `Task`, or 409                                                                              |
-| `edit-prompt`         | `id`, `body`: `{"title", "input", "previous"}`                                                                                                                                                                                                | the updated `Task`, or 403 or 409                                                                       |
-| `claim-task`          | `id`, `machine`                                                                                                                                                                                                                               | the claimed `Task`, or 409                                                                              |
-| `add-note`            | `id`, `author?`, `kind?`, `body`: `{"body", "preview"?, "suggestion"?}`                                                                                                                                                                       | `null`                                                                                                  |
-| `read-notes`          | `id`                                                                                                                                                                                                                                          | `[Note, ...]`, oldest first                                                                             |
-| `ask`                 | `id`, `body`: `{"body", "questions"}`                                                                                                                                                                                                         | `null`                                                                                                  |
-| `add-pr`              | `id`, `body`: `{"pr"}`, the sealed PR URL                                                                                                                                                                                                     | `null`                                                                                                  |
-| `remove-pr`           | `id`, `body`: `{"pr"}`, the id of an entry of `prs`                                                                                                                                                                                           | `null`                                                                                                  |
-| `set-pr-states`       | `id`, `body`: `{"prompt"?, "prs"?: [{"id", "state"}]}`                                                                                                                                                                                        | `null`                                                                                                  |
-| `set-pr`              | Legacy. `id`, `body`: `{"pr"}`, the sealed PR URL                                                                                                                                                                                             | `null`                                                                                                  |
-| `set-pr-state`        | Legacy. `id`, `body`: `{"prState"}`                                                                                                                                                                                                           | `null`                                                                                                  |
-| `set-watches`         | `id`, `body`: `{"watches"}`, the sealed document, or `null` to clear                                                                                                                                                                          | `null`                                                                                                  |
-| `ack-watch-stops`     | `id`, `body`: `{"ids"}`, watch ids, at most 32                                                                                                                                                                                                | `null`                                                                                                  |
-| `set-dirs`            | `body`: `{"dirs", "index"}`                                                                                                                                                                                                                   | `null`                                                                                                  |
-| `set-catalog`         | `body`: `{"catalog", "index"}`                                                                                                                                                                                                                | `null`                                                                                                  |
-| `set-usage`           | `body`: `{"usage", "index"}`                                                                                                                                                                                                                  | `null`                                                                                                  |
-| `set-sources`         | `body`: `{"sources", "index"}`                                                                                                                                                                                                                | `null`                                                                                                  |
-| `ack-source-requests` | `body`: `{"requests"}`, at most 150                                                                                                                                                                                                           | `null`                                                                                                  |
-| `get-agents`          | -                                                                                                                                                                                                                                             | `{"version", "document"}`, or `null`                                                                    |
-| `set-agents`          | `body`: `{"document", "version", "expectedVersion"}`                                                                                                                                                                                          | `null`, or 409                                                                                          |
-| `get-title-rules`     | -                                                                                                                                                                                                                                             | `{"version", "document"}`, or `null`                                                                    |
-| `apply-title-rule`    | `id`, `run`, `body`: `{"icon"?, "labels"?, "title"?, "expectTitle"?}`                                                                                                                                                                         | `{"icon": bool, "labels": bool, "title": bool}`, or 409                                                 |
-| `heartbeat`           | `id`, `body`: `{"lane": string, "borrowed": bool}`                                                                                                                                                                                            | `null`                                                                                                  |
-| `pause`               | `id`, `body`: `{"body", "preview"?}`                                                                                                                                                                                                          | the updated `Task`                                                                                      |
-| `fail`                | `id`, `body`: `{"body", "preview"?}`                                                                                                                                                                                                          | `{"applied": bool, "task": Task}`                                                                       |
-| `stopped`             | `id`, `body`: `{"body", "preview"?}`                                                                                                                                                                                                          | the updated `Task`                                                                                      |
-| `run-inbox`           | `id`                                                                                                                                                                                                                                          | `{"stop": bool, "stopMessage"?: noteId, "messages": [Note]}`                                            |
-| `ack-messages`        | `id`, `body`: `{"ids": [noteId, ...], "stop"?: bool}`                                                                                                                                                                                         | `null`                                                                                                  |
-| `wait`                | `id`, `body`: `{"body", "preview"?, "wakeAt", "check"}`                                                                                                                                                                                       | the updated `Task`                                                                                      |
-| `wake`                | `id`, `body`: `{"body", "preview"?}`                                                                                                                                                                                                          | `{"applied": bool, "task": Task}`                                                                       |
-| `transcript`          | `id`, `body`: `{"runId", "startedAt", "sessionId", "resumed", "events": [...]}`                                                                                                                                                               | `null`                                                                                                  |
-| `add-schedule`        | `body`: `{"id", "title", "input", "everyMs"? \| "cron"? + "timezone" + "moreCrons"? \| "after"?, "maxConcurrent"?, "priority"?, "model"?, "effort"?, "lane"?, "autoDone"?, "machine"?, "workdir"?, "agent"?, "startAt"?, "times"?, "until"?}` | `{"schedule": Schedule, "task": Task \| null}`                                                          |
-| `list-schedules`      | -                                                                                                                                                                                                                                             | `[Schedule, ...]`: running first, then paused, then ended                                               |
-| `update-schedule`     | `id`, `body`: `{"paused": bool}`                                                                                                                                                                                                              | the updated `Schedule`                                                                                  |
-| `edit-schedule`       | `id`, `body`: `{"title", "input", "settings"?}`                                                                                                                                                                                               | `{"schedule": Schedule, "pending": "updated" \| "started" \| "none" \| "removed" \| "created"}`, or 409 |
-| `remove-schedule`     | `id`                                                                                                                                                                                                                                          | `null`                                                                                                  |
+| Command             | Request                                                                                                                                                                                                                                       | `result`                                                                                                |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `version`           | -                                                                                                                                                                                                                                             | See [Version handshake](#version-handshake)                                                             |
+| `list-tasks`        | `all?`                                                                                                                                                                                                                                        | `[Task, ...]` in pickup order                                                                           |
+| `get-task`          | `id`                                                                                                                                                                                                                                          | `Task`                                                                                                  |
+| `attach-session`    | `id`                                                                                                                                                                                                                                          | `Task`                                                                                                  |
+| `add-task`          | `body`: `{"id", "title", "input", "status"?, "priority"?, "model"?, "effort"?, "lane"?, "autoDone"?, "dedupeKey"?, "parentId"?, "createdBy"?, "machine"?, "workdir"?, "agent"?, "head"?, "notBefore"?}`                                       | `{"task": Task, "created": bool}`                                                                       |
+| `update-task`       | `id`, `body`: `{"status"?, "priority"?, "input"?, "sessionId"?, "workdir"?, "next"?, "head"?, "notBefore"?, "expect"?}`                                                                                                                       | the updated `Task`, or 409                                                                              |
+| `configure-task`    | `id`, `body`: `{"priority"?, "model"?, "effort"?, "lane"?, "autoDone"?, "place"?}`                                                                                                                                                            | the updated `Task`, or 409                                                                              |
+| `edit-prompt`       | `id`, `body`: `{"title", "input", "previous"}`                                                                                                                                                                                                | the updated `Task`, or 403 or 409                                                                       |
+| `claim-task`        | `id`, `machine`                                                                                                                                                                                                                               | the claimed `Task`, or 409                                                                              |
+| `add-note`          | `id`, `author?`, `kind?`, `body`: `{"body", "preview"?, "suggestion"?}`                                                                                                                                                                       | `null`                                                                                                  |
+| `read-notes`        | `id`                                                                                                                                                                                                                                          | `[Note, ...]`, oldest first                                                                             |
+| `ask`               | `id`, `body`: `{"body", "questions"}`                                                                                                                                                                                                         | `null`                                                                                                  |
+| `add-pr`            | `id`, `body`: `{"pr"}`, the sealed PR URL                                                                                                                                                                                                     | `null`                                                                                                  |
+| `remove-pr`         | `id`, `body`: `{"pr"}`, the id of an entry of `prs`                                                                                                                                                                                           | `null`                                                                                                  |
+| `set-pr-states`     | `id`, `body`: `{"prompt"?, "prs"?: [{"id", "state"}]}`                                                                                                                                                                                        | `null`                                                                                                  |
+| `set-pr`            | Legacy. `id`, `body`: `{"pr"}`, the sealed PR URL                                                                                                                                                                                             | `null`                                                                                                  |
+| `set-pr-state`      | Legacy. `id`, `body`: `{"prState"}`                                                                                                                                                                                                           | `null`                                                                                                  |
+| `set-watches`       | `id`, `body`: `{"watches"}`, the sealed document, or `null` to clear                                                                                                                                                                          | `null`                                                                                                  |
+| `ack-watch-stops`   | `id`, `body`: `{"ids"}`, watch ids, at most 32                                                                                                                                                                                                | `null`                                                                                                  |
+| `set-dirs`          | `body`: `{"dirs", "index"}`                                                                                                                                                                                                                   | `null`                                                                                                  |
+| `set-catalog`       | `body`: `{"catalog", "index"}`                                                                                                                                                                                                                | `null`                                                                                                  |
+| `set-usage`         | `body`: `{"usage", "index"}`                                                                                                                                                                                                                  | `null`                                                                                                  |
+| `set-feeds`         | `body`: `{"feeds", "index"}`                                                                                                                                                                                                                  | `null`                                                                                                  |
+| `ack-feed-requests` | `body`: `{"requests"}`, at most 150                                                                                                                                                                                                           | `null`                                                                                                  |
+| `get-agents`        | -                                                                                                                                                                                                                                             | `{"version", "document"}`, or `null`                                                                    |
+| `set-agents`        | `body`: `{"document", "version", "expectedVersion"}`                                                                                                                                                                                          | `null`, or 409                                                                                          |
+| `get-title-rules`   | -                                                                                                                                                                                                                                             | `{"version", "document"}`, or `null`                                                                    |
+| `apply-title-rule`  | `id`, `run`, `body`: `{"icon"?, "labels"?, "title"?, "expectTitle"?}`                                                                                                                                                                         | `{"icon": bool, "labels": bool, "title": bool}`, or 409                                                 |
+| `heartbeat`         | `id`, `body`: `{"lane": string, "borrowed": bool}`                                                                                                                                                                                            | `null`                                                                                                  |
+| `pause`             | `id`, `body`: `{"body", "preview"?}`                                                                                                                                                                                                          | the updated `Task`                                                                                      |
+| `fail`              | `id`, `body`: `{"body", "preview"?}`                                                                                                                                                                                                          | `{"applied": bool, "task": Task}`                                                                       |
+| `stopped`           | `id`, `body`: `{"body", "preview"?}`                                                                                                                                                                                                          | the updated `Task`                                                                                      |
+| `run-inbox`         | `id`                                                                                                                                                                                                                                          | `{"stop": bool, "stopMessage"?: noteId, "messages": [Note]}`                                            |
+| `ack-messages`      | `id`, `body`: `{"ids": [noteId, ...], "stop"?: bool}`                                                                                                                                                                                         | `null`                                                                                                  |
+| `wait`              | `id`, `body`: `{"body", "preview"?, "wakeAt", "check"}`                                                                                                                                                                                       | the updated `Task`                                                                                      |
+| `wake`              | `id`, `body`: `{"body", "preview"?}`                                                                                                                                                                                                          | `{"applied": bool, "task": Task}`                                                                       |
+| `transcript`        | `id`, `body`: `{"runId", "startedAt", "sessionId", "resumed", "events": [...]}`                                                                                                                                                               | `null`                                                                                                  |
+| `add-schedule`      | `body`: `{"id", "title", "input", "everyMs"? \| "cron"? + "timezone" + "moreCrons"? \| "after"?, "maxConcurrent"?, "priority"?, "model"?, "effort"?, "lane"?, "autoDone"?, "machine"?, "workdir"?, "agent"?, "startAt"?, "times"?, "until"?}` | `{"schedule": Schedule, "task": Task \| null}`                                                          |
+| `list-schedules`    | -                                                                                                                                                                                                                                             | `[Schedule, ...]`: running first, then paused, then ended                                               |
+| `update-schedule`   | `id`, `body`: `{"paused": bool}`                                                                                                                                                                                                              | the updated `Schedule`                                                                                  |
+| `edit-schedule`     | `id`, `body`: `{"title", "input", "settings"?}`                                                                                                                                                                                               | `{"schedule": Schedule, "pending": "updated" \| "started" \| "none" \| "removed" \| "created"}`, or 409 |
+| `remove-schedule`   | `id`                                                                                                                                                                                                                                          | `null`                                                                                                  |
 
 Every body is strict. An unknown key, a missing required key or a value of the wrong shape is a 400, and nothing is written. A sealed key that holds plain text, or an envelope over its limit (`SEALED_LIMITS`), is a 400 too. An unknown task or schedule is a 404.
 
@@ -958,7 +958,7 @@ The user's Stop adds an id to `watchStops` through the browser (`tasks.stopWatch
 
 ### Machine documents
 
-`set-dirs`, `set-catalog`, `set-usage` and `set-sources` each replace one sealed document of the token's own machine. They share these rules:
+`set-dirs`, `set-catalog`, `set-usage` and `set-feeds` each replace one sealed document of the token's own machine. They share these rules:
 
 - The token names the machine. That row is the only one the command touches, and a `machine` key is not read.
 - The body holds the sealed document and `index`, its blind index (`abh1.…`). The server stores both with the time.
@@ -973,7 +973,7 @@ The user's Stop adds an id to `watchStops` through the browser (`tasks.stopWatch
 | `set-dirs`    | `machine.dirs`    | `dirs`     | `dirs:<machine>:<document>`    | 256 KiB    |
 | `set-catalog` | `machine.catalog` | `catalog`  | `catalog:<machine>:<document>` | 256 KiB    |
 | `set-usage`   | `machine.usage`   | `usage`    | `usage:<machine>:<document>`   | 64 KiB     |
-| `set-sources` | `machine.sources` | `sources`  | `sources:<machine>:<document>` | 64 KiB     |
+| `set-feeds`   | `machine.feeds`   | `feeds`    | `feeds:<machine>:<document>`   | 320 KiB    |
 
 #### `set-dirs`
 
@@ -1038,35 +1038,73 @@ A reader opens it with `parseMachineUsage` in `packages/shared/src/machineUsage.
 
 The CLI sends it at the end of a dispatch tick, whether or not the machine has `usageLimits`.
 
-#### `set-sources`
+#### `set-feeds`
 
-The machine's [sources](usage.md#sources), for the Sources page: each one's name, timer, pause and last run. The commands stay on the machine.
+The machine's [feeds](usage.md#feeds), for Settings › Feeds: each one's name, integration and action, timer, pause, what its last run did and its recent runs. The commands, the options and the plugin's commit, URL and description stay on the machine.
 
 ```json
 {
-  "sources": [
+  "feeds": [
     {
       "id": "0123456789abcdef",
       "name": "github-reviews",
+      "integration": "mloureiro:github",
+      "action": "list-pull-requests",
       "everyMs": 600000,
       "paused": false,
-      "runNow": false,
-      "last": { "at": "…", "ok": true, "listed": 3, "created": 1, "requeued": 0, "closed": 1, "failed": 0 }
+      "runAsked": false,
+      "last": {
+        "startedAt": "…",
+        "at": "…",
+        "ok": true,
+        "listed": 3,
+        "created": 1,
+        "requeued": 0,
+        "rescheduled": 1,
+        "closed": 1,
+        "failed": 0,
+        "tasks": [{ "id": "…", "outcome": "created" }]
+      },
+      "history": [
+        {
+          "startedAt": "…",
+          "at": "…",
+          "ok": false,
+          "invalid": true,
+          "error": "…",
+          "listed": 0,
+          "created": 0,
+          "requeued": 0,
+          "rescheduled": 0,
+          "closed": 0,
+          "failed": 0
+        }
+      ]
     },
-    { "id": "fedcba9876543210", "name": "slack", "everyMs": 0, "paused": false, "runNow": false, "problem": "…" }
+    {
+      "id": "fedcba9876543210",
+      "name": "slack",
+      "everyMs": 0,
+      "paused": false,
+      "runAsked": false,
+      "problem": "…",
+      "history": []
+    }
   ]
 }
 ```
 
-- `id` is 16 hex characters that the machine makes the first time it sees the source and keeps in its state file. Requests name it, never the source's name.
-- `problem` says why the `config.json` entry cannot be used; such a source does not run. `last.error` says why the last run failed. Each is one line of at most 300 characters, and a name at most 40.
-- At most 50 sources. A source of the wrong shape is dropped and the rest kept; a longer list makes the document unreadable. A reader opens it with `parseMachineSources` in `packages/shared/src/machineSources.mts`.
+- `id` is 16 hex characters that the machine makes the first time it sees the feed and keeps in its state file. Requests name it, never the feed's name.
+- `integration` is `<marketplace>:<integration>` and `action` the action's name; both are absent on a feed whose `config.json` entry cannot be read. `runAsked` says a run was asked for and has not happened yet.
+- `problem` says why the `config.json` entry cannot be used; such a feed does not run. It is one line of at most 300 characters, a name at most 40.
+- `last` is the most recent run: `error` (at most 300 characters, one line) says why it failed, `invalid` that the integration was refused (an unpinned or missing plugin) so nothing was listed, and `tasks` the ids of at most 20 tasks it touched, each with its `outcome` (`created`, `requeued`, `rescheduled` or `closed`). No titles go in. `history` holds the last 10 runs, newest first, in the same fields without `tasks` and with `error` at most 120 characters.
+- At most 30 feeds, and the document at most 320 KiB. A feed of the wrong shape is dropped and the rest kept, and so is a task or a run of the wrong shape inside it; a longer list makes the document unreadable. A reader opens it with `parseMachineFeeds` in `packages/shared/src/machineFeeds.mts`, which is also where the machine checks the document before it seals it.
 
-The dispatch tick sends the sources when they changed, and the watch unit after every run.
+The dispatch tick sends the feeds when they changed, and the watch unit after every run.
 
-**Requests.** The browser's `sources.request` (a machine name, an `action` of `pause`, `resume` or `run`, and a source `id`) adds `<action>:<id>` to the machine's pending requests and sends a `tasks` event, so the listener runs a dispatch tick. A request that already waits changes nothing. A pause and a resume of one source replace each other. At most 150 wait per machine. The `version` answer lists them in `sourceRequests`. The tick applies each one to its state file (a run happens on the watch unit's next look), answers `ack-source-requests` with all it read, including those for a source it does not have, and sends the sources again. Revoking the machine clears them.
+**Requests.** The browser's `feeds.request` (a machine name, an `action` of `pause`, `resume` or `run`, and a feed `id`) adds `<action>:<id>` to the machine's pending requests and sends a `tasks` event, so the listener runs a dispatch tick. A request that already waits changes nothing. A pause and a resume of one feed replace each other. At most 150 wait per machine. The `version` answer lists them in `feedRequests`. The tick applies each one to its state file (a run happens on the watch unit's next look), answers `ack-feed-requests` with all it read, including those for a feed it does not have, and sends the feeds again. Revoking the machine clears them.
 
-The browser reads sources with `sources.list`: for each machine that sent sources and is not revoked, its `name`, the sealed `sources`, `sourcesUpdatedAt`, `sourceRequests` and `lastSeenAt`.
+The browser reads feeds with `feeds.list`: for each machine that sent feeds and is not revoked, its `name`, the sealed `feeds`, `feedsUpdatedAt`, `feedRequests` and `lastSeenAt`.
 
 ### Shared agents
 

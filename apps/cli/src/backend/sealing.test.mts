@@ -11,7 +11,7 @@ import {
   parseWireCatalog,
   parseWireDirs,
   parseWireUsage,
-  parseWireSources,
+  parseWireFeeds,
   parseWireSetAgents,
   parseWireTitleRuleApply,
   sealTitleRules,
@@ -42,7 +42,7 @@ import type {
   WireDirs,
   WireSharedAgents,
   WireUsage,
-  WireSources,
+  WireFeeds,
   WireNote,
   WireNoteInput,
   WireSchedule,
@@ -86,10 +86,10 @@ interface FakeWire extends WireBackend {
   catalogSupported: boolean;
   usage: WireUsage | undefined;
   usageSupported: boolean;
-  sourcesWire: WireSources | undefined;
-  sourcesSupported: boolean;
-  sourceRequests: string[];
-  sourceAcks: string[][];
+  feedsWire: WireFeeds | undefined;
+  feedsSupported: boolean;
+  feedRequests: string[];
+  feedAcks: string[][];
   agents: WireSharedAgents | null;
   titleRules: WireTitleRules | null;
   titleRuleBodies: WireTitleRuleApply[];
@@ -112,10 +112,10 @@ function fakeWire(): FakeWire {
     catalogSupported: true,
     usage: undefined,
     usageSupported: true,
-    sourcesWire: undefined,
-    sourcesSupported: true,
-    sourceRequests: [],
-    sourceAcks: [],
+    feedsWire: undefined,
+    feedsSupported: true,
+    feedRequests: [],
+    feedAcks: [],
     agents: null,
     titleRules: null,
     titleRuleBodies: [],
@@ -225,18 +225,18 @@ function fakeWire(): FakeWire {
     async usageState() {
       return { supported: state.usageSupported, index: state.usage?.index ?? null };
     },
-    async setSources(body) {
-      state.sourcesWire = parseWireSources(JSON.parse(record(state, body)));
+    async setFeeds(body) {
+      state.feedsWire = parseWireFeeds(JSON.parse(record(state, body)));
     },
-    async sourcesState() {
+    async feedsState() {
       return {
-        supported: state.sourcesSupported,
-        index: state.sourcesWire?.index ?? null,
-        requests: state.sourceRequests,
+        supported: state.feedsSupported,
+        index: state.feedsWire?.index ?? null,
+        requests: state.feedRequests,
       };
     },
-    async ackSourceRequests(body) {
-      state.sourceAcks.push(body.requests);
+    async ackFeedRequests(body) {
+      state.feedAcks.push(body.requests);
     },
     async getAgents() {
       return state.agents;

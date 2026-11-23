@@ -1,6 +1,7 @@
 import { MantineProvider } from '@mantine/core';
+import { ModalsProvider, modals } from '@mantine/modals';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TRPCClientError } from '@trpc/client';
 import { MemoryRouter } from 'react-router-dom';
@@ -36,9 +37,11 @@ function renderApp(path = '/') {
   render(
     <MantineProvider>
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={[path]}>
-          <App />
-        </MemoryRouter>
+        <ModalsProvider>
+          <MemoryRouter initialEntries={[path]}>
+            <App />
+          </MemoryRouter>
+        </ModalsProvider>
       </QueryClientProvider>
     </MantineProvider>,
   );
@@ -48,6 +51,7 @@ function renderApp(path = '/') {
 beforeEach(() => {
   fetchMe.mockReset();
   localStorage.clear();
+  sessionStorage.clear();
 });
 
 describe('App', () => {
@@ -109,6 +113,30 @@ describe('App', () => {
     expect(await screen.findByText('the sign-in page')).toBeInTheDocument();
     expect(screen.queryByLabelText('draft of jascha')).not.toBeInTheDocument();
     expect(screen.queryByText('Board unreachable, retrying')).not.toBeInTheDocument();
+  });
+
+  it('closes an open modal when the session ends, so it cannot write a draft again', async () => {
+    fetchMe.mockResolvedValueOnce({ username: 'jascha', keyId: 'k1' });
+    const queryClient = renderApp();
+    await screen.findByLabelText('draft of jascha');
+    act(() => {
+      modals.open({ title: 'an open modal', children: <p>modal body</p> });
+    });
+    expect(await screen.findByText('modal body')).toBeInTheDocument();
+    fetchMe.mockRejectedValueOnce(refused());
+    await queryClient.refetchQueries({ queryKey: ['me'] });
+    await screen.findByText('the sign-in page');
+    await waitFor(() => expect(screen.queryByText('modal body')).not.toBeInTheDocument());
+  });
+
+  it('removes every unsent draft when the session has ended', async () => {
+    sessionStorage.setItem('agent-board.draft/jascha/k1/reply:t1', '{"value":"half a reply"}');
+    sessionStorage.setItem('unrelated', 'x');
+    fetchMe.mockRejectedValueOnce(refused());
+    renderApp();
+    await screen.findByText('the sign-in page');
+    expect(sessionStorage.getItem('agent-board.draft/jascha/k1/reply:t1')).toBeNull();
+    expect(sessionStorage.getItem('unrelated')).toBe('x');
   });
 
   it('follows another tab’s sign-in and sign-out', async () => {

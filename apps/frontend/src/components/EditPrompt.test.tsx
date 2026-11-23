@@ -4,6 +4,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BoardTask } from '../lib/trpc';
+import { createMemoryDraftStorage, draftKeys } from '../test/draftStorage';
+import { DraftsProvider } from './DraftsProvider';
 import { EditTaskPrompt } from './EditPrompt';
 
 const editTask = vi.hoisted(() => vi.fn(async (_: unknown) => ({})));
@@ -116,5 +118,51 @@ describe('EditTaskPrompt', () => {
   it('shows no button for a task that cannot be edited', () => {
     renderWith(<EditTaskPrompt task={task({ started: true })} />);
     expect(screen.queryByRole('button', { name: 'Edit prompt' })).not.toBeInTheDocument();
+  });
+});
+
+describe('EditTaskPrompt unsent text', () => {
+  const identity = { username: 'jascha', keyId: 'k1' };
+  const view = (row: BoardTask, storage: ReturnType<typeof createMemoryDraftStorage>) => (
+    <MantineProvider>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <DraftsProvider identity={identity} storage={storage}>
+          <EditTaskPrompt task={row} />
+        </DraftsProvider>
+      </QueryClientProvider>
+    </MantineProvider>
+  );
+  const edit = async () => {
+    await userEvent.click(screen.getByRole('button', { name: 'Edit prompt' }));
+    return screen.findByLabelText('Prompt');
+  };
+
+  it('is restored after the editor is closed and reopened', async () => {
+    const storage = createMemoryDraftStorage();
+    render(view(task(), storage));
+    await edit();
+    await retype('Prompt', 'half a rewrite');
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByLabelText('Prompt')).not.toBeInTheDocument());
+    expect(await edit()).toHaveValue('half a rewrite');
+  });
+
+  it('is dropped when the task’s prompt changed meanwhile, also after a reload', async () => {
+    const storage = createMemoryDraftStorage();
+    const first = render(view(task(), storage));
+    await edit();
+    await retype('Prompt', 'half a rewrite');
+    first.unmount();
+    render(view(task({ input: 'Changed elsewhere' }), storage));
+    expect(await edit()).toHaveValue('Changed elsewhere');
+  });
+
+  it('is dropped by Cancel', async () => {
+    const storage = createMemoryDraftStorage();
+    render(view(task(), storage));
+    await edit();
+    await retype('Prompt', 'half a rewrite');
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(draftKeys(storage)).toHaveLength(0);
   });
 });

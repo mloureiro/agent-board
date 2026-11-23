@@ -1,10 +1,12 @@
 import { MantineProvider } from '@mantine/core';
+import { ModalsProvider, modals } from '@mantine/modals';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { KeyGate } from './KeyGate';
 import { createKeySetup } from './keySlots';
+import { createMemoryDraftStorage, draftKeys, type MemoryDraftStorage } from '../test/draftStorage';
 import { createMemoryKeyStore } from '../test/memoryKeyStore';
 import { useKeys, useLock } from './KeyContext';
 import type { Keys } from '@agent-board/shared';
@@ -45,11 +47,15 @@ function renderGate(me: { username: string; keyId: string | null }, store = crea
   return store;
 }
 
-function renderGateWith(me: { username: string; keyId: string | null }, store = createMemoryKeyStore(keys)) {
+function renderGateWith(
+  me: { username: string; keyId: string | null },
+  store = createMemoryKeyStore(keys),
+  draftStorage?: MemoryDraftStorage,
+) {
   const view = render(
     <MantineProvider>
       <QueryClientProvider client={new QueryClient()}>
-        <KeyGate me={me} store={store}>
+        <KeyGate me={me} store={store} draftStorage={draftStorage}>
           <Probe />
         </KeyGate>
       </QueryClientProvider>
@@ -146,5 +152,81 @@ describe('KeyGate', () => {
     expect(queryClient.getQueryData(tasksKey)).toBeUndefined();
     expect(queryClient.getQueryData(meKey)).toBeDefined();
     expect(queryClient.getMutationCache().getAll()).toHaveLength(0);
+  });
+
+  describe('unsent drafts', () => {
+    const own = () => `agent-board.draft/jascha/${keys.keyId}/reply:t1`;
+    const other = 'agent-board.draft/someone/k9/reply:t1';
+    const seeded = () =>
+      createMemoryDraftStorage({ [own()]: '{"value":"mine"}', [other]: '{"value":"theirs"}', unrelated: 'x' });
+
+    it('Lock removes every draft and leaves other keys alone', async () => {
+      const draftStorage = seeded();
+      render(
+        <MantineProvider>
+          <QueryClientProvider client={new QueryClient()}>
+            <KeyGate
+              me={{ username: 'jascha', keyId: keys.keyId }}
+              store={createMemoryKeyStore(keys)}
+              draftStorage={draftStorage}
+            >
+              <LockButton />
+            </KeyGate>
+          </QueryClientProvider>
+        </MantineProvider>,
+      );
+      await userEvent.click(await screen.findByRole('button', { name: 'lock' }));
+      expect(await screen.findByText('Unlock the board')).toBeInTheDocument();
+      expect(draftKeys(draftStorage)).toEqual([]);
+      expect(draftStorage.entries.has('unrelated')).toBe(true);
+    });
+
+    it('closes an open modal on Lock, so it cannot write a draft after the lock', async () => {
+      render(
+        <MantineProvider>
+          <ModalsProvider>
+            <QueryClientProvider client={new QueryClient()}>
+              <KeyGate
+                me={{ username: 'jascha', keyId: keys.keyId }}
+                store={createMemoryKeyStore(keys)}
+                draftStorage={createMemoryDraftStorage()}
+              >
+                <button onClick={() => modals.open({ title: 'an open modal', children: <p>modal body</p> })}>
+                  open
+                </button>
+                <LockButton />
+              </KeyGate>
+            </QueryClientProvider>
+          </ModalsProvider>
+        </MantineProvider>,
+      );
+      await userEvent.click(await screen.findByRole('button', { name: 'open' }));
+      expect(await screen.findByText('modal body')).toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: 'lock' }));
+      expect(await screen.findByText('Unlock the board')).toBeInTheDocument();
+      await waitFor(() => expect(screen.queryByText('modal body')).not.toBeInTheDocument());
+    });
+
+    it('keeps only the shown identity’s drafts once the app is shown', async () => {
+      const draftStorage = seeded();
+      renderGateWith({ username: 'jascha', keyId: keys.keyId }, createMemoryKeyStore(keys), draftStorage);
+      await screen.findByText('unlocked as jascha');
+      await waitFor(() => expect(draftKeys(draftStorage)).toEqual([own()]));
+    });
+
+    it('removes every draft when the gate settles on the unlock screen', async () => {
+      const draftStorage = seeded();
+      renderGateWith({ username: 'jascha', keyId: keys.keyId }, createMemoryKeyStore(), draftStorage);
+      await screen.findByText('Unlock the board');
+      await waitFor(() => expect(draftKeys(draftStorage)).toEqual([]));
+    });
+
+    it('removes nothing while the stored keys are still being checked', async () => {
+      const draftStorage = seeded();
+      const pending = { ...createMemoryKeyStore(keys), load: () => new Promise<never>(() => undefined) };
+      renderGateWith({ username: 'jascha', keyId: keys.keyId }, pending, draftStorage);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(draftKeys(draftStorage)).toHaveLength(2);
+    });
   });
 });

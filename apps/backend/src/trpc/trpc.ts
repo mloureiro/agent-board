@@ -55,12 +55,9 @@ class Rollback<R> extends Error {
   }
 }
 
-/** Keys and machines do not change what dispatch decides; a source request is applied by a dispatch tick; an import brings tasks, schedules and machines at once. */
+/** Keys and machines do not change what dispatch decides; a feed request is applied by a dispatch tick; an import brings tasks, schedules and machines at once. */
 const changesDispatch = (path: string): boolean =>
-  path.startsWith('tasks.') ||
-  path.startsWith('schedules.') ||
-  path.startsWith('sources.') ||
-  path === 'account.import';
+  path.startsWith('tasks.') || path.startsWith('schedules.') || path.startsWith('feeds.') || path === 'account.import';
 
 /** Refuses a request nobody is signed in for, then runs the rest of the procedure in one transaction scoped to the user, exposed as `ctx.db`. */
 const scoped = t.middleware(async ({ ctx, next, path, type }) => {

@@ -4,6 +4,7 @@ import { IconGitMerge } from '@tabler/icons-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Fragment, useState, type DragEvent } from 'react';
 import { moveConfirmed } from '../components/confirmStart';
+import { useDraftStore } from '../lib/draftsContext';
 import { IncompatibleMachinesBanner } from '../components/IncompatibleMachinesBanner';
 import { labelSuggestions } from '../components/LabelsEditor';
 import { QueryStatus } from '../components/QueryStatus';
@@ -67,6 +68,7 @@ function BoardColumns({ only }: { only?: Status }) {
   const done = useMutation(trpc.tasks.done.mutationOptions());
   const configure = useMutation(trpc.tasks.configure.mutationOptions());
   const polish = usePolish();
+  const drafts = useDraftStore();
   const [dragId, setDragId] = useState<string | null>(null);
   const [over, setOver] = useState<DropTarget | null>(null);
 
@@ -91,7 +93,7 @@ function BoardColumns({ only }: { only?: Status }) {
       : dropNeighbors(ids, dragId, over?.status === status ? over.beforeId : undefined);
     const run = (sent: Proposal | undefined = task) => move.mutate({ id: dragId, status, ...neighbors, task: sent });
     if (task === undefined) run();
-    else moveConfirmed(task, status, run);
+    else moveConfirmed(task, status, drafts, run);
   };
 
   const renderColumn = (status: Status) => {

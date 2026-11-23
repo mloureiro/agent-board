@@ -61,6 +61,8 @@ import { runProcess } from './process.mts';
 import type { RunChannel, RunResult, Watch } from './process.mts';
 import { clockTime, eventsMessage } from '../watch/fence.mts';
 import { publishWatches } from '../watch/publish.mts';
+import { createFeedUpdates } from '../feeds/updates.mts';
+import type { FeedUpdates } from '../feeds/updates.mts';
 import { createWatchStore } from '../watch/store.mts';
 import type { StoredEvent, WatchDef, WatchStore } from '../watch/store.mts';
 
@@ -117,6 +119,8 @@ export interface WorkerDeps extends Context {
   watchEveryMs: number;
   // The watches of this machine: the worker marks its task live, hands the agent the events in the spool and parks on open watches.
   watches: WatchStore;
+  // The prompts a feed left for the resume of its tasks; read with the watch events and deleted once the agent has output.
+  feedUpdates: FeedUpdates;
   // Default: 2 seconds.
   spoolEveryMs?: number;
   // Keeps the machine awake while the run goes (macOS); returns the function that ends it. Best effort.
@@ -217,16 +221,20 @@ async function runTask(
   }
   const notes = await backend.readNotes(task.id);
   const spooled = watches.events(task.id);
+  const feedUpdate = deps.feedUpdates.read(task.id);
   const planned = planRun(task, notes, {
     newSessionId: deps.newSessionId,
     isOwnSession: deps.sessions.has,
     watches: { events: spooled.map(({ event }) => event), open: watches.list(task.id).defs, now: deps.now() },
+    ...(feedUpdate === undefined ? {} : { feedUpdate }),
   });
   // A fork that starts over continues a copy of its parent's session, so the parent is looked up first.
   const run =
     planned.kind === 'fresh' && task.forkOf !== undefined
       ? planFork(planned, task, await forkParentOf(backend, task.forkOf), { isOwnSession: deps.sessions.has })
       : planned;
+  // A run that does not resume starts from the task's input, so an update prompt that was waiting is stale.
+  if (run.kind !== 'resume') deps.feedUpdates.drop(task.id);
   if (run.kind === 'blocked') return fail(run.reason);
   // Publishing is best effort and does not hold the run.
   const publishWatchState = (): void => {
@@ -417,6 +425,7 @@ async function runTask(
     return beating;
   };
   let firstOutput = oldestEvent === undefined;
+  let updateInPrompt = run.kind === 'resume' && feedUpdate !== undefined;
   // An agent's run lists the skills of the user's settings only (`--setting-sources user`), which the directory's catalogue is not.
   let skillsReported = restricted !== undefined;
   let lastUsage: RateLimitReading | undefined;
@@ -446,6 +455,10 @@ async function runTask(
       } catch (error) {
         deps.appendLog(taskId, `the run's context windows were not recorded: ${errorText(error)}`);
       }
+    }
+    if (updateInPrompt) {
+      updateInPrompt = false;
+      deps.feedUpdates.drop(task.id);
     }
     if (!firstOutput && oldestEvent !== undefined) {
       firstOutput = true;
@@ -826,6 +839,7 @@ export async function workerMain(taskId: string): Promise<void> {
     worktreeLocks: createWorktreeLocks(),
     files: createRunFiles(),
     watches: createWatchStore(),
+    feedUpdates: createFeedUpdates(),
     hookCommand,
     now: () => new Date(),
     watchChanges: (onChange) => {

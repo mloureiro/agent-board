@@ -6,6 +6,7 @@ import { AGENT_NAME_RULE, broadRule, deadAllowTools, isAgentName, isRecord, look
 import type { Backend, SharedAgentsDocument } from '@agent-board/shared';
 import { BackendError } from '../backend/backend.mts';
 import { UsageError } from '../cli.mts';
+import { readTextFile } from './read-text-file.mts';
 import { agentDocument, parseAgentDocument, renderAgentDocument, writeAgentFile } from '../config/agent-document.mts';
 export { agentDocument, writeAgentFile };
 import type { AgentFormat } from '../config/agent-document.mts';
@@ -250,13 +251,7 @@ async function readSource(deps: AgentsDeps, from: string): Promise<{ text: strin
     return { text, source: url.href, stem: agentFileName(basename(url.pathname)) };
   }
   const path = resolve(deps.cwd, expandHome(from));
-  let text: string;
-  try {
-    text = readFileSync(path, 'utf8');
-  } catch (error) {
-    const code = error instanceof Error && 'code' in error ? String(error.code) : 'unknown error';
-    throw new UsageError(`cannot read ${plainLine(path)} (${code})`);
-  }
+  const text = readTextFile(path);
   return { text, source: path, stem: agentFileName(basename(path)) };
 }
 
