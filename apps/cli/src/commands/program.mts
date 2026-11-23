@@ -14,6 +14,7 @@ import { registerConfigCommand } from './register-config.mts';
 import { registerAgentsCommand } from './register-agents.mts';
 import { registerDirsCommand } from './register-dirs.mts';
 import { registerFeedsCommand } from './register-feeds.mts';
+import { registerPluginsCommand } from './register-plugin.mts';
 import { registerInternalCommands } from './register-internal.mts';
 import { registerDelayCommand, registerScheduleCommands } from './register-scheduling.mts';
 import { registerSetupCommands } from './register-setup.mts';
@@ -139,6 +140,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
   registerScheduleCommands(shared);
   registerDirsCommand(shared);
   registerFeedsCommand(shared);
+  registerPluginsCommand(shared);
   registerConfigCommand(shared);
   registerAgentsCommand(shared);
   registerDelayCommand(shared);

@@ -53,6 +53,8 @@ Scheduling:
 Setup:
   dirs [action...]           list, add, remove or set up the directories workers
                              may run in on this machine
+  plugins [action...]        install, update, remove or list the marketplaces of
+                             feed integrations
   config [action...]         show or change this machine's config.json
   agents [action...]         list, show, export, add or remove the agents of
                              this machine, or push one to every machine
@@ -1156,6 +1158,42 @@ Examples:
   board dirs set lane reviews ~/workspace/reviews
   board dirs set ciIgnore 'policy-bot*,hold *' ~/workspace/acme/app
   board dirs unset label
+```
+
+### board plugins
+
+```
+Usage: board plugins [list | install <url> | update <name> | remove <name>]
+
+A marketplace is a git repository that lists integrations, programs a feed runs
+to read another tool such as GitHub. `install <url>` clones it under the state
+directory and pins the commit it was at; a feed then names an integration as
+`<marketplace>:<integration>`. The code of a marketplace runs with your
+authority, so install only repositories you trust.
+
+The pin is the commit you installed. Only `update <name>` moves it: it fetches
+the default branch of the marketplace, checks it, moves the pin and prints the
+commits you accept. Nothing else fetches, and no timer does. A checkout that is
+at another commit than its pin, or whose tracked files were edited, is not used
+until you run `update` or discard the edits.
+
+`remove <name>` deletes the checkout and the entry, and refuses while a feed in
+config.json names the marketplace. `list` shows each marketplace with its pin
+state and integrations. Install, update and remove are not available inside a
+board run.
+
+Arguments:
+  action      list, install, update or remove, then the git URL (install) or the
+              marketplace name
+
+Options:
+  -h, --help  display help for command
+
+Examples:
+  board plugins install https://github.com/mloureiro/agent-board-plugins
+  board plugins list
+  board plugins update mloureiro
+  board plugins remove mloureiro
 ```
 
 ### board config
