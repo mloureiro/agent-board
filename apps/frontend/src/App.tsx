@@ -1,4 +1,5 @@
 import { Badge, Center, Loader, Text } from '@mantine/core';
+import { modals } from '@mantine/modals';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
@@ -39,7 +40,10 @@ function SignedInApp() {
   });
   const signedOut = isUnauthorized(me.error);
   useEffect(() => {
-    if (signedOut) removeDrafts();
+    if (signedOut) {
+      removeDrafts();
+      modals.closeAll();
+    }
   }, [signedOut]);
   // Another tab signing in or out changes what this one is allowed to see.
   useEffect(() => subscribeToSession(() => void queryClient.resetQueries()), [queryClient]);

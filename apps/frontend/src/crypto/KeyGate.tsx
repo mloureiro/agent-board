@@ -1,5 +1,6 @@
 import type { Keys } from '@agent-board/shared';
 import { Center, Loader } from '@mantine/core';
+import { modals } from '@mantine/modals';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useState, type PropsWithChildren } from 'react';
 import { DraftsProvider } from '../components/DraftsProvider';
@@ -84,6 +85,7 @@ export function KeyGate({ me, store = defaultStore, draftStorage, children }: Pr
     dropBoard(queryClient);
     queryClient.getMutationCache().clear();
     removeDrafts({ storage: draftStorage });
+    modals.closeAll();
   }, [queryClient, draftStorage]);
   const lock = useCallback(async () => {
     await store.clear();

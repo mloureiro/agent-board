@@ -1,4 +1,5 @@
 import { MantineProvider } from '@mantine/core';
+import { ModalsProvider, modals } from '@mantine/modals';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -178,6 +179,32 @@ describe('KeyGate', () => {
       expect(await screen.findByText('Unlock the board')).toBeInTheDocument();
       expect(draftKeys(draftStorage)).toEqual([]);
       expect(draftStorage.entries.has('unrelated')).toBe(true);
+    });
+
+    it('closes an open modal on Lock, so it cannot write a draft after the lock', async () => {
+      render(
+        <MantineProvider>
+          <ModalsProvider>
+            <QueryClientProvider client={new QueryClient()}>
+              <KeyGate
+                me={{ username: 'jascha', keyId: keys.keyId }}
+                store={createMemoryKeyStore(keys)}
+                draftStorage={createMemoryDraftStorage()}
+              >
+                <button onClick={() => modals.open({ title: 'an open modal', children: <p>modal body</p> })}>
+                  open
+                </button>
+                <LockButton />
+              </KeyGate>
+            </QueryClientProvider>
+          </ModalsProvider>
+        </MantineProvider>,
+      );
+      await userEvent.click(await screen.findByRole('button', { name: 'open' }));
+      expect(await screen.findByText('modal body')).toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: 'lock' }));
+      expect(await screen.findByText('Unlock the board')).toBeInTheDocument();
+      await waitFor(() => expect(screen.queryByText('modal body')).not.toBeInTheDocument());
     });
 
     it('keeps only the shown identity’s drafts once the app is shown', async () => {

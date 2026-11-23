@@ -8,7 +8,7 @@ import { act } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { BoardTask, ThreadNote } from '../lib/trpc';
 import { stamp } from '../lib/time';
-import { createMemoryDraftStorage, draftKeys } from '../test/draftStorage';
+import { createMemoryDraftStorage, draftKeys, type MemoryDraftStorage } from '../test/draftStorage';
 import { ActionPanel } from './ActionPanel';
 import { DraftsProvider } from './DraftsProvider';
 
@@ -196,6 +196,11 @@ describe('ActionPanel draft', () => {
       </MemoryRouter>
     );
     const note_ = () => screen.getByPlaceholderText('Anything else the agent should know (optional)');
+    const stored = (client: QueryClient, task: BoardTask, thread: ThreadNote[], storage: MemoryDraftStorage) => (
+      <DraftsProvider identity={{ username: 'jascha', keyId: 'k1' }} storage={storage}>
+        {withThread(client, task, thread)}
+      </DraftsProvider>
+    );
 
     it('moves the typed text into the focused note, caret at its end', async () => {
       const client = new QueryClient();
@@ -208,6 +213,29 @@ describe('ActionPanel draft', () => {
       expect([field.selectionStart, field.selectionEnd]).toEqual([11, 11]);
       view.rerender(withThread(client, running({ status: 'needs-me', openQuestion: false }), []));
       expect(screen.getByRole('textbox')).toHaveValue('');
+    });
+
+    it('keeps the text moved into the note when the page is left and shown again', async () => {
+      const storage = createMemoryDraftStorage();
+      const client = new QueryClient();
+      const view = render(stored(client, running({}), [], storage));
+      await userEvent.type(screen.getByRole('textbox'), 'half a sent');
+      view.rerender(stored(client, running({ status: 'needs-me', openQuestion: true }), [note], storage));
+      expect(note_()).toHaveValue('half a sent');
+      view.unmount();
+      render(stored(client, running({ status: 'needs-me', openQuestion: true }), [note], storage));
+      expect(note_()).toHaveValue('half a sent');
+    });
+
+    it('leaves no answer draft behind once the answer is sent', async () => {
+      answer.mockClear();
+      const storage = createMemoryDraftStorage();
+      render(stored(new QueryClient(), running({ status: 'needs-me', openQuestion: true }), [note], storage));
+      await userEvent.click(screen.getByText('Yes'));
+      expect(draftKeys(storage).some((key) => key.includes('/answer:'))).toBe(true);
+      await userEvent.click(screen.getByRole('button', { name: /Answer & continue/ }));
+      await waitFor(() => expect(answer).toHaveBeenCalled());
+      await waitFor(() => expect(draftKeys(storage).filter((key) => key.includes('/answer:'))).toEqual([]));
     });
 
     it('leaves the note empty and unfocused when nothing was typed', () => {

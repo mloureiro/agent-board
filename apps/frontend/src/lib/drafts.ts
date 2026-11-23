@@ -196,12 +196,12 @@ export function answerSlot(
   handover = '',
 ): DraftSlot<AnswerDraft> {
   const initial: AnswerDraft = { picks: initialPicks(questions), note: handover };
-  const initialJson = JSON.stringify(initial);
+  const untouchedJson = JSON.stringify({ picks: initial.picks, note: '' });
   return {
     key: `answer:${taskId}:${noteId}:${round}`,
     initial,
     base: fnv1a(JSON.stringify(questions)),
-    isEmpty: (value) => JSON.stringify(value) === initialJson,
+    isEmpty: (value) => JSON.stringify(value) === untouchedJson,
     parse: (raw) => {
       if (!isRecord(raw) || !Array.isArray(raw['picks']) || !isString(raw['note'])) return undefined;
       const picks: unknown[] = raw['picks'];

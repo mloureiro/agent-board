@@ -632,6 +632,12 @@ export function ActionPanel({
     moveConfirmed(task, 'todo', drafts, (sent) => actions.move.mutate({ id: task.id, status: 'todo', task: sent }));
 
   if (asking && message !== '') {
+    if (drafts && openQuestion?.questions) {
+      const slot = answerSlot(task.id, openQuestion.id, 0, openQuestion.questions);
+      const stored = drafts.read(slot);
+      if (stored === undefined || stored.note.trim() === '')
+        drafts.write(slot, { ...(stored ?? slot.initial), note: message });
+    }
     setHandover({ text: message, focus: replyFocused });
     setMessage('');
   } else if (!asking && handover !== null) {
