@@ -20,6 +20,7 @@ import { SourcesPage } from './pages/SourcesPage';
 import { AccountSettings } from './pages/settings/AccountSettings';
 import { EncryptionSettings } from './pages/settings/EncryptionSettings';
 import { LinksSettings } from './pages/settings/LinksSettings';
+import { TitlesSettings } from './pages/settings/TitlesSettings';
 import { MachinesSettings } from './pages/settings/MachinesSettings';
 import { NotificationsSettings } from './pages/settings/NotificationsSettings';
 import { SettingsLayout } from './pages/settings/SettingsLayout';
@@ -90,6 +91,7 @@ function SignedInApp() {
                   <Route path="encryption" element={<EncryptionSettings />} />
                   <Route path="agents" element={<AgentsPage />} />
                   <Route path="links" element={<LinksSettings />} />
+                  <Route path="titles" element={<TitlesSettings />} />
                   <Route path="account" element={<AccountSettings />} />
                   <Route path="*" element={<Navigate to="/settings/machines" replace />} />
                 </Route>

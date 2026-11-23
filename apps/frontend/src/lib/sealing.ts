@@ -12,6 +12,7 @@ import {
   sealLabels,
   sealInput,
   sealLinkRules,
+  sealTitleRules,
   sealNote,
   sealTitle,
   sealWorkdir,
@@ -24,6 +25,7 @@ import {
   type Question,
   type RowRef,
   type Status,
+  type TitleRule,
   type Polish,
   type TaskCreator,
   type UnreadableField,
@@ -451,6 +453,19 @@ export async function sealScheduleUpdate(keys: Keys, update: ScheduleUpdate): Pr
     ...(sealed.agent === undefined ? {} : { agent: sealed.agent }),
     place: place === null || sealed.workdir === undefined ? null : { machine: place.machine, workdir: sealed.workdir },
   };
+}
+
+export type TitleRulesInput = RouterInputs['titleRules']['set'];
+
+/** The next version of the title rules, sealed under its own version, for a save over `expectedVersion` (0: none saved yet). */
+export async function sealTitleRulesInput(
+  keys: Keys,
+  rules: TitleRule[],
+  expectedVersion: number,
+): Promise<TitleRulesInput> {
+  const version = expectedVersion + 1;
+  const document = await checked(() => sealTitleRules(sealerFor(keys), { version, rules }));
+  return { document, version, expectedVersion };
 }
 
 export type LinkRulesInput = RouterInputs['links']['set'];
