@@ -305,7 +305,10 @@ test('help and version print and end normally, help of a command lists flags and
   assert.match(help, /Usage: board schedule/);
   assert.match(help, /--every <duration>/);
   assert.match(help, /Examples:/);
-  assert.equal(await printed(['--version'], { version: '1.2.3-dev' }), `board 1.2.3-dev (api ${API_VERSION})\n`);
+  assert.equal(
+    await printed(['--version'], { version: '1.2.3-dev' }),
+    `board 1.2.3-dev (api ${API_VERSION}, updates with git pull)\n`,
+  );
 });
 
 test('help text inside a comment is text, not a request for help', async () => {

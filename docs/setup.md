@@ -222,6 +222,10 @@ board restart
 
 `<tag>` is the newest `cli-v*` release that `gh release list -R mloureiro/agent-board` shows. A checkout install is updated with `git pull` and does not need this.
 
+### `board --version` names its updater (CLI 0.36.0)
+
+`board --version` ends with where the CLI updates from: `updates from mloureiro/agent-board` for a release binary, `updates with git pull` for a checkout. The CLI alone changes. A script that matches the whole line needs the new ending; one that matches `(api <n>` still works.
+
 ### Feeds, plugins and Settings › Feeds (CLI 0.34.0)
 
 The CLI adds `board feeds`, `board plugins` and a `feeds` key in `config.json` (see [Feeds](usage.md#feeds) and [Plugins](plugins.md)). The server adds the feature `machine.feeds`, migrations `0047_machine-sources`, `0050_drop-machine-sources` and `0051_machine-feeds`, and the **Feeds** page under Settings. The migrations run when the backend starts. Deploy and release in any order. No `MIN_CLIENT` or `API_VERSION` change.

@@ -1,11 +1,11 @@
 import { Command, CommanderError } from 'commander';
-import { API_VERSION } from '@agent-board/shared';
 import { readNoteFile } from './board.mts';
 import { buildContext, readStdin, runScopeFromEnv, UsageError } from '../cli.mts';
 import type { Context, LinkingContext } from '../cli.mts';
 import { getPaths } from '../config/config.mts';
 import { resolveTaskId } from './ids.mts';
-import { cliVersion } from '../self/version.mts';
+import { isCompiledBinary } from '../self/self.mts';
+import { cliVersion, versionLine } from '../self/version.mts';
 import { updateHint } from '../self/update-hint.mts';
 import { createUpdateState, updateStateFile } from '../self/update-state.mts';
 import { SETUP } from './help-text.mts';
@@ -50,7 +50,7 @@ export function buildProgram(options: ProgramOptions = {}): Command {
     .showSuggestionAfterError()
     .configureOutput({ writeOut, writeErr, outputError: () => undefined })
     .configureHelp({ subcommandTerm: overviewTerm })
-    .version(`board ${options.version ?? cliVersion()} (api ${API_VERSION})`, '-V, --version', 'print the version')
+    .version(versionLine(options.version ?? cliVersion(), isCompiledBinary()), '-V, --version', 'print the version')
     .option('--dry-run', 'read everything, print every write instead of doing it')
     .description(
       'Work with the agent board from a terminal, and from inside a run: comment on tasks, move them, schedule new ones.',

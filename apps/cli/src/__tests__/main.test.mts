@@ -62,7 +62,7 @@ test('help and version need no config file', async () => {
     for (const flag of ['--version', '-V']) {
       const result = await run('board', [flag], dir);
       assert.equal(result.code, 0);
-      assert.match(result.stdout, /^board \d+\.\d+\.\d+-dev \(api \d+\)\n$/);
+      assert.match(result.stdout, /^board \d+\.\d+\.\d+-dev \(api \d+, updates with git pull\)\n$/);
     }
     for (const result of [overview, await run('board', ['--version'], dir)])
       assert.doesNotMatch(result.stderr, /config file missing/);
