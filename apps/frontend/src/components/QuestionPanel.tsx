@@ -44,6 +44,10 @@ interface Props {
   /** Drops the questions without an answer. The panel asks the user to confirm first. */
   onDismiss: () => void;
   dismissing: boolean;
+  /** Text typed in the reply box before the question arrived: the start value of the note. */
+  handover?: string;
+  /** Focus the note, caret at its end. */
+  focusNote?: boolean;
 }
 
 interface FormProps extends Props {
@@ -81,7 +85,7 @@ const sameQuestions = (a: Question[], b: Question[]): boolean => JSON.stringify(
  * under the same note id, nothing is swapped in silently: the form is replaced by a notice, the picks are dropped, and the
  * user chooses to look at the changed questions, which starts a new set of picks.
  */
-export function QuestionPanel({ questions, submitting, onSubmit, onDismiss, dismissing }: Props) {
+export function QuestionPanel({ questions, submitting, onSubmit, onDismiss, dismissing, handover, focusNote }: Props) {
   const [shown, setShown] = useState(questions);
   const [round, setRound] = useState(0);
   if (!sameQuestions(shown, questions))
@@ -118,6 +122,8 @@ export function QuestionPanel({ questions, submitting, onSubmit, onDismiss, dism
       onSubmit={onSubmit}
       onDismiss={onDismiss}
       dismissing={dismissing}
+      handover={handover}
+      focusNote={focusNote}
     />
   );
 }
@@ -125,10 +131,10 @@ export function QuestionPanel({ questions, submitting, onSubmit, onDismiss, dism
 /** A drawer or modal covers the form, so a key pressed there must not change the answer behind it. */
 const isOverlayOpen = (): boolean => document.querySelector('[role="dialog"]') !== null;
 
-function QuestionForm({ questions, submitting, onSubmit, onDismiss, dismissing }: FormProps) {
+function QuestionForm({ questions, submitting, onSubmit, onDismiss, dismissing, handover = '', focusNote }: FormProps) {
   const [drafts, setDrafts] = useState<Draft[]>(() => initial(questions));
   const [active, setActive] = useState(0);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState(handover);
   const ready = drafts.every((draft, index) => questions[index]?.multiSelect || isAnswered(draft));
 
   const update = (index: number, change: Partial<Draft>) =>
@@ -300,6 +306,7 @@ function QuestionForm({ questions, submitting, onSubmit, onDismiss, dismissing }
           onChange={setMessage}
           minRows={2}
           onSubmit={submit}
+          autoFocus={focusNote}
           placeholder="Anything else the agent should know (optional)"
         />
         <Group justify="space-between">

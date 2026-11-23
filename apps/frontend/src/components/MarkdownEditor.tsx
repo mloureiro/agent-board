@@ -50,6 +50,13 @@ export function MarkdownEditor({
   const combobox = useCombobox({ opened: open });
   const optionId = (index: number): string => `${listId}-skill-${index}`;
 
+  useEffect(() => {
+    const element = field.current;
+    if (!autoFocus || element === null) return;
+    element.focus();
+    element.setSelectionRange(element.value.length, element.value.length);
+  }, [autoFocus]);
+
   // The caret can only be placed once the new text is in the field.
   useEffect(() => {
     if (caretAfter.current === null) return;
@@ -141,7 +148,6 @@ export function MarkdownEditor({
                   setFocused(true);
                 }}
                 onBlur={() => setFocused(false)}
-                autoFocus={autoFocus}
                 styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)', fontSize: 13 } }}
               />
             </Combobox.Target>
