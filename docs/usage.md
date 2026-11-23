@@ -1025,7 +1025,7 @@ Until a machine's `web.json` points at the new board, it keeps working against t
 
 ### Delete account
 
-**Delete account** removes everything the board holds for you: tasks, schedules, notes, machines with their tokens, link rules, transcripts, the key slots, your passkeys and your sessions in every browser. The confirmation shows the counts and asks you to type your username. It recommends an export first. It warns when tasks are running: those runs go on on their machines but can no longer report.
+**Delete account** removes everything the board holds for you: tasks, schedules, notes, machines with their tokens, link rules, title rules, transcripts, the key slots, your passkeys and your sessions in every browser. The confirmation shows the counts and asks you to type your username. It recommends an export first. It warns when tasks are running: those runs go on on their machines but can no longer report.
 
 Afterwards the browser forgets the keys and the notification setting, and shows a page that no longer talks to the board. Reloading leads to the sign-in page, or on a board without login to the setup screen of a new, empty board. Signing in again under the same name starts a new, empty board. Deleting cannot be undone.
 
