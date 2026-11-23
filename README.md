@@ -29,7 +29,7 @@ You need Linux with systemd, or macOS. You also need `claude` and `gh`, both log
 2. Install the CLI from the newest release:
 
    ```sh
-   gh release download --repo codeplant-de/agent-board --pattern install.sh -O - | sh
+   gh release download --repo mloureiro/agent-board --pattern install.sh -O - | sh
    ```
 
 3. Configure and start it:

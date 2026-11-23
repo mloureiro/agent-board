@@ -18,7 +18,7 @@ import { agentLabel, agentTarget, isAgentLoaded } from '../setup/launchd.mts';
 import { SystemError } from '../setup/system.mts';
 import { errorText } from '../output/text.mts';
 
-export const RELEASE_REPO = 'codeplant-de/agent-board';
+export const RELEASE_REPO = 'mloureiro/agent-board';
 const TAG_PREFIX = 'cli-v';
 // Releases are x.y.z only: a pre-release tag would rank above its release by number alone.
 const RELEASE_TAG = /^cli-v\d+\.\d+\.\d+$/;

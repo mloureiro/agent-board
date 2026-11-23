@@ -19,7 +19,7 @@ A machine that only uses the board, without running tasks, needs just `board ini
 Set up encryption in the browser first (see [Encryption](encryption.md#encryption)). On the board's **Settings › Machines** page, create a token for this machine and copy your data key. Then:
 
 ```sh
-gh release download --repo codeplant-de/agent-board --pattern install.sh -O - | sh
+gh release download --repo mloureiro/agent-board --pattern install.sh -O - | sh
 board init
 board setup --enable
 board doctor
@@ -27,7 +27,7 @@ board doctor
 
 #### install.sh
 
-`install.sh` downloads the newest `cli-v*` release for this platform, checks it against `SHA256SUMS` and installs it as `~/.local/bin/board`. `BOARD_INSTALL_DIR` chooses another directory.
+`install.sh` downloads the newest `cli-v*` release of `mloureiro/agent-board` for this platform, checks it against `SHA256SUMS` and installs it as `~/.local/bin/board`. `BOARD_INSTALL_DIR` chooses another directory.
 
 The checksum catches a broken or partial download. It is not a signature. Anyone who can write releases of this repository can replace the binary and `SHA256SUMS` together, so the trust is in who has write access to the repository.
 
@@ -208,6 +208,19 @@ The listener is one process that keeps the code it started with, across reconnec
 Stopping the listener waits for a dispatch tick that is running. The unit's `TimeoutStopSec` is 130 s: a tick's 110 s limit, its 10 s grace and a margin.
 
 The listener checks the API range each time it connects. When the server no longer serves this CLI, the listener logs that and exits, and systemd restarts it every 10 seconds until the CLI matches. When the server is older than the CLI, the listener logs that once and keeps reconnecting with its usual backoff.
+
+### Releases come from mloureiro/agent-board
+
+`board self-update`, the dispatcher's `autoUpdate` and `install.sh` download `cli-v*` releases from `mloureiro/agent-board`. The CLI alone changes, and the first release after 0.33.0 carries it.
+
+A CLI at 0.33.0 or older still lists and downloads the releases of `codeplant-de/agent-board`. It never sees a fork-only release, and an upstream release newer than its own would replace it with upstream's binary. Each such machine needs one manual install from the fork, after which `board self-update` works again:
+
+```sh
+gh release download <tag> -R mloureiro/agent-board --pattern install.sh -O - | sh
+board restart
+```
+
+`<tag>` is the newest `cli-v*` release that `gh release list -R mloureiro/agent-board` shows. A checkout install is updated with `git pull` and does not need this.
 
 ### Sources and the Sources page
 
