@@ -1391,6 +1391,11 @@ env. An env that has the token but no data key (or the reverse) is completed
 without --force: init asks for the missing value only. config.json is never
 replaced.
 
+With AGENT_BOARD_CREDENTIALS_COMMAND set to an executable, the token and the
+data key come from its output (the same two lines) and not from env: init
+refuses --token-file and --data-key-file, checks what the command prints, and
+writes web.json and config.json but no env.
+
 Not available inside a board run.
 
 Options:
@@ -1421,15 +1426,17 @@ fix), ! is a warning. Exit 1 if any check fails; warnings alone exit 0. The
 token is never printed.
 
 Checks: Node 24+ (checkout only), the config directory, web.json, env (mode 600
-or 400, token, data key), the board (reachable, token accepted, API version
-range, and whether it has a data key and this machine holds the same one),
-config.json, each installed plugin marketplace (still at the commit that was
-installed), each feed (it validates) and each integration the feeds use (its own
-`doctor`, run with the PATH the units run with), and for a worker machine
-claude, gh, flock, systemd-run, systemctl and the installed units with their
-timers and the listener (on macOS: claude, gh, lockf, the launchd agents and
-whether launchd has loaded them, the run directory, and a warning for a checkout
-under ~/Documents, ~/Desktop, ~/Downloads or iCloud Drive, which macOS keeps
+or 400, token, data key; with AGENT_BOARD_CREDENTIALS_COMMAND set, the
+credentials from that command instead, reported as `credentials: from <path>`),
+the board (reachable, token accepted, API version range, and whether it has a
+data key and this machine holds the same one), config.json, each installed
+plugin marketplace (still at the commit that was installed), each feed (it
+validates) and each integration the feeds use (its own `doctor`, run with the
+PATH the units run with), and for a worker machine claude, gh, flock,
+systemd-run, systemctl and the installed units with their timers and the
+listener (on macOS: claude, gh, lockf, the launchd agents and whether launchd
+has loaded them, the run directory, and a warning for a checkout under
+~/Documents, ~/Desktop, ~/Downloads or iCloud Drive, which macOS keeps
 background jobs out of). The worker checks only warn on a machine with no unit
 or agent installed, and are left out on a system other than Linux and macOS,
 where no worker runs.

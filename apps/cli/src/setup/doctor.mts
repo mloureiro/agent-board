@@ -47,6 +47,7 @@ import { catalogDirs, composeCatalog } from '../catalog/catalog.mts';
 import { createCatalogStore } from '../catalog/cache.mts';
 import type { CatalogStore } from '../catalog/cache.mts';
 import { dirsToSend, isAllowedDir, isDirectory, routedDirs, UNCOVERED_HINT } from '../config/dirs.mts';
+import { CREDENTIALS_COMMAND_VARIABLE, runCredentialsCommand } from '../config/credentials-source.mts';
 import { parseEnv } from '../config/env-file.mts';
 import { runDir } from '../worker/runtime.mts';
 import {
@@ -97,6 +98,9 @@ export interface CheckResult {
 export interface DoctorDeps {
   configDir: string;
   unitDir: string;
+  // AGENT_BOARD_CREDENTIALS_COMMAND when set: the credentials come from it and not from the env file.
+  credentialsCommand?: string;
+  runCredentials?: (command: string) => Record<string, string>;
   // The version of Node this runs on; undefined on another runtime.
   nodeVersion: string | undefined;
   readText: (path: string) => string | undefined;
@@ -143,7 +147,9 @@ export interface LaunchdDoctorDeps {
   writable: (dir: string) => boolean;
 }
 
-type Check = (deps: DoctorDeps) => CheckResult[] | Promise<CheckResult[]>;
+type Credentials = { token?: string; dataKey?: Uint8Array; results: CheckResult[] };
+
+type Check = (deps: DoctorDeps, credentials: Credentials) => CheckResult[] | Promise<CheckResult[]>;
 
 const ok = (name: string, message: string): CheckResult => ({ name, level: 'ok', message });
 const problem = (name: string, level: 'fail' | 'warn', message: string, hint: string): CheckResult => ({
@@ -262,11 +268,31 @@ function readWebUrl({ configDir, readText }: DoctorDeps): { url?: string; result
 
 const checkWeb: Check = (deps) => [readWebUrl(deps).result];
 
-function readCredentials({ configDir, readText, mode }: DoctorDeps): {
-  token?: string;
-  dataKey?: Uint8Array;
-  results: CheckResult[];
-} {
+function readCredentials(deps: DoctorDeps): Credentials {
+  const { configDir, readText, mode, credentialsCommand } = deps;
+  if (credentialsCommand !== undefined) {
+    let values: Record<string, string>;
+    try {
+      values = (deps.runCredentials ?? runCredentialsCommand)(credentialsCommand);
+    } catch (error) {
+      return {
+        results: [
+          problem(
+            'credentials',
+            'fail',
+            error instanceof ConfigError ? error.message : `${credentialsCommand} could not be run`,
+            `fix the command, or unset ${CREDENTIALS_COMMAND_VARIABLE} to use the env file`,
+          ),
+        ],
+      };
+    }
+    return checkValues(
+      values,
+      `the output of ${credentialsCommand}`,
+      [ok('credentials', `from ${credentialsCommand}`)],
+      credentialsCommand,
+    );
+  }
   const path = join(configDir, 'env');
   const text = readText(path);
   if (text === undefined)
@@ -292,15 +318,26 @@ function readCredentials({ configDir, readText, mode }: DoctorDeps): {
         `chmod 600 ${path}`,
       ),
     );
-  const values = parseEnv(text);
+  return checkValues(parseEnv(text), 'env', results, undefined);
+}
+
+function checkValues(
+  values: Record<string, string>,
+  source: string,
+  results: CheckResult[],
+  command: string | undefined,
+): Credentials {
+  const fixCommand = `fix what ${command ?? ''} prints, or unset ${CREDENTIALS_COMMAND_VARIABLE} to use the env file`;
   const token = values['AGENT_BOARD_TOKEN'];
   if (!token) {
     results.push(
       problem(
         'token',
         'fail',
-        'AGENT_BOARD_TOKEN is not set in env',
-        'run "board init": it sees the env without a token and asks for the token only',
+        `AGENT_BOARD_TOKEN is not set in ${source}`,
+        command === undefined
+          ? 'run "board init": it sees the env without a token and asks for the token only'
+          : fixCommand,
       ),
     );
   } else {
@@ -311,7 +348,9 @@ function readCredentials({ configDir, readText, mode }: DoctorDeps): {
             'token',
             'warn',
             'the token does not start with abm_',
-            "create a machine token on the board's Settings page",
+            command === undefined
+              ? "create a machine token on the board's Settings page"
+              : `create a machine token on the board's Settings page and store it where ${command} reads it`,
           ),
     );
   }
@@ -323,8 +362,10 @@ function readCredentials({ configDir, readText, mode }: DoctorDeps): {
       problem(
         'data key',
         'fail',
-        'AGENT_BOARD_DATA_KEY is not set in env',
-        'copy the data key from the board\'s Settings page and run "board init": it sees the env without a key and asks for the key only',
+        `AGENT_BOARD_DATA_KEY is not set in ${source}`,
+        command === undefined
+          ? 'copy the data key from the board\'s Settings page and run "board init": it sees the env without a key and asks for the key only'
+          : fixCommand,
       ),
     );
   } else {
@@ -337,7 +378,9 @@ function readCredentials({ configDir, readText, mode }: DoctorDeps): {
           'data key',
           'fail',
           'AGENT_BOARD_DATA_KEY is not a data key (abk1_ and 43 more characters)',
-          'copy it again from the board\'s Settings page and run "board init --force": it keeps the URL and the token unless you give them again, and asks for the key',
+          command === undefined
+            ? 'copy it again from the board\'s Settings page and run "board init --force": it keeps the URL and the token unless you give them again, and asks for the key'
+            : fixCommand,
         ),
       );
     }
@@ -345,7 +388,7 @@ function readCredentials({ configDir, readText, mode }: DoctorDeps): {
   return { ...(token ? { token } : {}), ...(dataKey ? { dataKey } : {}), results };
 }
 
-const checkEnv: Check = (deps) => readCredentials(deps).results;
+const checkEnv: Check = (_deps, credentials) => credentials.results;
 
 const quoted = (text: string): string => shellQuote(plainLine(text));
 
@@ -433,9 +476,8 @@ async function catalogOnBoardChecks(deps: DoctorDeps, identity: ServerIdentity, 
   ];
 }
 
-const checkServer: Check = async (deps) => {
+const checkServer: Check = async (deps, { token, dataKey }) => {
   const { url } = readWebUrl(deps);
-  const { token, dataKey } = readCredentials(deps);
   if (url === undefined || token === undefined) return [];
   try {
     const identity = await deps.verifyServer({ url, token });
@@ -1115,7 +1157,8 @@ const CHECKS: Check[] = [
 
 export async function runChecks(deps: DoctorDeps): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
-  for (const check of CHECKS) results.push(...(await check(deps)));
+  const credentials = readCredentials(deps);
+  for (const check of CHECKS) results.push(...(await check(deps, credentials)));
   return results;
 }
 
