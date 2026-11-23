@@ -501,6 +501,50 @@ test('a tick that ignores SIGTERM is killed after the grace period and reported 
   assert.equal(await runLimited(node(code), { limitMs: 300, graceMs: 300 }), 137);
 });
 
+test('a stopped tick whose group ended on SIGTERM is not sent SIGKILL', async (t) => {
+  const kill = t.mock.method(process, 'kill');
+  const code = 'setInterval(()=>{},1e3)';
+  assert.equal(await runLimited(node(code), { limitMs: 300, graceMs: 5000 }), 124);
+  const terminated = kill.mock.calls.find((call) => call.arguments[1] === 'SIGTERM');
+  assert.ok(terminated !== undefined && Number(terminated.arguments[0]) < -1);
+  assert.deepEqual(
+    kill.mock.calls.filter((call) => call.arguments[0] === terminated.arguments[0] && call.arguments[1] === 'SIGKILL'),
+    [],
+  );
+});
+
+test('what a stopped tick left in its group is still killed', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'board-tick-test-'));
+  const marker = join(dir, 'member.pid');
+  let member = 0;
+  try {
+    const memberCode = 'process.on("SIGTERM",()=>{});setInterval(()=>{},1e3)';
+    const code = `const {spawn}=require("node:child_process");const c=spawn(process.execPath,["-e",${JSON.stringify(memberCode)}],{stdio:"ignore"});require("node:fs").writeFileSync(${JSON.stringify(marker)},String(c.pid));setInterval(()=>{},1e3)`;
+    assert.equal(await runLimited(node(code), { limitMs: 1000, graceMs: 5000 }), 124);
+    member = Number(readFileSync(marker, 'utf8'));
+    const deadline = Date.now() + 2000;
+    const alive = (): boolean => {
+      try {
+        process.kill(member, 0);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    while (alive() && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal(alive(), false, 'the member the tick left behind is gone');
+  } finally {
+    if (member > 0) {
+      try {
+        process.kill(member, 'SIGKILL');
+      } catch {
+        // already gone
+      }
+    }
+    rmSync(dir, { recursive: true });
+  }
+});
+
 test('a tick that cannot be started rejects', async () => {
   await assert.rejects(runLimited(['/nonexistent/program'], { limitMs: 1000, graceMs: 1000 }), /ENOENT/);
 });

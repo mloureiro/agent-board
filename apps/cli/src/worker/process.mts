@@ -117,6 +117,7 @@ export function runProcess(
     let ended = false;
     let exited = false;
     let killTimer: NodeJS.Timeout | undefined;
+    let forceKillTimer: NodeJS.Timeout | undefined;
     // An interrupt is out and its turn has not ended yet; `carryOn`: a message was sent after it, so the run goes on.
     let interruptOut = false;
     let carryOn = false;
@@ -202,18 +203,22 @@ export function runProcess(
     let stopped: RunResult['stopped'];
     const killGroup = (signal: NodeJS.Signals): void => signalGroup(child.pid, signal);
     const terminate = (): void => {
+      // Once the agent is reaped its pid can lead an unrelated process group.
+      if (exited) return;
       killGroup('SIGTERM');
-      setTimeout(() => killGroup('SIGKILL'), 10_000).unref();
+      forceKillTimer ??= setTimeout(() => killGroup('SIGKILL'), 10_000);
+      forceKillTimer.unref();
     };
     // The agent is gone, and what it started in its group (a dev server, a watcher) goes with it: SIGTERM, then SIGKILL
     // once the grace is up. A process that started its own session is out of reach.
     const endGroup = async (): Promise<void> => {
+      clearTimeout(forceKillTimer);
       const { pid } = child;
       if (!pid || !groupExists(pid)) return;
       killGroup('SIGTERM');
       for (let waited = 0; waited < GROUP_GRACE_MS && groupExists(pid); waited += GROUP_POLL_MS)
         await new Promise((resolveWait) => setTimeout(resolveWait, GROUP_POLL_MS));
-      killGroup('SIGKILL');
+      if (groupExists(pid)) killGroup('SIGKILL');
     };
     let checking = false;
     const timer = setInterval(() => {
