@@ -182,3 +182,17 @@ test('a text cut at the problem length keeps whole characters and no control cha
   assert.equal(boardLine(`${'a'.repeat(298)}😀\nb`, 300), `${'a'.repeat(298)}😀`);
   assert.equal(boardLine('x\ny', 10), 'x y');
 });
+
+test('thirty feeds are sent as they are and a thirty-first is left out, so the board keeps showing all that fit', () => {
+  const names = (count: number) => Object.fromEntries(Array.from({ length: count }, (_, i) => [`f${i}`, GH]));
+  const thirty = setup(names(30));
+  assert.equal(machineFeeds(thirty.deps.configFile, thirty.store).feeds.length, 30);
+  const over = setup(names(31));
+  const sent = machineFeeds(over.deps.configFile, over.store).feeds;
+  assert.equal(sent.length, 30);
+  assert.equal(
+    sent.some(({ name }) => name === 'f30'),
+    false,
+  );
+  assert.equal(feedsProblem({ feeds: sent }), undefined);
+});

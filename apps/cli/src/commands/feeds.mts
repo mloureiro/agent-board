@@ -1,11 +1,19 @@
-import { formatDuration, isRecord } from '@agent-board/shared';
+import { formatDuration, isRecord, MAX_MACHINE_FEEDS } from '@agent-board/shared';
 import { UsageError } from '../cli.mts';
 import { ConfigError } from '../config/config.mts';
 import type { DirEntry } from '../config/config.mts';
 import { readConfigFile, writeConfigFile } from '../config/config-file.mts';
 import { isAllowedDir } from '../config/dirs.mts';
 import { plainLine } from '../output/terminal.mts';
-import { feedProblemText, isFeedName, parseFeed, parseFeeds, FEED_NAME_RULE } from '../feeds/config.mts';
+import {
+  feedProblemText,
+  feedsBeyondCap,
+  isFeedName,
+  parseFeed,
+  parseFeeds,
+  FEED_CAP_RULE,
+  FEED_NAME_RULE,
+} from '../feeds/config.mts';
 import type { FeedConfig } from '../feeds/config.mts';
 import { doctor } from '../feeds/integration.mts';
 import { runAsked, runFeed } from '../feeds/run.mts';
@@ -72,6 +80,8 @@ export function feedsList(deps: FeedsDeps): void {
   }
   for (const [name, error] of Object.entries(feedErrors))
     deps.print(`${plainLine(name)}  not read: ${plainLine(feedProblemText(error))}`);
+  const beyond = feedsBeyondCap(feeds.length + Object.keys(feedErrors).length);
+  if (beyond !== undefined) deps.print(`warning: ${beyond}`);
   if (!deps.unitRunning)
     deps.print(
       'the watch unit is not running, so no feed runs on its timer; run "board setup" or "board restart watch"',
@@ -102,6 +112,7 @@ export async function feedsAdd(deps: FeedsDeps, name: string, text: string): Pro
   const validated = await validateFeed(feed, { resolve, run });
   if (!validated.ok) throw new UsageError(`feed ${name} is not valid: ${validated.reason}`);
   const replaced = Object.hasOwn(existing, name);
+  if (!replaced && Object.keys(existing).length >= MAX_MACHINE_FEEDS) throw new UsageError(FEED_CAP_RULE);
   writeConfigFile(deps.configFile, { ...raw, feeds: { ...existing, [name]: entry } }, mode);
   deps.print(
     `${replaced ? 'changed' : 'added'} feed ${name}: ${feed.integration} · ${feed.action} every ${formatDuration(feed.everyMs)} in ${feed.dir}`,
@@ -134,7 +145,6 @@ export function feedsSetPaused(deps: FeedsDeps, name: string, paused: boolean): 
   deps.print(`${paused ? 'paused' : 'resumed'} feed ${name}`);
 }
 
-/** Runs a feed now, here, and prints what it did. */
 export async function feedsRun(deps: FeedsDeps, name: string): Promise<boolean> {
   const feed = find(deps, name);
   const run = await runFeed({ ...deps.runDeps(), log: deps.print }, feed);

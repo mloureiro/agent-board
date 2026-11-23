@@ -299,3 +299,24 @@ test('add names a file it cannot read instead of reporting an unexpected error',
     (error) => error instanceof UsageError && error.message === `cannot read ${missing} (ENOENT)`,
   );
 });
+
+test('add refuses the thirty-first feed and replaces one at the limit, and list warns above the limit', async () => {
+  const { deps, printed } = setup();
+  behaviour.doctor = { ...OK, stdout: 'ready' };
+  behaviour.check = { ...OK };
+  const entries = Object.fromEntries(Array.from({ length: 30 }, (_, i) => [`f${i}`, VALID]));
+  writeFileSync(deps.configFile, JSON.stringify({ machine: 'laptop', feeds: entries }));
+  await assert.rejects(
+    () => feedsAdd(deps, 'one-more', JSON.stringify(VALID)),
+    (error) => error instanceof UsageError && /at most 30 feeds per machine/.test(error.message),
+  );
+  await feedsAdd(deps, 'f3', JSON.stringify(VALID));
+  feedsList(deps);
+  assert.equal(
+    printed.some((line) => line.startsWith('warning:')),
+    false,
+  );
+  writeFileSync(deps.configFile, JSON.stringify({ machine: 'laptop', feeds: { ...entries, f30: VALID } }));
+  feedsList(deps);
+  assert.match(printed.findLast((line) => line.startsWith('warning:')) ?? '', /31 feeds; .*at most 30/);
+});

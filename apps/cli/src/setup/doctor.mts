@@ -34,7 +34,7 @@ import type { Keys } from '@agent-board/shared';
 import { runGit } from '../config/checkout-repo.mts';
 import { runCommand } from '../dispatch/waits.mts';
 import type { CommandResult, CommandSpec } from '../dispatch/waits.mts';
-import { feedProblemText, parseFeeds } from '../feeds/config.mts';
+import { feedProblemText, feedsBeyondCap, parseFeeds } from '../feeds/config.mts';
 import { doctor } from '../feeds/integration.mts';
 import { validateFeed } from '../feeds/validate.mts';
 import { verifyPin } from '../plugins/pin.mts';
@@ -1070,6 +1070,8 @@ const checkPluginsAndFeeds: Check = async (deps) => {
         'install git where the units can find it; the pin check of every feed needs it',
       ),
     );
+  const beyond = feedsBeyondCap(parsed.feeds.length + Object.keys(parsed.feedErrors).length);
+  if (beyond !== undefined) results.push(problem('feeds', 'warn', beyond, 'remove a feed with "board feeds remove"'));
   for (const [name, message] of Object.entries(parsed.feedErrors))
     results.push(problem(`feeds.${plainLine(name)}`, 'fail', plainLine(feedProblemText(message)), FEED_HINT));
   const programs = new Map<string, { program: string; dir: string }>();

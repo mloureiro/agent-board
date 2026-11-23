@@ -1154,3 +1154,11 @@ test('a machine with no marketplace and no feed adds no plugin check', async () 
   const results = await runChecks(machine(withConfig({ machine: 'box' })));
   assert.deepEqual(named(results, /^(plugins|git$|feeds|integrations)/), []);
 });
+
+test('doctor warns when config.json holds more feeds than the board shows', async () => {
+  const feeds = Object.fromEntries(Array.from({ length: 31 }, (_, i) => [`f${i}`, FEED_ENTRY]));
+  const results = await runChecks(withPlugins({ feeds }));
+  const warning = results.find((result) => result.name === 'feeds');
+  assert.equal(warning?.level, 'warn');
+  assert.match(warning?.message ?? '', /31 feeds; .*at most 30/);
+});

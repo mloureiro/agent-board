@@ -1,4 +1,10 @@
-import { MAX_HISTORY_ERROR, MAX_LAST_ERROR, MAX_LAST_TASKS, parseFeedRequest } from '@agent-board/shared';
+import {
+  MAX_HISTORY_ERROR,
+  MAX_LAST_ERROR,
+  MAX_LAST_TASKS,
+  MAX_MACHINE_FEEDS,
+  parseFeedRequest,
+} from '@agent-board/shared';
 import type { Backend, FeedRun as BoardRun, MachineFeed, MachineFeeds } from '@agent-board/shared';
 import { errorText } from '../output/text.mts';
 import { isFeedName, loadFeeds } from './config.mts';
@@ -76,7 +82,7 @@ export function machineFeeds(configFile: string, store: FeedStore): MachineFeeds
       problem: boardLine(problem, MAX_PROBLEM),
       ...boardRuns(store.readRecord(name)),
     }));
-  return { feeds: [...working, ...broken] };
+  return { feeds: [...working, ...broken].slice(0, MAX_MACHINE_FEEDS) };
 }
 
 /**

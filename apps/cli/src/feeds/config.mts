@@ -1,4 +1,4 @@
-import { isAgentName, isRecord, parseDuration } from '@agent-board/shared';
+import { isAgentName, isRecord, MAX_MACHINE_FEEDS, parseDuration } from '@agent-board/shared';
 import { ConfigError, expandHome } from '../config/config.mts';
 import { readConfigFile } from '../config/config-file.mts';
 import { isActionName, parseIntegrationRef } from '../plugins/names.mts';
@@ -35,6 +35,11 @@ export const FEED_KEYS = [
 const PROMPT_KEYS = ['new', 'update'] as const;
 
 export const FEED_NAME_RULE = '1 to 40 letters, digits, dots, dashes or underscores, starting with a letter or digit';
+export const FEED_CAP_RULE = `the board shows at most ${MAX_MACHINE_FEEDS} feeds per machine`;
+export const feedsBeyondCap = (count: number): string | undefined =>
+  count > MAX_MACHINE_FEEDS
+    ? `config.json has ${count} feeds; ${FEED_CAP_RULE}, so the rest are not shown there`
+    : undefined;
 export const isFeedName = (name: string): boolean => /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/.test(name);
 
 export const MIN_EVERY_MS = 60_000;
