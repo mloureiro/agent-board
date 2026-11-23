@@ -17,7 +17,7 @@ import { WAKE_MARKER, WATCH_MARKER } from '../task-rules.mts';
 import type { RunJob } from './attempt.mts';
 import { REFRESH_MS } from './publish.mts';
 import { createWatchStore } from './store.mts';
-import { createWatchUnit, runWatchUnit, SOURCES_SCAN_MS } from './unit.mts';
+import { createWatchUnit, runWatchUnit, FEEDS_SCAN_MS } from './unit.mts';
 import type { UnitDeps } from './unit.mts';
 
 const TASK = 'Ab3dEf9x';
@@ -657,18 +657,18 @@ test('a stream: lines wait while the event before them is still on its way to th
   assert.deepEqual(eventTexts(store), ['event: one', 'event: two\nthree']);
 });
 
-test('sources are looked at on the first pass and then at most every 15 seconds, and a running one is not started again', async () => {
+test('feeds are looked at on the first pass and then at most every 15 seconds, and a running one is not started again', async () => {
   const { deps, advance } = setup();
   const looks: number[] = [];
   const started: string[] = [];
   let release = (): void => undefined;
   const unit = createWatchUnit({
     ...deps,
-    sources: () => {
+    feeds: () => {
       looks.push(deps.now().getTime());
       return [
         {
-          key: 'source:gh',
+          key: 'feed:gh',
           job: () => {
             started.push('gh');
             return new Promise<void>((resolve) => {
@@ -680,7 +680,7 @@ test('sources are looked at on the first pass and then at most every 15 seconds,
     },
   });
   unit.scan();
-  advance(SOURCES_SCAN_MS - 1);
+  advance(FEEDS_SCAN_MS - 1);
   unit.scan();
   assert.equal(looks.length, 1);
   advance(1);

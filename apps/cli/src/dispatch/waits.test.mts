@@ -167,3 +167,31 @@ test('a command reports stdout and stderr apart as well as together, and stops a
     rmSync(dir, { recursive: true });
   }
 });
+
+test('a command reads the text it is given on stdin, and has none to read otherwise', async () => {
+  const dir = mkdtempSync('/tmp/board-waits-test-');
+  try {
+    const given = await runCommand({ cwd: dir, command: 'cat', stdin: '{"a":1}\n' }, dir);
+    assert.deepEqual([given.exitCode, given.stdout], [0, '{"a":1}\n']);
+    const none = await runCommand({ cwd: dir, command: 'cat' }, dir);
+    assert.deepEqual([none.exitCode, none.stdout], [0, '']);
+    const unread = await runCommand({ cwd: dir, command: 'exit 3', stdin: 'x'.repeat(1_000_000) }, dir);
+    assert.equal(unread.exitCode, 3);
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test('a command sees the PATH it is given, with the settings env still on top', async () => {
+  const dir = mkdtempSync('/tmp/board-waits-test-');
+  try {
+    const own = await runCommand({ cwd: dir, command: 'printf %s "$PATH"', path: '/units/bin:/bin:/usr/bin' }, dir);
+    assert.equal(own.stdout, '/units/bin:/bin:/usr/bin');
+    mkdirSync(join(dir, '.claude'));
+    writeFileSync(join(dir, '.claude', 'settings.json'), JSON.stringify({ env: { PATH: '/settings:/bin' } }));
+    const overridden = await runCommand({ cwd: dir, command: 'printf %s "$PATH"', path: '/bin' }, dir);
+    assert.equal(overridden.stdout, '/settings:/bin');
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});

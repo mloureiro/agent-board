@@ -38,7 +38,7 @@ export const ADDED_SERVER_FEATURES = [
   'task.effort',
   'task.icon',
   'task.labels',
-  'machine.sources',
+  'machine.feeds',
   'transcript.context',
   'task.title-rules',
 ] as const;
@@ -80,7 +80,7 @@ export const SERVER_FEATURE_LABELS: Record<ServerFeature, string> = {
   'task.effort': 'choosing an effort level',
   'task.icon': 'task icons',
   'task.labels': 'task labels',
-  'machine.sources': 'sources on the board',
+  'machine.feeds': 'feeds on the board',
   'transcript.context': 'context usage in transcripts',
   'task.title-rules': 'title rules',
   wait: 'waiting',

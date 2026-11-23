@@ -209,12 +209,27 @@ Stopping the listener waits for a dispatch tick that is running. The unit's `Tim
 
 The listener checks the API range each time it connects. When the server no longer serves this CLI, the listener logs that and exits, and systemd restarts it every 10 seconds until the CLI matches. When the server is older than the CLI, the listener logs that once and keeps reconnecting with its usual backoff.
 
-### Sources and the Sources page
+### Feeds, plugins and Settings › Feeds (CLI 0.34.0)
 
-The CLI adds `board sources` and a `sources` key in `config.json` (see [Sources](usage.md#sources)). The server adds the feature `machine.sources`, migration `0047_machine-sources`, and the **Sources** page. Additive: deploy and release in any order.
+The CLI adds `board feeds`, `board plugins` and a `feeds` key in `config.json` (see [Feeds](usage.md#feeds) and [Plugins](plugins.md)). The server adds the feature `machine.feeds`, migrations `0047_machine-sources`, `0050_drop-machine-sources` and `0051_machine-feeds`, and the **Feeds** page under Settings. The migrations run when the backend starts. Deploy and release in any order. No `MIN_CLIENT` or `API_VERSION` change.
 
-- Until a machine runs a CLI with sources, it sends none and the page lists nothing for it.
-- After `board self-update`, restart the watch unit as well as the listener (`board restart watch`), since the watch unit runs the sources.
+Until a machine runs this CLI, it sends no feeds and the page lists nothing for it. CLI 0.33.0 has `board sources` and a `sources` key in `config.json`. They are renamed with no alias, so a machine that configured sources moves them by hand:
+
+1. Re-add each entry as a feed under `feeds` with `board feeds add`. A feed takes an integration from a marketplace in place of the `command`, and an entry with a `command` or a key prefix is a config error that `board feeds` shows.
+2. Delete the `sources` key. CLI 0.34.0 only warns about it (`unknown key "sources", ignored`), and its sources stop without an error.
+3. Delete `~/.local/state/agent-board/sources/`, which nothing reads any more.
+
+Expect one duplicate task per open item, once: the old tasks are keyed `source:<name>:` and the feed keys its tasks `feed:<name>:`. Until the machine runs 0.34.0, its 0.33.0 sources keep running, and the page does not list them.
+
+On each machine:
+
+1. Update the CLI: `board self-update`, or `git pull`, `pnpm install` for a checkout.
+2. Restart the watch unit, which runs the feeds, and the listener, which keeps the old code until it restarts: `board restart watch listen`. That is `systemctl --user restart agent-board-watch agent-board-listen` on Linux; on macOS `board restart` kickstarts the launchd agents. `board self-update` restarts the listener itself.
+3. Make sure `git` and the integration's interpreter (the first line of its program, such as `python3`) are on the units' PATH. `board doctor` checks both: a missing `git` is a warning, and a missing interpreter makes the integration's check fail.
+4. Install a marketplace: `board plugins install <url>`.
+5. Add the feed: `board feeds add <name> <file>`, with `integration`, `action`, `options` and `prompts` (see [feeds](#feeds)).
+
+If a `github-reviews.sh` timer already makes review tasks on this machine, stop it before step 5. A feed keys its tasks as `feed:<name>:<url>` and the script keys them as `<url>`, so both would make a task for each open review request. Expect one duplicate per open review request, once, for the tasks the script already made.
 
 ### `board watch --ci --ignore` and `ciIgnore` (CLI 0.31.0)
 
@@ -546,7 +561,7 @@ Machine settings are in `~/.config/agent-board/config.json`. `AGENT_BOARD_CONFIG
 | `usageLimits`       | Holds Todo tasks back while Claude usage is high. See [usageLimits](#usagelimits).                                                                                                               | Absent.                            |
 | `agents`            | Named agents a task can run as. See [agents](#agents).                                                                                                                                           | Absent.                            |
 | `dirs`              | The directories workers may run in. See [dirs](#dirs).                                                                                                                                           | Absent.                            |
-| `sources`           | Commands that make this machine's tasks from other tools, on a timer. See [sources](#sources).                                                                                                   | Absent.                            |
+| `feeds`             | Integrations from installed plugins that make this machine's tasks from other tools, on a timer. See [feeds](#feeds).                                                                            | Absent.                            |
 
 An `intake` key is ignored with a warning, and `board doctor` fails on it. See [The built-in intake is removed](#the-built-in-intake-is-removed-cli-0130).
 
@@ -573,23 +588,43 @@ Each agent has `description` and `tools`, and optionally `prompt`, `allowedTools
 
 An agent can also be a file in the `agents` directory beside `config.json`, which `board agents add` writes, or a definition the board holds for every machine, which `board agents push` puts there. A task names an agent with `board schedule --agent` or the New task form. [Agents](workers.md#agents) has the details.
 
-### sources
+### feeds
 
-An object keyed by source name (1 to 40 letters, digits, `.`, `-` and `_`):
+An object keyed by feed name (1 to 40 letters, digits, `.`, `-` and `_`, starting with a letter or digit). The board shows at most 30 feeds per machine: `board feeds add` refuses a 31st, and when config.json holds more, only the first 30 are sent and `board feeds` and `board doctor` warn.
 
 ```json
-"sources": {
-  "github-reviews": { "command": "~/bin/review-requests acme/app", "every": "10m", "dir": "~/workspace/app", "agent": "reviewer" }
+"feeds": {
+  "gh-review-requests": {
+    "integration": "mloureiro:github",
+    "action": "list-pull-requests",
+    "options": { "repositories": ["acme/app"], "query": "is:open draft:false review-requested:@me" },
+    "every": "10m",
+    "dir": "~/workspace/acme/app",
+    "agent": "reviewer",
+    "lane": "reviews",
+    "prompts": {
+      "new": "/review-pr {url} --auto",
+      "update": "{url} changed since your last review. Review it again: /review-pr {url} --auto"
+    }
+  }
 }
 ```
 
-- `command` (required) runs with `bash -c` in `dir`.
-- `every` (required) is a duration of at least `1m`.
-- `dir` (required) is where the command runs and where an item without a `dir` of its own makes its task. It must be listed in `dirs`.
-- `agent`, `lane` and `keyPrefix` (default `source:<name>:`) apply to every task it makes.
-- `timeout` is the longest one run may take: default `2m`, at most `30m`.
+| Key              | Rule                                                                                                                               |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `integration`    | Required: `<marketplace>:<integration>` of an installed marketplace (see [Plugins](plugins.md)). It is never looked up on `PATH`.  |
+| `action`         | Required: an action the integration describes.                                                                                     |
+| `options`        | Optional JSON object, at most 16 KiB. The integration's own settings, checked against the action's schema.                         |
+| `every`          | Required duration of at least `1m`.                                                                                                |
+| `dir`            | Required: where the integration runs and where an item without a directory of its own makes its task. It must be listed in `dirs`. |
+| `agent`, `lane`  | Optional. They apply to every task the feed makes.                                                                                 |
+| `timeout`        | Optional: the longest one run may take. Default `2m`, at most `30m`.                                                               |
+| `prompts.new`    | Required text of 1 to 10 000 characters: the prompt of a new task.                                                                 |
+| `prompts.update` | Required text of 1 to 10 000 characters: what the session is told when its item changed.                                           |
 
-A source with a bad setting is not run, and `board sources` says why. The other sources and the rest of the config are not affected. Manage it with `board sources add`, `rm`, `run`, `pause` and `resume` (see [Sources](usage.md#sources)).
+A `{name}` in a prompt is replaced by the item's `key`, `title`, `version` or a field the action provides. A `command` and a key prefix no longer exist: a feed with them is a config error.
+
+A feed with a bad setting is not run, and `board feeds` says why. The other feeds and the rest of the config are not affected. Manage it with `board feeds add`, `rm`, `run`, `pause` and `resume` (see [Feeds](usage.md#feeds)).
 
 ### dirs
 

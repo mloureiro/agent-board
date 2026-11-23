@@ -109,6 +109,8 @@ export interface RunPlanOptions {
   isOwnSession: (taskId: string, sessionId: string) => boolean;
   // What the task's watches have to say to a resumed run: undelivered events alone make a resume prompt.
   watches?: ResumeWatches;
+  // The prompt a feed left for this resume when the item the task was made for changed.
+  feedUpdate?: string;
 }
 
 /**
@@ -118,7 +120,7 @@ export interface RunPlanOptions {
  */
 export function planRun(task: Task, notes: Note[], options: RunPlanOptions): RunPlan {
   if (task.next === 'resume' && task.sessionId !== null) {
-    const prompt = buildResumePrompt(task, notes, options.watches);
+    const prompt = buildResumePrompt(task, notes, options.watches, options.feedUpdate);
     if (prompt !== undefined) {
       if (!options.isOwnSession(task.id, task.sessionId))
         return {

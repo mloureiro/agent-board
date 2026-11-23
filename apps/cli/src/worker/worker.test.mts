@@ -6,6 +6,7 @@ import type { AgentConfig } from '../config/config.mts';
 import { BackendError } from '../backend/backend.mts';
 import { sealingBackend } from '../backend/sealing.mts';
 import { START_MARKER, WAKE_MARKER } from '../task-rules.mts';
+import { createFeedUpdates } from '../feeds/updates.mts';
 import { createWatchStore, newWatchId } from '../watch/store.mts';
 import type { WatchEvent } from '../watch/store.mts';
 import { commandDef, tempDir, timerDef, watchDef } from '../__tests__/helpers/watch.mts';
@@ -67,6 +68,7 @@ function setup(result: RunResult | Error, moveDuringRun = false) {
     now: () => new Date(),
     watchEveryMs: 10,
     watches: createWatchStore(tempDir()),
+    feedUpdates: createFeedUpdates(tempDir()),
     spoolEveryMs: 5,
     writeTitle: async () => ({ problem: 'no title writer in this test' }),
   };
@@ -970,6 +972,39 @@ test("a worker that finds the task paused tells the agent, from the task's flag"
   };
   await runWorker(deps, 'w1');
   assert.match(prompt, /You were paused on board task w1/);
+});
+
+test("a resumed run is told the feed's update prompt, and the spool is deleted once the agent has output", async () => {
+  const { deps, backend } = setup({ exitCode: 0, signal: null });
+  Object.assign(backend.tasks[0]!, { next: 'resume', sessionId: SESSION });
+  deps.sessions.record('w1', SESSION);
+  deps.feedUpdates.put('w1', 'Review the PR again.', 'gh');
+  let prompt = '';
+  let leftBeforeOutput: string | undefined;
+  deps.run = async (invocation, _taskId, _env, _watch, onLine) => {
+    prompt = invocation.prompt;
+    leftBeforeOutput = deps.feedUpdates.read('w1');
+    onLine(INIT_LINE);
+    backend.tasks[0]!.status = 'needs-me';
+    return { exitCode: 0, signal: null };
+  };
+  await runWorker(deps, 'w1');
+  assert.match(prompt, /^The item board task w1 was made for has changed\.[\s\S]*\n\nReview the PR again\.\n\n/);
+  assert.equal(leftBeforeOutput, 'Review the PR again.');
+  assert.equal(deps.feedUpdates.read('w1'), undefined);
+});
+
+test('a run that does not resume drops a feed update prompt that was waiting, and starts from the task input', async () => {
+  const { deps } = setup({ exitCode: 0, signal: null });
+  deps.feedUpdates.put('w1', 'Review the PR again.', 'gh');
+  let prompt = '';
+  deps.run = async (invocation) => {
+    prompt = invocation.prompt;
+    return { exitCode: 0, signal: null };
+  };
+  await runWorker(deps, 'w1');
+  assert.doesNotMatch(prompt, /Review the PR again/);
+  assert.equal(deps.feedUpdates.read('w1'), undefined);
 });
 
 test('the upload still in flight when the run ends is awaited, then the rest is sent', async () => {

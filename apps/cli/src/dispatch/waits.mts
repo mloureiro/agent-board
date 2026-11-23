@@ -120,6 +120,10 @@ export interface CommandSpec {
   // See WaitCheck.
   settingsDir?: string;
   timeLimitMs?: number;
+  // Text the child reads on stdin, which is then closed; absent, the child reads end of input at once.
+  stdin?: string;
+  // Replaces the PATH of this process's environment; the settings `env` still goes on top.
+  path?: string;
   // Aborting kills the process group at once; the result is the one of a killed command.
   signal?: AbortSignal;
 }
@@ -130,8 +134,13 @@ export interface CommandSpec {
  * whole process group is killed.
  */
 export function runCommand(spec: CommandSpec, home: string = homedir()): Promise<CommandResult> {
-  const { command, cwd, settingsDir, timeLimitMs = CHECK_TIME_LIMIT_MS, signal } = spec;
-  const env = { ...process.env, ...readSettingsEnv(home), ...readSettingsEnv(settingsDir ?? cwd) };
+  const { command, cwd, settingsDir, timeLimitMs = CHECK_TIME_LIMIT_MS, signal, stdin, path } = spec;
+  const env = {
+    ...process.env,
+    ...(path === undefined ? {} : { PATH: path }),
+    ...readSettingsEnv(home),
+    ...readSettingsEnv(settingsDir ?? cwd),
+  };
   return new Promise((resolve) => {
     let output = '';
     let stdout = '';
@@ -146,13 +155,21 @@ export function runCommand(spec: CommandSpec, home: string = homedir()): Promise
     });
     let child;
     try {
-      child = spawn('bash', ['-c', command], { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
+      child = spawn('bash', ['-c', command], {
+        cwd,
+        env,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        detached: true,
+      });
     } catch (error) {
       output = errorText(error);
       stderr = output;
       resolve(finish(null));
       return;
     }
+    // A child that exits without reading closes the pipe; that is its answer, not an error of ours.
+    child.stdin.on('error', () => undefined);
+    child.stdin.end(stdin);
     const killGroup = (): void => {
       // The whole process group: a check that started children must not leave them behind.
       try {

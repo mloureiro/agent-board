@@ -35,7 +35,7 @@ import {
   machineCatalogBinding,
   machineDirsBinding,
   machineUsageBinding,
-  machineSourcesBinding,
+  machineFeedsBinding,
   noteBinding,
   prBinding,
   titleBinding,
@@ -190,7 +190,7 @@ export const SEALED_ROW_COLUMNS: Record<ExportTable, readonly string[]> = {
   schedule: ['title', 'input', 'workdir', 'agent', 'icon', 'labels'],
   note: ['body', 'preview', 'suggestion', 'questions', 'answers'],
   task_pr: ['pr'],
-  machine: ['dirs', 'catalog', 'usage', 'sources'],
+  machine: ['dirs', 'catalog', 'usage', 'feeds'],
   shared_agents: ['document'],
   link_rules: ['document'],
   title_rules: ['document'],
@@ -294,7 +294,7 @@ async function planOf(ctx: ResealContext, table: ExportTable, row: Record<string
         dirs: [machineDirsBinding(name)],
         catalog: [machineCatalogBinding(name)],
         usage: [machineUsageBinding(name)],
-        sources: [machineSourcesBinding(name)],
+        feeds: [machineFeedsBinding(name)],
       };
     }
     case 'shared_agents': {
