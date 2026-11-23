@@ -138,6 +138,44 @@ test('a task that has an icon keeps it and still gets the title', async () => {
   assert.deepEqual(logs, ['title rule 1 matches', 'title set']);
 });
 
+const LABELLED: TitleRule = { ...RULE, labels: ['review', 'pr'] };
+
+test('a rule with labels gives them to a task without any, after the icon and before the title', async () => {
+  const { subject, backend, logs, deps } = setup();
+  backend.boardTitleRules.held = { version: 1, rules: [LABELLED] };
+  await autoTitle(deps, subject, '/work/app');
+  assert.deepEqual(backend.writes, [
+    `apply-title-rule w1 icon ${RULE.icon}`,
+    'apply-title-rule w1 labels review, pr',
+    'apply-title-rule w1 title #8 Fix login',
+  ]);
+  assert.deepEqual(logs, ['title rule 1 matches', 'icon set', 'labels set', 'title set']);
+  assert.deepEqual(backend.tasks[0]?.labels, ['review', 'pr']);
+});
+
+test('a task that has labels keeps them without a call for them', async () => {
+  const { subject, backend, logs, deps } = setup({ labels: ['mine'] });
+  backend.boardTitleRules.held = { version: 1, rules: [LABELLED] };
+  await autoTitle(deps, subject, '/work/app');
+  assert.deepEqual(backend.writes, [`apply-title-rule w1 icon ${RULE.icon}`, 'apply-title-rule w1 title #8 Fix login']);
+  assert.deepEqual(logs, ['title rule 1 matches', 'icon set', 'title set']);
+  assert.deepEqual(backend.tasks[0]?.labels, ['mine']);
+});
+
+test('a server without labels from title rules is one log line, and the title is still written', async () => {
+  const { subject, backend, logs, deps } = setup();
+  backend.boardTitleRules.held = { version: 1, rules: [LABELLED] };
+  backend.boardTitleRules.labelsSupported = false;
+  await autoTitle(deps, subject, '/work/app');
+  assert.deepEqual(backend.writes, [`apply-title-rule w1 icon ${RULE.icon}`, 'apply-title-rule w1 title #8 Fix login']);
+  assert.deepEqual(logs, [
+    'title rule 1 matches',
+    'icon set',
+    'labels not set: the board server does not support labels from title rules yet',
+    'title set',
+  ]);
+});
+
 test('no rule that matches means nothing is applied and nothing is logged', async () => {
   const { subject, backend, logs, asked, deps } = setup({ title: 'fix the bug', input: 'fix the bug' });
   await autoTitle(deps, subject, '/work/app');

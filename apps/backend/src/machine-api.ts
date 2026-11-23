@@ -492,7 +492,7 @@ function updateOf(settings: WireScheduleSettings): Omit<ScheduleUpdate, 'id' | '
 
 /** Whether an `apply-title-rule` answer says a part was stored. */
 function storedAny(result: unknown): boolean {
-  return isRecord(result) && (result['icon'] === true || result['title'] === true);
+  return isRecord(result) && (result['icon'] === true || result['labels'] === true || result['title'] === true);
 }
 
 /** The commands that change what dispatch decides; heartbeats and transcripts arrive every 15 s per running task and do not. */

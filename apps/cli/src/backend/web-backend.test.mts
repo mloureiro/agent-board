@@ -1153,7 +1153,7 @@ test('a run names itself in the calls for its own task that the server checks ag
           : command === 'fail'
             ? { applied: true, task: await taskJson('abc') }
             : command === 'apply-title-rule'
-              ? { icon: true, title: false }
+              ? { icon: true, labels: false, title: false }
               : command === 'run-inbox'
                 ? { stop: false, messages: [] }
                 : ['heartbeat', 'ask', 'ack-messages', 'add-note'].includes(command)
@@ -1231,5 +1231,28 @@ test('both title rule commands need the task.title-rules feature and are refused
   assert.deepEqual(
     without.seen.map((request) => request.command),
     ['version'],
+  );
+});
+
+test('labels from a title rule need the task.title-rule-labels feature; an icon alone does not', async () => {
+  const older = boardWith(['events', 'task.title-rules'], {
+    'apply-title-rule': { body: { result: { icon: true, title: false } } },
+  });
+  await assert.rejects(
+    older.backend.applyTitleRule('abc', { icon: 'abe1.icon', labels: 'abe1.labels' }),
+    (error: unknown) => error instanceof BackendError && error.missingFeature === 'task.title-rule-labels',
+  );
+  assert.deepEqual(
+    older.seen.map((request) => request.command),
+    ['version'],
+  );
+  assert.deepEqual(await older.backend.applyTitleRule('abc', { icon: 'abe1.icon' }), {
+    icon: true,
+    labels: false,
+    title: false,
+  });
+  assert.deepEqual(
+    older.seen.map((request) => request.command),
+    ['version', 'apply-title-rule'],
   );
 });

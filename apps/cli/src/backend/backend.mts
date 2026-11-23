@@ -361,9 +361,9 @@ export function dryRunBackend(inner: Backend, print: (line: string) => void): Ba
     },
     async applyTitleRule(id, change) {
       print(
-        `DRY apply-title-rule ${id}${change.icon === undefined ? '' : ` icon ${change.icon}`}${change.title === undefined ? '' : ` title ${oneLine(change.title.text, 160)}`}`,
+        `DRY apply-title-rule ${id}${change.icon === undefined ? '' : ` icon ${change.icon}`}${change.labels === undefined ? '' : ` labels ${change.labels.join(', ')}`}${change.title === undefined ? '' : ` title ${oneLine(change.title.text, 160)}`}`,
       );
-      return { icon: false, title: false };
+      return { icon: false, labels: false, title: false };
     },
     async heartbeat(id, beat) {
       print(`DRY heartbeat ${id} ${JSON.stringify(beat)}`);

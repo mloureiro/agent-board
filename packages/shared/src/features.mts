@@ -41,6 +41,7 @@ export const ADDED_SERVER_FEATURES = [
   'machine.feeds',
   'transcript.context',
   'task.title-rules',
+  'task.title-rule-labels',
 ] as const;
 
 export const SERVER_FEATURES = [...BASELINE_SERVER_FEATURES, ...ADDED_SERVER_FEATURES] as const;
@@ -83,6 +84,7 @@ export const SERVER_FEATURE_LABELS: Record<ServerFeature, string> = {
   'machine.feeds': 'feeds on the board',
   'transcript.context': 'context usage in transcripts',
   'task.title-rules': 'title rules',
+  'task.title-rule-labels': 'labels from title rules',
   wait: 'waiting',
 };
 

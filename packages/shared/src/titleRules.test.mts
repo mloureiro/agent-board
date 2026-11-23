@@ -37,15 +37,28 @@ test('titleRuleProblem names what is wrong with a rule and accepts a rule that w
     [{ pattern: 'a', icon: 'ab' }, /emoji/],
     [{ pattern: 'a', instruction: 'x'.repeat(2001) }, /2000/],
     [{ pattern: 'a', instruction: ' \n ' }, /empty/],
-    [{ pattern: 'a' }, /neither/],
+    [{ pattern: 'a' }, /no icon, no labels and no title/],
+    [{ pattern: 'a', labels: [] }, /empty/],
+    [{ pattern: 'a', labels: ['-x'] }, /not a label/],
+    [{ pattern: 'a', labels: ['bug', 'Bug'] }, /repeat/],
+    [{ pattern: 'a', labels: [' bug'] }, /spaces/],
+    [{ pattern: 'a', labels: Array.from({ length: 17 }, (_, index) => `l${index}`) }, /16/],
   ];
   for (const [rule, problem] of problems) assert.match(titleRuleProblem(rule) ?? '', problem, JSON.stringify(rule));
   assert.equal(titleRuleProblem({ pattern: 'a', icon: '🔎' }), undefined);
   assert.equal(titleRuleProblem({ pattern: 'a', flags: 'i', instruction: 'Line one\nline two' }), undefined);
+  assert.equal(titleRuleProblem({ pattern: 'a', labels: ['review', 'pr: 8'] }), undefined);
 });
 
 test('the document is sealed under its version and opens only as that version', async () => {
-  const document: TitleRulesDocument = { version: 2, rules: [REVIEW, { pattern: 'x', flags: 'i', icon: '🚀' }] };
+  const document: TitleRulesDocument = {
+    version: 2,
+    rules: [
+      REVIEW,
+      { pattern: 'x', flags: 'i', icon: '🚀', labels: ['ship'] },
+      { pattern: 'y', labels: ['bug', 'ui'] },
+    ],
+  };
   const wire = await sealTitleRules(sealer, document);
   assert.doesNotThrow(() => parseSealed(wire, 'titles', 'titles'));
   assert.deepEqual(await openTitleRules(opener, 2, wire), document);
@@ -59,6 +72,10 @@ test('a document that says another version inside or holds one bad rule is unrea
   assert.equal(await openTitleRules(opener, 2, await sealJson(2, { version: 3, rules: [REVIEW] })), undefined);
   assert.equal(
     await openTitleRules(opener, 2, await sealJson(2, { version: 2, rules: [REVIEW, { pattern: '(', icon: '🔎' }] })),
+    undefined,
+  );
+  assert.equal(
+    await openTitleRules(opener, 2, await sealJson(2, { version: 2, rules: [{ pattern: 'a', labels: 'bug' }] })),
     undefined,
   );
   await assert.rejects(sealTitleRules(sealer, { version: 1, rules: [{ pattern: 'a' }] }), /number 1/);

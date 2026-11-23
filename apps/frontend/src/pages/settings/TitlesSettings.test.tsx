@@ -30,7 +30,7 @@ vi.mock('../../lib/trpc', () => ({
 }));
 
 const REVIEW: TitleRule = { pattern: '^/pj-acme:review\\b', icon: '🔎', instruction: 'The PR number and its title.' };
-const ANY_PR: TitleRule = { pattern: 'pull/\\d+', icon: '🔀' };
+const ANY_PR: TitleRule = { pattern: 'pull/\\d+', icon: '🔀', labels: ['pr', 'merge'] };
 
 function renderPage() {
   render(
@@ -74,12 +74,12 @@ describe('TitlesSettings', () => {
     const user = userEvent.setup();
     renderPage();
     await user.click(await screen.findByRole('button', { name: 'Add rule' }));
-    expect(screen.queryByText(/neither/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/sets no icon/)).not.toBeInTheDocument();
     await user.type(screen.getByLabelText('Pattern of rule 1'), '(');
     expect(screen.getByText('The pattern is not a valid regular expression.')).toBeInTheDocument();
     await user.clear(screen.getByLabelText('Pattern of rule 1'));
     await user.type(screen.getByLabelText('Pattern of rule 1'), 'pull/\\d+');
-    expect(screen.getByText('The rule sets neither an icon nor a title.')).toBeInTheDocument();
+    expect(screen.getByText('The rule sets no icon, no labels and no title.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
     await user.type(screen.getByLabelText('Title instruction of rule 1'), '   ');
     expect(screen.getByText('The title instruction is empty.')).toBeInTheDocument();
@@ -96,6 +96,26 @@ describe('TitlesSettings', () => {
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(set).toHaveBeenCalledTimes(1));
     expect(set.mock.calls[0]?.[0]).toEqual({ rules: [{ ...REVIEW, flags: 'i' }], expectedVersion: 3 });
+  });
+
+  it('shows the labels of a rule, and a rule that sets only labels can be saved', async () => {
+    const user = userEvent.setup();
+    await store(1, [ANY_PR]);
+    renderPage();
+    await screen.findByRole('combobox', { name: 'Labels of rule 1' });
+    expect(screen.getByText('pr')).toBeInTheDocument();
+    expect(screen.getByText('merge')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Add rule' }));
+    await user.type(screen.getByLabelText('Pattern of rule 2'), '^/fix');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    await user.type(screen.getByRole('combobox', { name: 'Labels of rule 2' }), 'bug{Enter}');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(set).toHaveBeenCalledTimes(1));
+    expect(set.mock.calls[0]?.[0]).toEqual({
+      rules: [ANY_PR, { pattern: '^/fix', labels: ['bug'] }],
+      expectedVersion: 1,
+    });
   });
 
   it('removes a rule and saves the rest', async () => {
@@ -137,15 +157,15 @@ describe('TitlesSettings', () => {
       await store(1, [REVIEW, ANY_PR]);
       renderPage();
       expect(
-        await screen.findByText('Rule 1 matches: icon 🔎, Haiku writes the title from its instruction.'),
+        await screen.findByText('Rule 1 matches: icon 🔎, no labels, Haiku writes the title from its instruction.'),
       ).toBeInTheDocument();
       const sample = screen.getByLabelText('Try it');
       await user.clear(sample);
       await user.type(sample, 'merge https://github.com/acme/app/pull/8');
-      expect(screen.getByText('Rule 2 matches: icon 🔀, no title instruction.')).toBeInTheDocument();
+      expect(screen.getByText('Rule 2 matches: icon 🔀, labels pr, merge, no title instruction.')).toBeInTheDocument();
       await user.clear(sample);
       await user.type(sample, 'hello');
-      expect(screen.getByText('No rule matches: the task keeps its title and icon.')).toBeInTheDocument();
+      expect(screen.getByText('No rule matches: the task keeps its title, icon and labels.')).toBeInTheDocument();
     });
 
     it('applies the rules as drafted and skips a rule that does not work', async () => {
@@ -154,11 +174,11 @@ describe('TitlesSettings', () => {
       renderPage();
       await user.click(await screen.findByRole('button', { name: 'Add rule' }));
       await user.type(screen.getByLabelText('Pattern of rule 2'), 'review');
-      expect(screen.getByText('Rule 1 matches: icon 🔀, no title instruction.')).toBeInTheDocument();
+      expect(screen.getByText('Rule 1 matches: icon 🔀, labels pr, merge, no title instruction.')).toBeInTheDocument();
       await user.type(screen.getByLabelText('Title instruction of rule 2'), 'Title it.');
       await user.click(screen.getByLabelText('Remove rule 1'));
       expect(
-        screen.getByText('Rule 1 matches: no icon, Haiku writes the title from its instruction.'),
+        screen.getByText('Rule 1 matches: no icon, no labels, Haiku writes the title from its instruction.'),
       ).toBeInTheDocument();
     });
   });

@@ -1,9 +1,9 @@
 // The title rules of the user (`titles`): one sealed document of all of them,
-// `{"version":n,"rules":[{"pattern":"…","icon":"…","instruction":"…"}]}`, bound to its version. A rule that matches a new
-// task's prompt gives the task an icon and says how a model should write its title. The browser writes the document; the
+// `{"version":n,"rules":[{"pattern":"…","icon":"…","labels":["…"],"instruction":"…"}]}`, bound to its version. A rule that
+// matches a new task's prompt gives the task an icon and labels and says how a model should write its title. The browser writes the document; the
 // browser and every machine's CLI read it. The server holds nothing it can read: it can neither relabel an old document as a
 // newer one (the version is in the binding) nor drop or reorder a rule (the list is inside the ciphertext).
-import { ContractError, isEmojiIcon, isTitleRulesVersion } from './contract.mts';
+import { ContractError, checkLabels, isEmojiIcon, isTitleRulesVersion } from './contract.mts';
 import { isRecord } from './guards.mts';
 import type { Binding, Opener, Sealer } from './sealing.mts';
 import { sealChecked } from './sealing.mts';
@@ -15,6 +15,8 @@ export interface TitleRule {
   flags?: 'i';
   /** The icon a matching task gets while it has none: one emoji. */
   icon?: string;
+  /** The labels a matching task gets while it has none: a list `checkLabels` keeps as it is, never empty. */
+  labels?: string[];
   /** How the title is to be written. A rule without one leaves the title alone. */
   instruction?: string;
 }
@@ -47,12 +49,30 @@ export function titleRuleProblem(rule: TitleRule): string | undefined {
     return 'the pattern is not a valid regular expression';
   }
   if (rule.icon !== undefined && !isEmojiIcon(rule.icon)) return 'the icon must be one emoji';
+  if (rule.labels !== undefined) {
+    const problem = labelsProblem(rule.labels);
+    if (problem !== undefined) return problem;
+  }
   if (rule.instruction !== undefined) {
     if (rule.instruction.trim() === '') return 'the title instruction is empty';
     if (rule.instruction.length > MAX_TITLE_INSTRUCTION_CHARS)
       return `the title instruction is longer than ${MAX_TITLE_INSTRUCTION_CHARS} characters`;
   }
-  if (rule.icon === undefined && rule.instruction === undefined) return 'the rule sets neither an icon nor a title';
+  if (rule.icon === undefined && rule.labels === undefined && rule.instruction === undefined)
+    return 'the rule sets no icon, no labels and no title';
+  return undefined;
+}
+
+function labelsProblem(labels: readonly string[]): string | undefined {
+  if (labels.length === 0) return 'the list of labels is empty';
+  let kept: string[];
+  try {
+    kept = checkLabels(labels);
+  } catch (error) {
+    return error instanceof ContractError ? error.message : 'the labels are not valid';
+  }
+  if (kept.length !== labels.length || kept.some((label, index) => label !== labels[index]))
+    return 'the labels repeat one or have spaces around one';
   return undefined;
 }
 
@@ -60,10 +80,11 @@ export function titleRuleProblem(rule: TitleRule): string | undefined {
 export function titleRulesJson(document: TitleRulesDocument): string {
   return JSON.stringify({
     version: document.version,
-    rules: document.rules.map(({ pattern, flags, icon, instruction }) => ({
+    rules: document.rules.map(({ pattern, flags, icon, labels, instruction }) => ({
       pattern,
       ...(flags === undefined ? {} : { flags }),
       ...(icon === undefined ? {} : { icon }),
+      ...(labels === undefined ? {} : { labels }),
       ...(instruction === undefined ? {} : { instruction }),
     })),
   });
@@ -88,15 +109,18 @@ export async function sealTitleRules(seal: Sealer, document: TitleRulesDocument)
 
 function parseRule(value: unknown): TitleRule | undefined {
   if (!isRecord(value)) return undefined;
-  const { pattern, flags, icon, instruction } = value;
+  const { pattern, flags, icon, labels, instruction } = value;
   if (typeof pattern !== 'string') return undefined;
   if (flags !== undefined && flags !== 'i') return undefined;
   if (icon !== undefined && typeof icon !== 'string') return undefined;
+  if (labels !== undefined && !(Array.isArray(labels) && labels.every((label) => typeof label === 'string')))
+    return undefined;
   if (instruction !== undefined && typeof instruction !== 'string') return undefined;
   const rule: TitleRule = {
     pattern,
     ...(flags === undefined ? {} : { flags }),
     ...(icon === undefined ? {} : { icon }),
+    ...(labels === undefined ? {} : { labels: labels as string[] }),
     ...(instruction === undefined ? {} : { instruction }),
   };
   return titleRuleProblem(rule) === undefined ? rule : undefined;

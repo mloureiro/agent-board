@@ -254,7 +254,7 @@ function fakeWire(): FakeWire {
     },
     async applyTitleRule(_id, body) {
       state.titleRuleBodies.push(parseWireTitleRuleApply(JSON.parse(record(state, body))));
-      return { icon: body.icon !== undefined, title: body.title !== undefined };
+      return { icon: body.icon !== undefined, labels: body.labels !== undefined, title: body.title !== undefined };
     },
     async pause(id, note) {
       push(state, id, parseWireNoteInput(JSON.parse(record(state, note)), 'note'), 'system', 'event');
@@ -1578,7 +1578,7 @@ test('a title is applied only while the board still holds the expected title, an
   const mine = await wireTask({ id: 't1', title: 'default', input: 'default' });
   wire.tasks.push(mine);
   const result = await board.applyTitleRule('t1', { title: { text: 'MARKER-new', expect: 'default' } });
-  assert.deepEqual(result, { icon: false, title: true });
+  assert.deepEqual(result, { icon: false, labels: false, title: true });
   const [body] = wire.titleRuleBodies;
   assert.equal(body?.expectTitle, mine.title);
   assert.equal(await open(KEYS, 'title', 'task:t1', body!.title!), 'MARKER-new');
@@ -1589,7 +1589,7 @@ test('a title is applied only while the board still holds the expected title, an
   const renamed = await wireTask({ id: 't2', title: 'renamed by the user', input: 'default' });
   wire.tasks.push(renamed);
   const dropped = await board.applyTitleRule('t2', { title: { text: 'new', expect: 'default' } });
-  assert.deepEqual(dropped, { icon: false, title: false });
+  assert.deepEqual(dropped, { icon: false, labels: false, title: false });
   assert.deepEqual(wire.requests, [], 'nothing is sent when the title is no longer the default');
 });
 
@@ -1601,7 +1601,7 @@ test('an icon is sent only for a task that has none, and a dropped title still l
     icon: '\u{1F50E}',
     title: { text: 'new', expect: 'default' },
   });
-  assert.deepEqual(result, { icon: true, title: false });
+  assert.deepEqual(result, { icon: true, labels: false, title: false });
   const [body] = wire.titleRuleBodies;
   assert.equal(body?.title, undefined);
   assert.equal(body?.expectTitle, undefined);
@@ -1612,6 +1612,36 @@ test('an icon is sent only for a task that has none, and a dropped title still l
     ...(await wireTask({ id: 't2', title: 'default', input: 'x' })),
     icon: await iconSealed('t2', '\u{1F4A1}'),
   });
-  assert.deepEqual(await board.applyTitleRule('t2', { icon: '\u{1F50E}' }), { icon: false, title: false });
+  assert.deepEqual(await board.applyTitleRule('t2', { icon: '\u{1F50E}' }), {
+    icon: false,
+    labels: false,
+    title: false,
+  });
   assert.deepEqual(wire.requests, [], 'a task with an icon keeps it, and with nothing left no call is made');
+});
+
+test('labels are sent sealed to the task’s origin only for a task that has none', async () => {
+  const wire = fakeWire();
+  const board = sealingBackend(wire, KEYS);
+  wire.tasks.push(await wireTask({ id: 't1', title: 'default', input: 'x' }));
+  assert.deepEqual(await board.applyTitleRule('t1', { labels: ['MARKERreview', 'pr'] }), {
+    icon: false,
+    labels: true,
+    title: false,
+  });
+  const [body] = wire.titleRuleBodies;
+  assert.equal(await open(KEYS, 'labels', 'task:t1', body!.labels!), '["MARKERreview","pr"]');
+  noMarkers(wire);
+
+  wire.requests.length = 0;
+  wire.tasks.push({
+    ...(await wireTask({ id: 't2', title: 'default', input: 'x' })),
+    labels: await seal(KEYS, 'labels', 'task:t2', '["mine"]'),
+  });
+  assert.deepEqual(await board.applyTitleRule('t2', { labels: ['review'] }), {
+    icon: false,
+    labels: false,
+    title: false,
+  });
+  assert.deepEqual(wire.requests, [], 'a task with labels keeps them');
 });

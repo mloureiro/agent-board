@@ -689,7 +689,7 @@ A rule must not start with `*` before a script path. A leading `*` matches any c
 
 When a run starts, the worker applies the [title rules](usage.md#title-rules) the board holds to a task that still has its default title: the first line of its prompt, cut at 100 characters. It never touches a task whose title was typed or renamed, and it skips the cards of a repeating schedule, whose title is the schedule's. It runs on every start, a resume included, and a title it stored once stops later attempts.
 
-- **Order.** The worker reads the board's rules and takes the first whose pattern matches the whole prompt. It sets the rule's icon at once, only if the task has none. It then asks Haiku for a title beside the run and stores the answer when it is still the default title that is there. The run does not wait for either, and the worker process ends only after Haiku's call has.
+- **Order.** The worker reads the board's rules and takes the first whose pattern matches the whole prompt. It sets the rule's icon at once, only if the task has none, and then the rule's labels, only if the task has none. It then asks Haiku for a title beside the run and stores the answer when it is still the default title that is there. The run does not wait for either, and the worker process ends only after Haiku's call has.
 - **The call.** The worker runs Claude Code in the run's directory, so `gh pr view 8` finds the repository there:
 
   ```text
@@ -700,7 +700,7 @@ When a run starts, the worker applies the [title rules](usage.md#title-rules) th
 
 - **What it may run.** Only `gh pr view` and `gh issue view`. `--setting-sources user` still loads your own `~/.claude/settings.json`, so an allow rule of yours there applies to this call too. That is the limit [Not a security boundary](#not-a-security-boundary) states.
 - **The shape check.** The answer is untrusted, because a PR's text can steer the model. The worker stores it only as a title, and only when it has one line, no control character, 1 to 100 characters and is not the default title. A title that passes can still be misleading.
-- **The log.** The task's log gets `title rule <n> matches`, then `icon set` or `icon kept: the task has one`, then `title set` or `title kept: it changed meanwhile`. Other lines are `title not written: <reason>` (the check or the call failed), `the board has no title rules` and `the title rules cannot be decrypted with this machine's data key`. No match writes nothing.
+- **The log.** The task's log gets `title rule <n> matches`, then `icon set` or `icon kept: the task has one`, then `labels set` or `labels kept: the task has some`, then `title set` or `title kept: it changed meanwhile`. Other lines are `labels not set: <reason>` (the server lacks `task.title-rule-labels`, or the call failed; the title is still written), `title not written: <reason>` (the check or the call failed), `the board has no title rules` and `the title rules cannot be decrypted with this machine's data key`. No match writes nothing.
 
 A failure changes neither the title nor the run. The next start tries again.
 

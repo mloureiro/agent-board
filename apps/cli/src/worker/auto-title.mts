@@ -1,6 +1,6 @@
 /**
  * The title rule step of a run start: when a task still has its default title and a rule of the board matches its prompt, the
- * rule's icon is set at once and Haiku writes a title beside the run. Every failure ends in one log line; the run never
+ * rule's icon and labels are set at once and Haiku writes a title beside the run. Every failure ends in one log line; the run never
  * depends on it.
  */
 import { execFile } from 'node:child_process';
@@ -150,10 +150,18 @@ export async function autoTitle(deps: AutoTitleDeps, task: Task, cwd: string): P
     const match = matchTitleRule(board.rules, task.input);
     if (match === undefined) return;
     log(`title rule ${match.index + 1} matches`);
-    const { icon, instruction } = match.rule;
+    const { icon, labels, instruction } = match.rule;
     if (icon !== undefined && task.icon === null) {
       const applied = await deps.backend.applyTitleRule(task.id, { icon });
       log(applied.icon ? 'icon set' : 'icon kept: the task has one');
+    }
+    if (labels !== undefined && task.labels.length === 0) {
+      try {
+        const applied = await deps.backend.applyTitleRule(task.id, { labels });
+        log(applied.labels ? 'labels set' : 'labels kept: the task has some');
+      } catch (error) {
+        log(`labels not set: ${errorText(error)}`);
+      }
     }
     if (instruction === undefined) return;
     const written = await deps.writeTitle({ instruction, prompt: task.input, cwd });

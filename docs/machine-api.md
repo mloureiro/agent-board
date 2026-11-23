@@ -152,6 +152,7 @@ Capabilities and vocabulary have names. An additive change then needs no version
 | `task.icon`               | The `icon` key of `add-task`, `add-schedule`, `configure-task` and the `settings` of `edit-schedule`, and the field of a task and a schedule.   |          |
 | `task.title-rules`        | The `get-title-rules` and `apply-title-rule` commands, see [Title rules](#title-rules).                                                         |          |
 | `task.labels`             | The `labels` key of `add-task`, `add-schedule`, `configure-task` and the `settings` of `edit-schedule`, and the field of a task and a schedule. |          |
+| `task.title-rule-labels`  | The `labels` key of `apply-title-rule` and of its answer, see [`apply-title-rule`](#apply-title-rule).                                          |          |
 
 - The baseline (`BASELINE_SERVER_FEATURES`) is what the server of contract 9 has. A server that answers no `features` key is taken to have exactly the baseline.
 - A new server capability appends its name to `ADDED_SERVER_FEATURES` in the same commit that implements it.
@@ -232,7 +233,7 @@ The stream says "look at the board again" and carries no data. The CLI then read
 **What sends an event.** `event: tasks` with an empty `data:` follows a committed change to a task or a schedule:
 
 - these commands: `add-task`, `update-task`, `configure-task`, `claim-task`, `add-note`, `add-pr`, `remove-pr`, `set-pr`, `ask`, `pause`, `stopped`, `fail`, `wait`, `wake`, `edit-prompt`, `add-schedule`, `update-schedule`, `edit-schedule` and `remove-schedule`;
-- `apply-title-rule`, only when it stored an icon or a title;
+- `apply-title-rule`, only when it stored an icon, labels or a title;
 - `set-agents`, so that every machine's listener ticks and applies the new version at once;
 - any change to a task or schedule from the UI.
 
@@ -683,7 +684,7 @@ A resume prompt is built from the `user` notes after the last `agent` note. Two 
 | `get-agents`        | -                                                                                                                                                                                                                                             | `{"version", "document"}`, or `null`                                                                    |
 | `set-agents`        | `body`: `{"document", "version", "expectedVersion"}`                                                                                                                                                                                          | `null`, or 409                                                                                          |
 | `get-title-rules`   | -                                                                                                                                                                                                                                             | `{"version", "document"}`, or `null`                                                                    |
-| `apply-title-rule`  | `id`, `run`, `body`: `{"icon"?, "title"?, "expectTitle"?}`                                                                                                                                                                                    | `{"icon": bool, "title": bool}`, or 409                                                                 |
+| `apply-title-rule`  | `id`, `run`, `body`: `{"icon"?, "labels"?, "title"?, "expectTitle"?}`                                                                                                                                                                         | `{"icon": bool, "labels": bool, "title": bool}`, or 409                                                 |
 | `heartbeat`         | `id`, `body`: `{"lane": string, "borrowed": bool}`                                                                                                                                                                                            | `null`                                                                                                  |
 | `pause`             | `id`, `body`: `{"body", "preview"?}`                                                                                                                                                                                                          | the updated `Task`                                                                                      |
 | `fail`              | `id`, `body`: `{"body", "preview"?}`                                                                                                                                                                                                          | `{"applied": bool, "task": Task}`                                                                       |
@@ -1138,14 +1139,17 @@ Only the CLI writes the document (`board agents push`, `board agents rm --board`
 
 ### Title rules
 
-The rules that give a new task an icon and say how its title is written (see [The title rules](encryption.md#the-title-rules)). Like the shared agents they are one sealed document per user, but the user writes them in the browser and every machine's CLI reads them.
+The rules that give a new task an icon and labels and say how its title is written (see [The title rules](encryption.md#the-title-rules)). Like the shared agents they are one sealed document per user, but the user writes them in the browser and every machine's CLI reads them.
 
 ```json
-{ "version": 3, "rules": [{ "pattern": "^/review ", "flags": "i", "icon": "🔎", "instruction": "…" }] }
+{
+  "version": 3,
+  "rules": [{ "pattern": "^/review ", "flags": "i", "icon": "🔎", "labels": ["review"], "instruction": "…" }]
+}
 ```
 
 - The document is sealed as `titles` with the context `titles:v<version>`. The server keeps `version` in the clear beside it, so a save is compare-and-set and the server cannot hand an old document out as a newer one.
-- At most 50 rules and 512 KiB. A pattern has at most 300 characters and an instruction at most 2000. The server checks only that the document is a sealed value of that size.
+- At most 50 rules and 512 KiB. A pattern has at most 300 characters and an instruction at most 2000. `labels` is a non-empty list that the label rules keep as it is (at most 16, each a [label](usage.md#labels), no repeats ignoring case). A rule sets at least one of `icon`, `labels` and `instruction`. The server checks only that the document is a sealed value of that size.
 
 #### `get-title-rules`
 
@@ -1156,17 +1160,22 @@ Only the browser writes the document, with `titleRules.set` (compare-and-set on 
 #### `apply-title-rule`
 
 ```json
-{ "id": "<task>", "run": "<run id>", "body": { "icon": "abe1.…", "title": "abe1.…", "expectTitle": "abe1.…" } }
+{
+  "id": "<task>",
+  "run": "<run id>",
+  "body": { "icon": "abe1.…", "labels": "abe1.…", "title": "abe1.…", "expectTitle": "abe1.…" }
+}
 ```
 
-Stores a sealed icon and/or title on the task the run belongs to. This is not `configure-task`: it never replaces what the user set, and it acts only for its run.
+Stores a sealed icon, labels and/or title on the task the run belongs to. This is not `configure-task`: it never replaces what the user set, and it acts only for its run.
 
 - `icon` is sealed as `icon` under the task's binding. It is stored only while the task has no icon.
+- `labels` is sealed as `labels` under the task's binding, the same list `configure-task` takes. It is stored only while the task has no labels. It needs `task.title-rule-labels`: an older server answers 400 for the key, and the CLI does not send it there.
 - `title` is sealed as `title` under the task's binding. It needs `expectTitle`, the `title` envelope the caller opened and found to be the default, and `expectTitle` is refused without `title`. The title is stored only while the task still holds exactly that envelope, so a rename in the browser in between is not overwritten.
-- At least one of `icon` and `title`. Any other key is 400.
+- At least one of `icon`, `labels` and `title`. Any other key is 400.
 - `run` is required: without it the answer is 400 `run is required`. The call acts only while the task is not running in a later run (409 `the task is running in a later run, not in this one`). A run that ended may still apply, since a short run can end before its title is written.
 - A schedule's occurrence is 409, with the message of a rename: it takes its title and icon from its schedule.
-- The answer is `{"icon": bool, "title": bool}`, each saying whether that part was stored. A part that was not stored is not an error.
+- The answer is `{"icon": bool, "labels": bool, "title": bool}`, each saying whether that part was stored. A part that was not stored is not an error. A server without `task.title-rule-labels` leaves `labels` out, which a client reads as `false`.
 - It writes no note, changes neither the status nor the position, and sends the `tasks` event only when something was stored.
 
 ### Run control
