@@ -7,7 +7,7 @@ import { plainMachine, plainUi, type MachineAnswer } from './test/client';
 import { caller, testConfig, useTestDb } from './test/helpers';
 import { sealed } from './test/sealed';
 
-const { db, admin } = useTestDb();
+const { db, admin } = await useTestDb();
 const HOUR = 3_600_000;
 
 async function setup() {

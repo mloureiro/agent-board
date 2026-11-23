@@ -32,14 +32,14 @@ const migrateToCurrent = async (db: Db): Promise<void> => {
 };
 
 describe('the tenancy migration on a database that already has rows', { timeout: SCRATCH_MIGRATION_TIMEOUT }, () => {
-  let old: ReturnType<typeof createDb>;
+  let old: Awaited<ReturnType<typeof createDb>>;
   let folder: string;
 
   beforeEach(async () => {
     if (old) await old.pool.end();
     scratchUrl = await scratch.create();
     folder ??= migrationsBefore('_tenancy');
-    old = scratchDb();
+    old = await scratchDb();
     await migrate(old.db, { migrationsFolder: folder });
     await old.db.execute(sql`insert into task (id, title, input, position) values ('t1', 'old', 'x', 0)`);
     await old.db.execute(sql`insert into note (id, task_id, author, kind) values ('n1', 't1', 'user', 'comment')`);
@@ -61,7 +61,7 @@ describe('the tenancy migration on a database that already has rows', { timeout:
     (await db.execute<{ owner: string }>(sql`select owner from ${sql.identifier(table)}`)).rows.map((r) => r.owner);
 
   it('fails and changes nothing without BACKFILL_OWNER', async () => {
-    const run = scratchDb();
+    const run = await scratchDb();
     try {
       await expect(runMigrations(run.db)).rejects.toThrow(/BACKFILL_OWNER/);
       const { rows } = await run.db.execute(
@@ -74,7 +74,7 @@ describe('the tenancy migration on a database that already has rows', { timeout:
   });
 
   it.each(['alice', 'corp\\jane', 'jane doe'])('gives every existing row to BACKFILL_OWNER %j', async (owner) => {
-    const run = scratchDb({ backfillOwner: owner });
+    const run = await scratchDb({ backfillOwner: owner });
     try {
       await migrateToCurrent(run.db);
       for (const table of ['task', 'note', 'machine', 'transcript_run', 'transcript_event'])
@@ -91,7 +91,7 @@ describe(
   'the encrypted content migration on a database that already has rows',
   { timeout: SCRATCH_MIGRATION_TIMEOUT },
   () => {
-    let old: ReturnType<typeof createDb>;
+    let old: Awaited<ReturnType<typeof createDb>>;
     let folder: string;
     const questions = [
       { header: 'Scope', question: 'Q?', multiSelect: false, options: [{ label: 'A', description: '' }] },
@@ -101,7 +101,7 @@ describe(
       if (old) await old.pool.end();
       scratchUrl = await scratch.create();
       folder ??= migrationsBefore('_encrypted_content');
-      old = scratchDb();
+      old = await scratchDb();
       await migrate(old.db, { migrationsFolder: folder });
       await old.db.execute(sql`insert into app_user (username) values ('alice')`);
       await old.db.execute(
@@ -181,14 +181,14 @@ describe(
 
 describe('the task_prs migration on a database that already has rows', { timeout: SCRATCH_MIGRATION_TIMEOUT }, () => {
   const ENVELOPE = `abe1.${'A'.repeat(40)}`;
-  let old: ReturnType<typeof createDb>;
+  let old: Awaited<ReturnType<typeof createDb>>;
   let folder: string;
 
   beforeEach(async () => {
     if (old) await old.pool.end();
     scratchUrl = await scratch.create();
     folder ??= migrationsBefore('_task_prs');
-    old = scratchDb();
+    old = await scratchDb();
     await migrate(old.db, { migrationsFolder: folder });
     await old.db.execute(sql`insert into app_user (username) values ('alice'), ('bob')`);
     await old.db.execute(sql`

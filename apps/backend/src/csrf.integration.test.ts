@@ -3,7 +3,7 @@ import { buildServer } from './server';
 import { createSession } from './services/auth/sessions';
 import { caller, loginConfig, testConfig, useTestDb } from './test/helpers';
 
-const { db } = useTestDb();
+const { db } = await useTestDb();
 
 type Server = Awaited<ReturnType<typeof buildServer>>;
 let app: Server;

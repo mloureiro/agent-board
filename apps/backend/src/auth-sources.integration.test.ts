@@ -11,7 +11,7 @@ import { SoftwareAuthenticator } from './test/softwareAuthenticator';
 
 // Which sign-in method owns a board's name: the method that created it, or, for a board from before sign-in, the first
 // OIDC or SAML sign-in to claim it. A passkey signs in to its owner whatever the source.
-const { db, admin } = useTestDb();
+const { db, admin } = await useTestDb();
 const oidcIdp = new FakeOidcIdp();
 const SIGNUP_TOKEN = 'signup-token-0123456789abcdef0123456789';
 const SP = 'https://board.example.test/saml/sp';

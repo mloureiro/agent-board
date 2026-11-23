@@ -40,9 +40,9 @@ export function loginConfig(overrides: Partial<LoginConfig> = {}): Config & { au
 }
 
 /** `db` is the unprivileged handle that serves requests; `admin` bypasses row-level security. The tables are wiped before each test. */
-export function useTestDb(): { db: Db; admin: Db } {
-  const app = createDb(testAppDatabaseUrl());
-  const admin = createDb(testDatabaseUrl());
+export async function useTestDb(): Promise<{ db: Db; admin: Db }> {
+  const app = await createDb(testAppDatabaseUrl());
+  const admin = await createDb(testDatabaseUrl());
   beforeEach(async () => {
     await admin.db.execute(
       sql`truncate app_user, session, passkey, auth_flow, note, task, schedule, machine restart identity cascade`,

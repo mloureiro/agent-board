@@ -6,7 +6,7 @@ import { plainMachine, plainUi } from './test/client';
 import type { MachineAnswer } from './test/client';
 import { caller, testConfig, useTestDb } from './test/helpers';
 
-const { db } = useTestDb();
+const { db } = await useTestDb();
 
 // Pretend these existing values were added after the baseline, so a client has to name the feature to be shown them.
 const ADDED: VocabularyFeatures = {

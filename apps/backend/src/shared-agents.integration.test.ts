@@ -8,7 +8,7 @@ import type { MachineAnswer } from './test/client';
 import { caller, testConfig, useTestDb } from './test/helpers';
 import { sealed, sealerFor } from './test/sealed';
 
-const { db, admin } = useTestDb();
+const { db, admin } = await useTestDb();
 
 const REVIEWER = { description: 'Reviews', tools: ['Read'], allowedTools: ['Read'] };
 

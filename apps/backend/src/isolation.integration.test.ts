@@ -11,7 +11,7 @@ import { plainMachine, plainUi } from './test/client';
 import { asOwner, question, SEALED, SESSION, testConfig, useTestDb } from './test/helpers';
 import { sealed } from './test/sealed';
 
-const { db, admin } = useTestDb();
+const { db, admin } = await useTestDb();
 
 const HOUR = 60 * 60_000;
 const notFound = { code: 'NOT_FOUND' };
