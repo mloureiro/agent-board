@@ -156,12 +156,13 @@ export function createFeedStore(
           writeFileSync(target, String(process.pid), { flag: 'wx', mode: 0o600 });
           return true;
         } catch {
-          let holder: number;
+          let heldText: string;
           try {
-            holder = Number(readFileSync(target, 'utf8'));
+            heldText = readFileSync(target, 'utf8');
           } catch {
             continue;
           }
+          const holder = Number(heldText);
           if (Number.isInteger(holder) && holder > 0 && isAlive(holder)) return false;
           const stale = `${target}.stale-${process.pid}-${randomBytes(3).toString('hex')}`;
           try {
@@ -169,12 +170,12 @@ export function createFeedStore(
           } catch {
             continue;
           }
-          const moved = Number(readFileSync(stale, 'utf8'));
-          if (moved !== holder) {
+          if (readFileSync(stale, 'utf8') !== heldText) {
             try {
               linkSync(stale, target);
-            } catch {
-              // Another process already holds a newer lock; the moved one is superseded.
+            } catch (error) {
+              if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error;
+              // A third process locked in the meantime: its lock stands, and the process whose lock was moved runs unguarded.
             }
             rmSync(stale, { force: true });
             return false;

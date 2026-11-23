@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { dirname } from 'node:path';
 
-const TRANSFER_TIMEOUT_MS = 5 * 60_000;
+export const TRANSFER_TIMEOUT_MS = 5 * 60_000;
 
 /** Clone and fetch, which may ask for credentials on the terminal and take long: each returns whether git succeeded. */
 export interface Transfer {

@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, renameSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { isRecord } from '@agent-board/shared';
 import { UsageError } from '../cli.mts';
@@ -7,6 +7,7 @@ import { ConfigError } from '../config/config.mts';
 import { readConfigFile } from '../config/config-file.mts';
 import type { GitRunner } from '../config/checkout-repo.mts';
 import { plainLine } from '../output/terminal.mts';
+import { TRANSFER_TIMEOUT_MS } from '../plugins/git.mts';
 import type { Transfer } from '../plugins/git.mts';
 import { isCommit, loadMarketplace, readMarketplace } from '../plugins/manifest.mts';
 import { isMarketplaceName } from '../plugins/names.mts';
@@ -69,7 +70,7 @@ function installedEntry(registry: Registry, name: string): InstalledMarketplace 
   if (entry !== undefined) return entry;
   const known = Object.keys(registry.marketplaces);
   throw new UsageError(
-    `marketplace ${name} is not installed; ${known.length === 0 ? 'none is installed' : `installed: ${known.join(', ')}`}`,
+    `marketplace ${name} is not installed${known.length === 0 ? ', and no marketplace is installed; add one with board plugins install <git url>' : `; installed: ${known.join(', ')}`}`,
   );
 }
 
@@ -110,11 +111,25 @@ function detach(git: GitRunner, dir: string, commit: string): void {
   if (git(dir, ['checkout', '--quiet', '--detach', commit]) === undefined) throw new UsageError(`git failed in ${dir}`);
 }
 
+function removeStaleClones(deps: PluginsDeps): void {
+  const dir = pluginsDir(deps.paths);
+  const limit = deps.now().getTime() - TRANSFER_TIMEOUT_MS;
+  for (const name of readdirSync(dir)) {
+    if (!name.startsWith('.tmp-')) continue;
+    try {
+      if (statSync(join(dir, name)).mtimeMs < limit) rmSync(join(dir, name), { recursive: true, force: true });
+    } catch {
+      continue;
+    }
+  }
+}
+
 export function pluginsInstall(deps: PluginsDeps, url: string): void {
   const reason = checkInstallUrl(url);
   if (reason !== undefined) throw new UsageError(reason);
   const registry = writableRegistry(deps);
   ensurePluginsDir(deps.paths);
+  removeStaleClones(deps);
   const temp = join(pluginsDir(deps.paths), `.tmp-${randomBytes(6).toString('hex')}`);
   let placed: string | undefined;
   try {

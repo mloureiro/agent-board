@@ -241,6 +241,18 @@ test('a lock naming a dead process is replaced; one naming a live process is not
   assert.deepEqual(readdirSync(dir), ['gh.lock']);
 });
 
+test('a lock holding text that is not a pid is taken over', () => {
+  const dir = join(tempDir(), 'feeds');
+  const store = createFeedStore(dir, () => true);
+  store.lock('gh');
+  for (const text of ['garbage', '12x', '']) {
+    writeFileSync(join(dir, 'gh.lock'), text);
+    assert.equal(store.lock('gh'), true, JSON.stringify(text));
+    assert.equal(readFileSync(join(dir, 'gh.lock'), 'utf8'), String(process.pid));
+    assert.deepEqual(readdirSync(dir), ['gh.lock']);
+  }
+});
+
 test('a second process that read the same dead pid does not take the lock a first one just made', () => {
   const dir = join(tempDir(), 'feeds');
   const lock = join(dir, 'gh.lock');

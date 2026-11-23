@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { UsageError } from '../cli.mts';
@@ -72,6 +72,22 @@ test('install registers the name, URL and full commit, pins the checkout detache
   assert.equal(statSync(pluginsDir(fx.paths)).mode & 0o777, 0o700);
   assert.equal(statSync(join(pluginsDir(fx.paths), 'installed.json')).mode & 0o777, 0o600);
   assert.deepEqual(fx.leftovers(), []);
+});
+
+test('install removes clones an interrupted install left more than five minutes ago, and keeps a recent one', () => {
+  const fx = setup();
+  mkdirSync(pluginsDir(fx.paths), { recursive: true });
+  const old = join(pluginsDir(fx.paths), '.tmp-old');
+  const recent = join(pluginsDir(fx.paths), '.tmp-recent');
+  for (const path of [old, recent]) {
+    mkdirSync(join(path, 'inner'), { recursive: true });
+    writeFileSync(join(path, 'inner', 'file'), 'x');
+  }
+  const longAgo = new Date(NOW.getTime() - 6 * 60_000);
+  utimesSync(old, longAgo, longAgo);
+  utimesSync(recent, new Date(NOW.getTime() - 60_000), new Date(NOW.getTime() - 60_000));
+  pluginsInstall(fx.deps, fx.source);
+  assert.deepEqual(fx.leftovers(), ['.tmp-recent']);
 });
 
 test('install refuses a program that is not an executable regular file, and leaves nothing registered or behind', () => {
@@ -232,7 +248,10 @@ test('remove refuses while a feed names the marketplace, then deletes the direct
 
 test('update and remove refuse a name that is not installed or not a name', () => {
   const fx = setup();
-  refused(() => pluginsUpdate(fx.deps, 'acme'), /not installed; none is installed/);
+  refused(
+    () => pluginsUpdate(fx.deps, 'acme'),
+    /not installed, and no marketplace is installed; add one with board plugins install/,
+  );
   refused(() => pluginsRemove(fx.deps, '../acme'), /not a marketplace name/);
 });
 
