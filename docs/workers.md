@@ -687,7 +687,7 @@ A rule must not start with `*` before a script path. A leading `*` matches any c
 
 ### Title rules
 
-When a run starts, the worker applies the [title rules](architecture.md#design-decisions) the board holds to a task that still has its default title: the first line of its prompt, cut at 100 characters. It never touches a task whose title was typed or renamed, and it skips the cards of a repeating schedule, whose title is the schedule's. It runs on every start, a resume included, and a title it stored once stops later attempts.
+When a run starts, the worker applies the [title rules](usage.md#title-rules) the board holds to a task that still has its default title: the first line of its prompt, cut at 100 characters. It never touches a task whose title was typed or renamed, and it skips the cards of a repeating schedule, whose title is the schedule's. It runs on every start, a resume included, and a title it stored once stops later attempts.
 
 - **Order.** The worker reads the board's rules and takes the first whose pattern matches the whole prompt. It sets the rule's icon at once, only if the task has none. It then asks Haiku for a title beside the run and stores the answer when it is still the default title that is there. The run does not wait for either, and the worker process ends only after Haiku's call has.
 - **The call.** The worker runs Claude Code in the run's directory, so `gh pr view 8` finds the repository there:

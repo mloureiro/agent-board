@@ -4,6 +4,7 @@ import {
   type Answer,
   type Keys,
   type LinkRule,
+  type TitleRule,
   type Question,
   type Polish,
   type TranscriptEventView,
@@ -13,6 +14,7 @@ import type { TRPCClient } from '@trpc/client';
 import {
   openBoardAgents,
   openBoardLinks,
+  openBoardTitleRules,
   openBoardTask,
   openEvents,
   openListedTasks,
@@ -33,6 +35,7 @@ import {
   sealConfigure,
   sealFork,
   sealLinks,
+  sealTitleRulesInput,
   sealEdit,
   sealNewTask,
   sealReply,
@@ -106,6 +109,12 @@ export interface EditVariables {
 
 export interface SetLinksVariables {
   rules: LinkRule[];
+  /** The version the page loaded (0: none saved yet); the save is refused when the board holds another by now. */
+  expectedVersion: number;
+}
+
+export interface SetTitleRulesVariables {
+  rules: TitleRule[];
   /** The version the page loaded (0: none saved yet); the save is refused when the board holds another by now. */
   expectedVersion: number;
 }
@@ -228,6 +237,24 @@ export function createPlainTRPC(raw: RawTRPC, client: RawClient, keys: Keys | nu
             mutationKey: raw.links.set.mutationKey(),
             mutationFn: async ({ rules, expectedVersion }: SetLinksVariables) =>
               client.links.set.mutate(await sealLinks(need(), rules, expectedVersion)),
+          }),
+      },
+    },
+    titleRules: {
+      get: {
+        queryOptions: () =>
+          queryOptions({
+            queryKey: plainKey(raw.titleRules.get.queryKey()),
+            queryFn: async ({ signal }) =>
+              openBoardTitleRules(need(), await client.titleRules.get.query(undefined, { signal })),
+          }),
+      },
+      set: {
+        mutationOptions: () =>
+          mutationOptions({
+            mutationKey: raw.titleRules.set.mutationKey(),
+            mutationFn: async ({ rules, expectedVersion }: SetTitleRulesVariables) =>
+              client.titleRules.set.mutate(await sealTitleRulesInput(need(), rules, expectedVersion)),
           }),
       },
     },

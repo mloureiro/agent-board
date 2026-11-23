@@ -72,6 +72,7 @@ test('the Haiku call reads only through gh, keeps the prompt and the instruction
   );
   assert.ok(input.includes('MARKER-instruction') && input.includes('MARKER-prompt'));
   assert.equal(options.cwd, '/work/app');
+  assert.equal(options.timeout, 120_000);
   assert.deepEqual(options.env, { PATH: '/bin' });
 });
 
