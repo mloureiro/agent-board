@@ -46,7 +46,7 @@ import {
   updateSchedule,
 } from '../services/schedules';
 import { hasStarted } from '../services/taskRows';
-import { eventOutput, latestContext, listEvents, listRuns } from '../services/transcripts';
+import { eventOutput, latestContext, latestContexts, listEvents, listRuns } from '../services/transcripts';
 import {
   addTask,
   answer,
@@ -197,7 +197,15 @@ const tasksRouter = router({
         ctx.db,
         rows.map(({ row }) => row),
       );
-      return rows.map(({ row, lastNote }) => ({ ...toBoardTask(row, prs.get(row.id), held.has(row.id)), lastNote }));
+      const contexts = await latestContexts(
+        ctx.db,
+        rows.filter(({ row }) => row.status === 'running').map(({ row }) => row.id),
+      );
+      return rows.map(({ row, lastNote }) => ({
+        ...toBoardTask(row, prs.get(row.id), held.has(row.id)),
+        lastNote,
+        context: contexts.get(row.id) ?? null,
+      }));
     }),
 
   get: procedure.input(z.object({ id })).query(async ({ ctx, input }) => {

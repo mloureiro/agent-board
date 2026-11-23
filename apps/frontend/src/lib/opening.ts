@@ -26,6 +26,7 @@ import {
   openPreview,
   isWatchId,
   openWatches,
+  parseContextEvent,
   parseTranscriptEvent,
   taskLabels,
   transcriptBinding,
@@ -67,6 +68,7 @@ type WireLastNote = NonNullable<WireListedTask['lastNote']>;
 type WireThreadNote = RouterOutputs['tasks']['get']['thread'][number];
 type WireSchedule = RouterOutputs['schedules']['list'][number];
 type WireEvent = RouterOutputs['transcript']['events'][number];
+type WireContext = RouterOutputs['transcript']['context'];
 
 interface SealedFields {
   title: string;
@@ -104,7 +106,7 @@ export interface LastNote {
   unreadable: boolean;
 }
 
-export type ListedTask = BoardTask & { lastNote: LastNote | null };
+export type ListedTask = BoardTask & { lastNote: LastNote | null; context: ContextReading | null };
 
 export interface ThreadNote {
   id: string;
@@ -252,12 +254,13 @@ async function openLastNote(keys: Keys, taskId: string, wire: WireLastNote): Pro
 
 export async function openListedTasks(keys: Keys, wire: WireListedTask[]): Promise<ListedTask[]> {
   return Promise.all(
-    wire.map(async ({ lastNote, ...task }) => {
-      const [opened, note] = await Promise.all([
+    wire.map(async ({ lastNote, context, ...task }) => {
+      const [opened, note, reading] = await Promise.all([
         openBoardTask(keys, task),
         lastNote === null ? null : openLastNote(keys, task.id, lastNote),
+        openContext(keys, task.id, context),
       ]);
-      return { ...opened, lastNote: note };
+      return { ...opened, lastNote: note, context: reading === 'unreadable' ? null : reading };
     }),
   );
 }
@@ -508,4 +511,31 @@ export async function openFeeds(keys: Keys, wire: RouterOutputs['feeds']['list']
       };
     }),
   );
+}
+
+export interface ContextReading {
+  used: number;
+  window: number | null;
+  threshold: number | null;
+  model: string;
+  at: string;
+}
+
+export async function openContext(
+  keys: Keys,
+  taskId: string,
+  wire: WireContext,
+): Promise<ContextReading | null | 'unreadable'> {
+  if (wire === null) return null;
+  if (!isSafeNoteId(wire.runId)) return 'unreadable';
+  const text = await tryOpen(keys, transcriptBinding('tr.data', taskId, wire.runId, wire.seq), wire.data);
+  let event: ReturnType<typeof parseContextEvent>;
+  try {
+    event = text === undefined ? undefined : parseContextEvent(JSON.parse(text));
+  } catch {
+    return 'unreadable';
+  }
+  if (event === undefined || event.seq !== wire.seq) return 'unreadable';
+  const { used, window, threshold, model } = event;
+  return { used, window, threshold, model, at: String(wire.at) };
 }

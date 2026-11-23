@@ -4,6 +4,7 @@ import { envelopeLength, isBlindIndex, isEnvelope } from './crypto.mts';
 import type { Field } from './crypto.mts';
 import { isRecord } from './guards.mts';
 import type { SharedAgentsDocument } from './sharedAgents.mts';
+import type { TitleRule } from './titleRules.mts';
 import type { MachineUsage } from './machineUsage.mts';
 import { MAX_FEED_REQUESTS, parseFeedRequest } from './machineFeeds.mts';
 import type { MachineFeeds } from './machineFeeds.mts';
@@ -577,7 +578,18 @@ export interface Backend {
   // Stores `document` (whose version must be `expectedVersion + 1`) while the board's version is still `expectedVersion`, 0 for
   // none; the server answers 409 when another push came first.
   setSharedAgents(document: SharedAgentsDocument, expectedVersion: number): Promise<void>;
+  // The title rules the board holds, opened under the version the board names for them; null when it holds none.
+  getTitleRules(): Promise<TitleRulesOnBoard>;
+  // Sets the icon (only while the task has none) and/or the title (only while it is still `expect`) of the run's own task.
+  // Each answer says whether that part was stored.
+  applyTitleRule(
+    id: string,
+    change: { icon?: string; title?: { text: string; expect: string } },
+  ): Promise<{ icon: boolean; title: boolean }>;
 }
+
+/** The board's title rules: the opened rules, or their version alone when the document does not open under that version. */
+export type TitleRulesOnBoard = null | { version: number; rules: TitleRule[] } | { version: number; unreadable: true };
 
 /** The board's agent definitions: the opened document, or its version alone when it does not open under that version. */
 export type SharedAgentsOnBoard =
@@ -1014,6 +1026,8 @@ export interface WireBackend {
   getAgents(): Promise<WireSharedAgents | null>;
   setAgents(body: WireSetAgents): Promise<void>;
   agentsState(): Promise<WireAgentsState>;
+  getTitleRules(): Promise<WireTitleRules | null>;
+  applyTitleRule(id: string, body: WireTitleRuleApply): Promise<WireTitleRuleResult>;
 }
 
 // The characters of a suggested reply the board takes.

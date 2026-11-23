@@ -15,7 +15,7 @@ import {
 } from '@agent-board/shared';
 import type { PrState, TaskWatch } from '@agent-board/shared';
 import { describe, expect, it } from 'vitest';
-import { openBoardTask, openCatalogs, openEvent, openMachines } from './opening';
+import { openBoardTask, openCatalogs, openContext, openEvent, openListedTasks, openMachines } from './opening';
 import { sealerFor } from './contexts';
 import type { RouterOutputs } from './wire';
 
@@ -392,5 +392,66 @@ describe('the events of a run, as the browser opens them', () => {
     const data = { ...base, kind: 'tool_result', toolUseId: 'toolu_1', isError: false };
     const event = await openEvent(keys, run, await wireEvent(data, 12));
     expect(event).toEqual({ ...data, outputSize: 12 });
+  });
+});
+
+describe('the context reading of a task, as the browser opens it', () => {
+  const taskId = 'task0001';
+  const runId = 'run00001';
+  const AT = '2026-11-16T12:00:00.000Z';
+  const reading = {
+    seq: 7,
+    at: AT,
+    parent: null,
+    kind: 'context',
+    used: 133_600,
+    window: 1_000_000,
+    threshold: 80,
+    model: 'opus',
+  };
+  const wire = async (sealedSeq: number, data: unknown = reading) => ({
+    runId,
+    seq: 7,
+    at: AT,
+    data: await sealerFor(keys)(transcriptBinding('tr.data', taskId, runId, sealedSeq), JSON.stringify(data)),
+  });
+
+  it('has no reading when the run reported none', async () => {
+    expect(await openContext(keys, taskId, null)).toBeNull();
+  });
+
+  it('opens a sealed reading', async () => {
+    expect(await openContext(keys, taskId, await wire(7))).toEqual({
+      used: 133_600,
+      window: 1_000_000,
+      threshold: 80,
+      model: 'opus',
+      at: AT,
+    });
+  });
+
+  it('shows a value sealed under another position, or of another shape, as unreadable', async () => {
+    expect(await openContext(keys, taskId, await wire(8))).toBe('unreadable');
+    expect(await openContext(keys, taskId, await wire(7, { ...reading, used: 'lots' }))).toBe('unreadable');
+  });
+
+  it('shows a value whose own position differs from the one it was served under as unreadable', async () => {
+    expect(await openContext(keys, taskId, await wire(7, { ...reading, seq: 9 }))).toBe('unreadable');
+  });
+
+  it('opens the readings of a listing, and gives a card nothing for an unreadable one', async () => {
+    const task = await wireTask([]);
+    const [readable, unreadable, none] = await openListedTasks(keys, [
+      { ...task, lastNote: null, context: await wire(7) },
+      { ...task, lastNote: null, context: await wire(8) },
+      { ...task, lastNote: null, context: null },
+    ]);
+    expect(readable?.context).toMatchObject({ used: 133_600, window: 1_000_000 });
+    expect(unreadable?.context).toBeNull();
+    expect(none?.context).toBeNull();
+  });
+
+  it('refuses a run id that is not an id without throwing', async () => {
+    expect(await openContext(keys, taskId, { ...(await wire(7)), runId: 'bad id\n' })).toBe('unreadable');
   });
 });

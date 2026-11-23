@@ -435,6 +435,7 @@ describe('opening what arrives', () => {
           preview: await sealAs(keys, noteBinding('note.preview', 'task1', 'user', 'comment'), 'hello there'),
           createdAt: NOW,
         },
+        context: null,
       },
       {
         ...(await wireTask({
@@ -443,6 +444,7 @@ describe('opening what arrives', () => {
           input: await sealAs(keys, inputBinding(taskRow('task2', 'intake')), 'look at https://x'),
         })),
         lastNote: null,
+        context: null,
       },
     ]);
     const { trpc } = plain();
@@ -455,7 +457,7 @@ describe('opening what arrives', () => {
       unreadable: [],
       lastNote: { text: 'hello there', author: 'user', unreadable: false },
     });
-    expect(tasks[1]).toMatchObject({ skillLabels: ['review'], lastNote: null });
+    expect(tasks[1]).toMatchObject({ skillLabels: ['review'], lastNote: null, context: null });
   });
 
   it('shows a server event as text and the rest of the notes only when they open', async () => {
@@ -592,10 +594,12 @@ describe('opening what arrives', () => {
           workdir: await sealAs(keys, { field: 'workdir', context: 'task:bad' }, 'relative/dir'),
         })),
         lastNote: null,
+        context: null,
       },
       {
         ...(await wireTask({ id: 'good' })),
         lastNote: { kind: 'comment', author: 'agent', preview: 'garbage', createdAt: NOW },
+        context: null,
       },
     ]);
     const { trpc } = plain();
@@ -745,8 +749,8 @@ describe('opening what arrives', () => {
 
   it('does not decrypt an unchanged value again on the next poll', async () => {
     const board = [
-      { ...(await wireTask()), lastNote: null },
-      { ...(await wireTask({ id: 'task2' })), lastNote: null },
+      { ...(await wireTask()), lastNote: null, context: null },
+      { ...(await wireTask({ id: 'task2' })), lastNote: null, context: null },
     ];
     handle.mockResolvedValue(board);
     const { trpc } = plain();
@@ -760,7 +764,7 @@ describe('opening what arrives', () => {
   });
 
   it('keeps unchanged tasks the same objects between polls', async () => {
-    handle.mockImplementation(async () => [{ ...(await wireTask()), lastNote: null }]);
+    handle.mockImplementation(async () => [{ ...(await wireTask()), lastNote: null, context: null }]);
     const { trpc } = plain();
     const { queryKey } = trpc.tasks.list.queryOptions();
     await queryClient.fetchQuery({ ...trpc.tasks.list.queryOptions(), staleTime: 0 });

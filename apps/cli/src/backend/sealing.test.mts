@@ -13,6 +13,8 @@ import {
   parseWireUsage,
   parseWireFeeds,
   parseWireSetAgents,
+  parseWireTitleRuleApply,
+  sealTitleRules,
   parseWireNoteInput,
   parseWirePr,
   parseWirePromptEdit,
@@ -32,6 +34,8 @@ import {
 } from '@agent-board/shared';
 import type {
   Question,
+  WireTitleRuleApply,
+  WireTitleRules,
   TranscriptEvent,
   WireBackend,
   WireCatalog,
@@ -87,6 +91,8 @@ interface FakeWire extends WireBackend {
   feedRequests: string[];
   feedAcks: string[][];
   agents: WireSharedAgents | null;
+  titleRules: WireTitleRules | null;
+  titleRuleBodies: WireTitleRuleApply[];
 }
 
 let nextId = 0;
@@ -111,6 +117,8 @@ function fakeWire(): FakeWire {
     feedRequests: [],
     feedAcks: [],
     agents: null,
+    titleRules: null,
+    titleRuleBodies: [],
     async listTasks() {
       return state.tasks;
     },
@@ -240,6 +248,13 @@ function fakeWire(): FakeWire {
     },
     async agentsState() {
       return { supported: true, version: state.agents?.version ?? null };
+    },
+    async getTitleRules() {
+      return state.titleRules;
+    },
+    async applyTitleRule(_id, body) {
+      state.titleRuleBodies.push(parseWireTitleRuleApply(JSON.parse(record(state, body))));
+      return { icon: body.icon !== undefined, title: body.title !== undefined };
     },
     async pause(id, note) {
       push(state, id, parseWireNoteInput(JSON.parse(record(state, note)), 'note'), 'system', 'event');
@@ -1538,4 +1553,65 @@ test('an edit of a schedule with settings refuses a relative directory before an
     /workdir must be an absolute path/,
   );
   assert.deepEqual(wire.requests, []);
+});
+
+test('the title rules open under the version the board names, and a document that does not open is only its version', async () => {
+  const wire = fakeWire();
+  const board = sealingBackend(wire, KEYS);
+  assert.equal(await board.getTitleRules(), null);
+  const rules = [{ pattern: 'pull', icon: '\u{1F50E}', instruction: 'MARKER-instruction' }];
+  const document = await sealTitleRules(async ({ field, context }, text) => seal(KEYS, field, context, text), {
+    version: 3,
+    rules,
+  });
+  wire.titleRules = { version: 3, document };
+  assert.deepEqual(await board.getTitleRules(), { version: 3, rules });
+  wire.titleRules = { version: 4, document };
+  assert.deepEqual(await board.getTitleRules(), { version: 4, unreadable: true });
+});
+
+const iconSealed = (id: string, icon: string): Promise<string> => seal(KEYS, 'icon', `task:${id}`, icon);
+
+test('a title is applied only while the board still holds the expected title, and is sent sealed with that envelope', async () => {
+  const wire = fakeWire();
+  const board = sealingBackend(wire, KEYS);
+  const mine = await wireTask({ id: 't1', title: 'default', input: 'default' });
+  wire.tasks.push(mine);
+  const result = await board.applyTitleRule('t1', { title: { text: 'MARKER-new', expect: 'default' } });
+  assert.deepEqual(result, { icon: false, title: true });
+  const [body] = wire.titleRuleBodies;
+  assert.equal(body?.expectTitle, mine.title);
+  assert.equal(await open(KEYS, 'title', 'task:t1', body!.title!), 'MARKER-new');
+  noMarkers(wire);
+
+  wire.requests.length = 0;
+  wire.titleRuleBodies.length = 0;
+  const renamed = await wireTask({ id: 't2', title: 'renamed by the user', input: 'default' });
+  wire.tasks.push(renamed);
+  const dropped = await board.applyTitleRule('t2', { title: { text: 'new', expect: 'default' } });
+  assert.deepEqual(dropped, { icon: false, title: false });
+  assert.deepEqual(wire.requests, [], 'nothing is sent when the title is no longer the default');
+});
+
+test('an icon is sent only for a task that has none, and a dropped title still lets the icon through', async () => {
+  const wire = fakeWire();
+  const board = sealingBackend(wire, KEYS);
+  wire.tasks.push({ ...(await wireTask({ id: 't1', title: 'renamed', input: 'x' })), icon: null });
+  const result = await board.applyTitleRule('t1', {
+    icon: '\u{1F50E}',
+    title: { text: 'new', expect: 'default' },
+  });
+  assert.deepEqual(result, { icon: true, title: false });
+  const [body] = wire.titleRuleBodies;
+  assert.equal(body?.title, undefined);
+  assert.equal(body?.expectTitle, undefined);
+  assert.equal(await open(KEYS, 'icon', 'task:t1', body!.icon!), '\u{1F50E}');
+
+  wire.requests.length = 0;
+  wire.tasks.push({
+    ...(await wireTask({ id: 't2', title: 'default', input: 'x' })),
+    icon: await iconSealed('t2', '\u{1F4A1}'),
+  });
+  assert.deepEqual(await board.applyTitleRule('t2', { icon: '\u{1F50E}' }), { icon: false, title: false });
+  assert.deepEqual(wire.requests, [], 'a task with an icon keeps it, and with nothing left no call is made');
 });

@@ -21,6 +21,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { ActionPanel } from '../components/ActionPanel';
+import { ContextUsageBar } from '../components/ContextUsageBar';
 import { ForkModal } from '../components/ForkModal';
 import { EditTaskPrompt } from '../components/EditPrompt';
 import { WatchList } from '../components/WatchList';
@@ -171,6 +172,7 @@ function TaskView({ id }: { id: string }) {
           )}
           <WorkdirSetting task={task} unlisted={unlisted} />
           <AutoDoneSetting task={task} />
+          <ContextUsageBar taskId={task.id} live={task.status === 'running'} />
           <Group gap="xs">
             <Button
               variant="default"
