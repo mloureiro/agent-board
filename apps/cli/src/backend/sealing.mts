@@ -481,15 +481,23 @@ export function sealingBackend(inner: WireBackend, keys: Keys | (() => Promise<K
       const opener = openerFor(await getKeys());
       const stillDefault =
         change.title !== undefined && (await opener(titleBinding(row), wire.title)) === change.title.expect;
-      const sealed = await checked('apply-title-rule', async () => ({
-        ...(change.icon === undefined || (wire.icon ?? null) !== null
-          ? {}
-          : { icon: await sealIcon(sealer, row, change.icon) }),
-        ...(change.title === undefined || !stillDefault
-          ? {}
-          : { title: await sealTitle(sealer, row, change.title.text), expectTitle: wire.title }),
-      }));
-      if (sealed.icon === undefined && sealed.title === undefined) return { icon: false, title: false };
+      const sealed = await checked('apply-title-rule', async () => {
+        const labels =
+          change.labels === undefined || (wire.labels ?? null) !== null
+            ? null
+            : await sealLabels(sealer, row, change.labels);
+        return {
+          ...(change.icon === undefined || (wire.icon ?? null) !== null
+            ? {}
+            : { icon: await sealIcon(sealer, row, change.icon) }),
+          ...(labels === null ? {} : { labels }),
+          ...(change.title === undefined || !stillDefault
+            ? {}
+            : { title: await sealTitle(sealer, row, change.title.text), expectTitle: wire.title }),
+        };
+      });
+      if (sealed.icon === undefined && sealed.labels === undefined && sealed.title === undefined)
+        return { icon: false, labels: false, title: false };
       return inner.applyTitleRule(id, sealed);
     },
     async pause(id, note) {

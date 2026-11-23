@@ -162,9 +162,9 @@ export interface FakeBackend extends Backend {
     // Pushes that fail with 409 before the next one goes through, as if another CLI pushed in between.
     conflicts: number;
   };
-  // The title rules the board holds, and what its server does with an apply: the icon only while there is none, the title only
-  // while it is still the expected one.
-  boardTitleRules: { supported: boolean; held: TitleRulesOnBoard };
+  // The title rules the board holds, and what its server does with an apply: the icon and the labels only while there are none,
+  // the title only while it is still the expected one.
+  boardTitleRules: { supported: boolean; labelsSupported: boolean; held: TitleRulesOnBoard };
 }
 
 function missingTitleRules(command: string): BackendError {
@@ -205,26 +205,35 @@ export function fakeBackend(tasks: Task[]): FakeBackend {
     boardUsage: { supported: true, held: undefined, failure: undefined },
     boardSources: { supported: true, held: undefined, requests: [], failure: undefined },
     boardAgents: { supported: true, held: null, conflicts: 0 },
-    boardTitleRules: { supported: true, held: null },
+    boardTitleRules: { supported: true, labelsSupported: true, held: null },
     async getTitleRules() {
       if (!state.boardTitleRules.supported) throw missingTitleRules('get-title-rules');
       return structuredClone(state.boardTitleRules.held);
     },
     async applyTitleRule(id, change) {
       if (!state.boardTitleRules.supported) throw missingTitleRules('apply-title-rule');
+      if (change.labels !== undefined && !state.boardTitleRules.labelsSupported) {
+        const error = new BackendError('the board server does not support labels from title rules yet');
+        error.missingFeature = 'task.title-rule-labels';
+        throw error;
+      }
       const found = state.tasks.find((t) => t.id === id);
       if (!found) throw new BackendError(`apply-title-rule: no task ${id}`, 404, true);
-      const applied = { icon: false, title: false };
+      const applied = { icon: false, labels: false, title: false };
       if (change.icon !== undefined && found.icon === null) {
         found.icon = change.icon;
         applied.icon = true;
+      }
+      if (change.labels !== undefined && found.labels.length === 0) {
+        found.labels = [...change.labels];
+        applied.labels = true;
       }
       if (change.title !== undefined && found.title === change.title.expect) {
         found.title = change.title.text;
         applied.title = true;
       }
       state.writes.push(
-        `apply-title-rule ${id}${applied.icon ? ` icon ${change.icon}` : ''}${applied.title ? ` title ${change.title?.text}` : ''}`,
+        `apply-title-rule ${id}${applied.icon ? ` icon ${change.icon}` : ''}${applied.labels ? ` labels ${change.labels?.join(', ')}` : ''}${applied.title ? ` title ${change.title?.text}` : ''}`,
       );
       return applied;
     },

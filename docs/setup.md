@@ -224,6 +224,16 @@ The CLI alone changes: `--ignore <pattern>` on `board watch --ci`, and the `ciIg
 - An older CLI refuses a config that has `ciIgnore`: `parseConfig` throws `has no setting "ciIgnore"`, and every command that reads the config stops with that error. That includes each dispatch tick (the timer's and the ones the listener starts), every worker, `board watch`, `board dirs` and `board doctor`, so a machine with a stale CLI stops dispatching. The listener and the watch unit themselves do not read config.json, so they keep running, but the ticks the listener starts fail. Add `ciIgnore` only after every CLI on the machine runs the new version: `board self-update`, or on a checkout install `git pull`, `pnpm install` and `board restart`.
 - `--ignore` alone needs no config change.
 
+### Title rules set labels
+
+A new server feature, `task.title-rule-labels`. A title rule can set labels as well as an icon and a title (see [Title rules](usage.md#title-rules)): Settings › Titles has a labels field per rule, and the worker sets them at run start on a task that has none. No migration, and no version number is raised.
+
+Update the server first, then the CLI on every machine before you save a rule that sets labels and nothing else.
+
+- A machine on an older CLI applies the icon and title of a rule and ignores its labels.
+- An older CLI cannot read a rule that sets only labels, so it finds the whole document unreadable and applies no rule at all. Its task log says `the title rules cannot be decrypted with this machine's data key`. A rule that also sets an icon or a title does not have this problem.
+- A newer CLI against a server without the feature logs `labels not set: …` and still applies the icon and the title.
+
 ### A task carries labels
 
 A new server feature, `task.labels`. A task and a schedule take a list of labels, sealed like the title, that the board shows as badges on the card and the task page (see [Labels](usage.md#labels)). The card, the task page and the New task form can change them, and `board schedule --label`, `board add --label`, `board schedules edit --label` and `board task <task> set labels` set them. A migration adds a `labels` column to `task` and `schedule`. Nothing changes for the tasks you have, and no version number is raised.

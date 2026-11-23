@@ -1067,14 +1067,15 @@ export async function configureTask(db: DbOrTx, taskId: string, config: TaskConf
 
 export interface TitleRuleChange {
   icon?: string | undefined;
+  labels?: string | undefined;
   title?: string | undefined;
   expectTitle?: string | undefined;
 }
 
 /**
- * What a title rule gave a run's own task, sealed: the icon only while the task has none, the title only while it is still
- * exactly the envelope `expectTitle` (the one the caller found to be the default), so a rename or an icon the user set
- * meanwhile stays. Says which parts were stored. A schedule's occurrence takes both from its schedule and is refused. A run
+ * What a title rule gave a run's own task, sealed: the icon only while the task has none, the labels only while it has none,
+ * the title only while it is still exactly the envelope `expectTitle` (the one the caller found to be the default), so a
+ * rename, an icon or labels the user set meanwhile stay. Says which parts were stored. A schedule's occurrence takes both from its schedule and is refused. A run
  * that ended may still apply, since a short run can end before a title is written; a later run of the task refuses an earlier
  * one. No note is written, as for a rename, and the status and position stay.
  */
@@ -1083,7 +1084,7 @@ export async function applyTitleRule(
   taskId: string,
   change: TitleRuleChange,
   run: string,
-): Promise<{ icon: boolean; title: boolean }> {
+): Promise<{ icon: boolean; labels: boolean; title: boolean }> {
   return db.transaction(async (tx) => {
     const task = await lockTask(tx, taskId);
     if (task.scheduleId !== null)
@@ -1095,15 +1096,17 @@ export async function applyTitleRule(
     if (refused) throw new AppError('CONFLICT', refused);
     const set: TaskValues = {};
     const icon = change.icon !== undefined && task.icon === null;
+    const labels = change.labels !== undefined && task.labels === null;
     const title = change.title !== undefined && change.expectTitle === task.title;
     if (icon) set.icon = change.icon!;
+    if (labels) set.labels = change.labels!;
     if (title) set.title = change.title!;
-    if (icon || title)
+    if (icon || labels || title)
       await tx
         .update(tasks)
         .set({ ...set, updatedAt: new Date() })
         .where(eq(tasks.id, taskId));
-    return { icon, title };
+    return { icon, labels, title };
   });
 }
 

@@ -1,4 +1,4 @@
-import { openTitleRules, sealIcon, sealTitle, sealTitleRules } from '@agent-board/shared';
+import { openTitleRules, sealIcon, sealLabels, sealTitle, sealTitleRules } from '@agent-board/shared';
 import type { RowRef, TitleRule } from '@agent-board/shared';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { titleRules } from './db/schema';
@@ -113,6 +113,7 @@ describe('apply-title-rule', () => {
     const icon = await sealIcon(sealed.seal, ref(bare.id), '🔎');
     expect(result(await bare.laptop('apply-title-rule', { id: bare.id, run: bare.run, body: { icon } }))).toEqual({
       icon: true,
+      labels: false,
       title: false,
     });
     expect((await wire(bare.id)).icon).toBe(icon);
@@ -121,12 +122,30 @@ describe('apply-title-rule', () => {
     const before = (await wire(kept.id)).icon;
     const sent = await sealIcon(sealed.seal, ref(kept.id), '🔎');
     expect(result(await kept.laptop('apply-title-rule', { id: kept.id, run: kept.run, body: { icon: sent } }))).toEqual(
-      {
-        icon: false,
-        title: false,
-      },
+      { icon: false, labels: false, title: false },
     );
     expect((await wire(kept.id)).icon).toBe(before);
+  });
+
+  it('stores the labels on a task without any and keeps the labels a task has', async () => {
+    const bare = await running();
+    const labels = (await sealLabels(sealed.seal, ref(bare.id), ['review', 'pr']))!;
+    expect(result(await bare.laptop('apply-title-rule', { id: bare.id, run: bare.run, body: { labels } }))).toEqual({
+      icon: false,
+      labels: true,
+      title: false,
+    });
+    expect((await wire(bare.id)).labels).toBe(labels);
+
+    const kept = await running();
+    const own = (await sealLabels(sealed.seal, ref(kept.id), ['mine']))!;
+    await caller(db).tasks.configure({ id: kept.id, labels: own });
+    const sent = (await sealLabels(sealed.seal, ref(kept.id), ['review']))!;
+    const icon = await sealIcon(sealed.seal, ref(kept.id), '🔎');
+    expect(
+      result(await kept.laptop('apply-title-rule', { id: kept.id, run: kept.run, body: { icon, labels: sent } })),
+    ).toEqual({ icon: true, labels: false, title: false });
+    expect((await wire(kept.id)).labels).toBe(own);
   });
 
   it('stores the title while it is the envelope the caller expects, and not after a rename', async () => {
@@ -136,6 +155,7 @@ describe('apply-title-rule', () => {
     await task.ui.tasks.configure({ id: task.id, title: 'My own name' });
     expect(result(await task.laptop('apply-title-rule', { id: task.id, run: task.run, body: apply }))).toEqual({
       icon: false,
+      labels: false,
       title: false,
     });
     expect(await task.ui.tasks.get({ id: task.id }).then(({ task: t }) => t.title)).toBe('My own name');
@@ -149,7 +169,7 @@ describe('apply-title-rule', () => {
           body: { title, expectTitle: fresh.wireTitle },
         }),
       ),
-    ).toEqual({ icon: false, title: true });
+    ).toEqual({ icon: false, labels: false, title: true });
     expect((await wire(fresh.id)).title).toBe(title);
   });
 
@@ -192,6 +212,7 @@ describe('apply-title-rule', () => {
     await task.laptop('update-task', { id: task.id, run: task.run, body: { status: 'needs-me' } });
     expect(result(await task.laptop('apply-title-rule', { id: task.id, run: task.run, body: { icon } }))).toEqual({
       icon: true,
+      labels: false,
       title: false,
     });
     expect((await wire(task.id)).status).toBe('needs-me');

@@ -932,19 +932,20 @@ The rules are sealed with your key and only your browser reads them (see [The li
 
 ## Title rules
 
-**Settings › Titles** holds rules that give a task an icon and a title when it runs with the title it got by default, the first line of its prompt. A rule has a pattern, a JavaScript regular expression tested against the whole prompt, an optional icon and an optional title instruction. A rule needs at least one of the two.
+**Settings › Titles** holds rules that give a task an icon, [labels](#labels) and a title when it runs with the title it got by default, the first line of its prompt. A rule has a pattern, a JavaScript regular expression tested against the whole prompt, an optional icon, optional labels and an optional title instruction. A rule needs at least one of the three.
 
-With the pattern `^/pj-acme:review\b`, the icon 🔎 and the instruction "The pull request number and its title", a task started with `/pj-acme:review https://github.com/acme/app/pull/8` gets 🔎 at once. A moment later it gets a title such as "#8 Fix the login redirect", written by Haiku from the pull request.
+With the pattern `^/pj-acme:review\b`, the icon 🔎, the labels `review` and `pr` and the instruction "The pull request number and its title", a task started with `/pj-acme:review https://github.com/acme/app/pull/8` gets 🔎 and the two labels at once. A moment later it gets a title such as "#8 Fix the login redirect", written by Haiku from the pull request.
 
-**What happens when a run starts.** The worker takes the first rule, in the order of the page, whose pattern matches. It sets the icon at once, only if the task has none. Haiku then writes the title from the instruction while the run goes on, reading only the pull request or issue the prompt names, with `gh` on the machine that runs the task. A rule without an instruction leaves the title alone, and a rule without an icon leaves the icon alone.
+**What happens when a run starts.** The worker takes the first rule, in the order of the page, whose pattern matches. It sets the icon at once, only if the task has none, and then the labels, only if the task has none. Haiku then writes the title from the instruction while the run goes on, reading only the pull request or issue the prompt names, with `gh` on the machine that runs the task. A rule without an instruction leaves the title alone, a rule without an icon leaves the icon alone, and a rule without labels leaves the labels alone. The labels replace nothing: a task that already has a label keeps its own list, and the rule adds none to it.
 
 **What is never touched.**
 
 - A title you typed or renamed.
 - An icon you chose.
+- Labels you gave the task, at creation or later.
 - The cards of a repeating schedule, whose title is the schedule's.
 
-**On the page.** Each rule is a pattern, **Ignore case**, an icon (the button opens the emoji picker and offers **Remove icon**), a title instruction and a bin. **Add rule** adds a row. A problem shows under the field it concerns, and **Save** stays off until every rule works. At most 50 rules, a pattern of up to 300 characters and an instruction of up to 2000. **Try it** takes a prompt and says which rule matches it, with its icon, using the rules as they stand on the page, saved or not. If the page says the rules changed somewhere else, reload it and make your change again: another tab or browser saved first.
+**On the page.** Each rule is a pattern, **Ignore case**, an icon (the button opens the emoji picker and offers **Remove icon**), labels (type one and press Enter, as in the New task form), a title instruction and a bin. **Add rule** adds a row. A problem shows under the field it concerns, and **Save** stays off until every rule works. At most 50 rules, a pattern of up to 300 characters and an instruction of up to 2000. **Try it** takes a prompt and says which rule matches it, with its icon and labels, using the rules as they stand on the page, saved or not. If the page says the rules changed somewhere else, reload it and make your change again: another tab or browser saved first.
 
 The rules are sealed with your key. Your browser and your machines read them with it, and the server cannot. They go with an export and an import of the board.
 

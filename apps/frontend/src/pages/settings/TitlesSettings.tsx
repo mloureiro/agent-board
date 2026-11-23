@@ -24,6 +24,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { TRPCClientError } from '@trpc/client';
 import { useMemo, useState } from 'react';
 import { EmojiPicker } from '../../components/EmojiPicker';
+import { LabelsInput } from '../../components/LabelsEditor';
 import { QueryStatus } from '../../components/QueryStatus';
 import { ago, stamp } from '../../lib/time';
 import { useTRPC } from '../../lib/trpc';
@@ -33,6 +34,7 @@ interface DraftRule {
   pattern: string;
   ignoreCase: boolean;
   icon: string | null;
+  labels: string[];
   instruction: string;
 }
 
@@ -40,10 +42,11 @@ const PATTERN_EXAMPLE = '^/pj-acme:review\\b';
 const INSTRUCTION_EXAMPLE = 'The pull request number and its title, such as "#8 Fix the login redirect".';
 const TRY_TEXT = '/pj-acme:review https://github.com/acme/app/pull/8';
 
-const asRule = ({ pattern, ignoreCase, icon, instruction }: DraftRule): TitleRule => ({
+const asRule = ({ pattern, ignoreCase, icon, labels, instruction }: DraftRule): TitleRule => ({
   pattern,
   ...(ignoreCase ? { flags: 'i' as const } : {}),
   ...(icon === null ? {} : { icon }),
+  ...(labels.length === 0 ? {} : { labels }),
   ...(instruction === '' ? {} : { instruction }),
 });
 
@@ -53,7 +56,7 @@ const sentence = (text: string): string => `${text.charAt(0).toUpperCase()}${tex
 function fieldProblems(draft: DraftRule): { pattern?: string; instruction?: string } {
   const filled = draft.pattern !== '';
   const problem = titleRuleProblem(asRule({ ...draft, pattern: filled ? draft.pattern : 'a' }));
-  if (problem === undefined || (!filled && problem.startsWith('the rule sets neither'))) return {};
+  if (problem === undefined || (!filled && problem.startsWith('the rule sets no'))) return {};
   const text = sentence(problem);
   return problem.startsWith('the pattern') ? { pattern: text } : { instruction: text };
 }
@@ -63,11 +66,12 @@ const isConflict = (error: unknown): boolean =>
 
 function outcome(number: number, rule: TitleRule): string {
   const icon = rule.icon === undefined ? 'no icon' : `icon ${rule.icon}`;
+  const labels = rule.labels === undefined ? 'no labels' : `labels ${rule.labels.join(', ')}`;
   const title = rule.instruction === undefined ? 'no title instruction' : 'Haiku writes the title from its instruction';
-  return `Rule ${number} matches: ${icon}, ${title}.`;
+  return `Rule ${number} matches: ${icon}, ${labels}, ${title}.`;
 }
 
-/** The rules that give a new task an icon and a model-written title; they live on the board sealed, and your machines read them. */
+/** The rules that give a new task an icon, labels and a model-written title; they live on the board sealed, and your machines read them. */
 export function TitlesSettings() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -88,6 +92,7 @@ export function TitlesSettings() {
         pattern: rule.pattern,
         ignoreCase: rule.flags === 'i',
         icon: rule.icon ?? null,
+        labels: rule.labels ?? [],
         instruction: rule.instruction ?? '',
       })),
     [edit, stored],
@@ -112,7 +117,7 @@ export function TitlesSettings() {
     edited(rows.map((row) => (row.key === key ? { ...row, ...patch } : row)));
   const add = () => {
     setAdded(added + 1);
-    edited([...rows, { key: `new-${added}`, pattern: '', ignoreCase: false, icon: null, instruction: '' }]);
+    edited([...rows, { key: `new-${added}`, pattern: '', ignoreCase: false, icon: null, labels: [], instruction: '' }]);
   };
 
   const onSave = () =>
@@ -133,10 +138,11 @@ export function TitlesSettings() {
           <Title order={5}>Titles</Title>
           <Text size="sm" c="dimmed">
             When a task runs with the title it got by default, the first rule whose pattern matches its prompt applies.
-            The rule&apos;s icon is set if the task has none. Haiku writes a title from the rule&apos;s instruction,
-            reading only the pull request or issue the prompt names, with <code>gh</code> on the machine that runs the
-            task. A title you typed or renamed, an icon you chose and the cards of a repeating schedule are never
-            touched. The rules are sealed with your key, and your machines read them with the same key.
+            The rule&apos;s icon is set if the task has none, and its labels if the task has none. Haiku writes a title
+            from the rule&apos;s instruction, reading only the pull request or issue the prompt names, with{' '}
+            <code>gh</code> on the machine that runs the task. A title you typed or renamed, an icon or labels you chose
+            and the cards of a repeating schedule are never touched. The rules are sealed with your key, and your
+            machines read them with the same key.
           </Text>
         </div>
         <QueryStatus query={titles} what="title rules" />
@@ -190,6 +196,11 @@ export function TitlesSettings() {
                   label={`Icon of rule ${index + 1}`}
                 />
               </Group>
+              <LabelsInput
+                ariaLabel={`Labels of rule ${index + 1}`}
+                value={row.labels}
+                onChange={(labels) => change(row.key, { labels })}
+              />
               <Textarea
                 aria-label={`Title instruction of rule ${index + 1}`}
                 placeholder={INSTRUCTION_EXAMPLE}
@@ -239,7 +250,7 @@ export function TitlesSettings() {
           value={tryText}
           onChange={(event) => setTryText(event.currentTarget.value)}
         />
-        <Text size="sm">{matched ?? 'No rule matches: the task keeps its title and icon.'}</Text>
+        <Text size="sm">{matched ?? 'No rule matches: the task keeps its title, icon and labels.'}</Text>
       </Stack>
     </Paper>
   );

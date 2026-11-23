@@ -358,7 +358,10 @@ export function createWebBackend(options: WebBackendOptions): WebBackend {
     getAgents: async () => call('get-agents', {}, parseWireSharedAgents),
     setAgents: async (body) => send('set-agents', { body }),
     getTitleRules: async () => call('get-title-rules', {}, parseWireTitleRules),
-    applyTitleRule: async (id, body) => call('apply-title-rule', { id: taskId(id), body }, parseWireTitleRuleResult),
+    applyTitleRule: async (id, body) => {
+      if (body.labels !== undefined) requireFeature((await connect()).features, 'task.title-rule-labels');
+      return call('apply-title-rule', { id: taskId(id), body }, parseWireTitleRuleResult);
+    },
     agentsState: async () => {
       const { features, agentsVersion } = await connect();
       return { supported: features.has('agents.shared'), version: agentsVersion };

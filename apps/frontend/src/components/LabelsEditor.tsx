@@ -16,11 +16,12 @@ interface InputProps {
   onChange: (labels: string[]) => void;
   suggestions?: readonly string[];
   label?: string;
+  ariaLabel?: string;
   disabled?: boolean;
   autoFocus?: boolean;
 }
 
-export function LabelsInput({ value, onChange, suggestions = [], label, disabled, autoFocus }: InputProps) {
+export function LabelsInput({ value, onChange, suggestions = [], label, ariaLabel, disabled, autoFocus }: InputProps) {
   const [error, setError] = useState<string | undefined>();
   const change = (next: string[]) => {
     try {
@@ -36,7 +37,7 @@ export function LabelsInput({ value, onChange, suggestions = [], label, disabled
     <TagsInput
       {...KEEP_ESCAPE}
       label={label}
-      aria-label={label === undefined ? 'Labels' : undefined}
+      aria-label={label === undefined ? (ariaLabel ?? 'Labels') : undefined}
       placeholder={value.length === 0 ? 'Add a label, then Enter' : undefined}
       value={[...value]}
       onChange={change}

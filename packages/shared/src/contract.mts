@@ -580,12 +580,12 @@ export interface Backend {
   setSharedAgents(document: SharedAgentsDocument, expectedVersion: number): Promise<void>;
   // The title rules the board holds, opened under the version the board names for them; null when it holds none.
   getTitleRules(): Promise<TitleRulesOnBoard>;
-  // Sets the icon (only while the task has none) and/or the title (only while it is still `expect`) of the run's own task.
-  // Each answer says whether that part was stored.
+  // Sets the icon (only while the task has none), the labels (only while it has none) and/or the title (only while it is
+  // still `expect`) of the run's own task. Each answer says whether that part was stored. Labels need `task.title-rule-labels`.
   applyTitleRule(
     id: string,
-    change: { icon?: string; title?: { text: string; expect: string } },
-  ): Promise<{ icon: boolean; title: boolean }>;
+    change: { icon?: string; labels?: string[]; title?: { text: string; expect: string } },
+  ): Promise<{ icon: boolean; labels: boolean; title: boolean }>;
 }
 
 /** The board's title rules: the opened rules, or their version alone when the document does not open under that version. */
@@ -923,10 +923,11 @@ export interface WireTitleRules {
   document: string;
 }
 
-// Body of apply-title-rule: an icon and/or a title sealed for the run's task. `expectTitle` is the title envelope the caller
-// found to be the default; the title is stored only while the task still holds exactly that envelope.
+// Body of apply-title-rule: an icon, labels and/or a title sealed for the run's task. `expectTitle` is the title envelope the
+// caller found to be the default; the title is stored only while the task still holds exactly that envelope.
 export interface WireTitleRuleApply {
   icon?: string;
+  labels?: string;
   title?: string;
   expectTitle?: string;
 }
@@ -934,6 +935,7 @@ export interface WireTitleRuleApply {
 // Answer of apply-title-rule: whether each part was stored.
 export interface WireTitleRuleResult {
   icon: boolean;
+  labels: boolean;
   title: boolean;
 }
 
@@ -2006,15 +2008,17 @@ export function parseWireTitleRules(value: unknown): WireTitleRules | null {
   return { version, document: sealedField(obj, 'document', 'titleRules', 'titles') };
 }
 
-// Body of apply-title-rule: a sealed icon and/or a sealed title with the title envelope it expects to replace.
+// Body of apply-title-rule: a sealed icon, sealed labels and/or a sealed title with the title envelope it expects to replace.
 export function parseWireTitleRuleApply(value: unknown): WireTitleRuleApply {
   const obj = record(value, 'titleRule');
-  rejectUnknownKeys(obj, ['icon', 'title', 'expectTitle'], 'titleRule');
-  if (!('icon' in obj) && !('title' in obj)) throw new ContractError('titleRule needs an icon or a title');
+  rejectUnknownKeys(obj, ['icon', 'labels', 'title', 'expectTitle'], 'titleRule');
+  if (!('icon' in obj) && !('labels' in obj) && !('title' in obj))
+    throw new ContractError('titleRule needs an icon, labels or a title');
   if ('title' in obj !== 'expectTitle' in obj)
     throw new ContractError('titleRule.title and titleRule.expectTitle go together');
   return {
     ...('icon' in obj ? { icon: sealedField(obj, 'icon', 'titleRule', 'icon') } : {}),
+    ...('labels' in obj ? { labels: sealedField(obj, 'labels', 'titleRule', 'labels') } : {}),
     ...('title' in obj
       ? {
           title: sealedField(obj, 'title', 'titleRule', 'title'),
@@ -2024,10 +2028,14 @@ export function parseWireTitleRuleApply(value: unknown): WireTitleRuleApply {
   };
 }
 
-// Answer of apply-title-rule: which parts were stored.
+// Answer of apply-title-rule: which parts were stored. A server without `task.title-rule-labels` leaves `labels` out.
 export function parseWireTitleRuleResult(value: unknown): WireTitleRuleResult {
   const obj = record(value, 'titleRuleResult');
-  return { icon: boolean(obj, 'icon', 'titleRuleResult'), title: boolean(obj, 'title', 'titleRuleResult') };
+  return {
+    icon: boolean(obj, 'icon', 'titleRuleResult'),
+    labels: obj['labels'] === undefined ? false : boolean(obj, 'labels', 'titleRuleResult'),
+    title: boolean(obj, 'title', 'titleRuleResult'),
+  };
 }
 
 // Body of add-task. `id`, `title` and `input` are required.

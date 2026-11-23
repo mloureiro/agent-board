@@ -31,6 +31,7 @@ import {
   parseWirePrState,
   parseWirePrStates,
   parseWireTitleRuleApply,
+  parseWireTitleRuleResult,
   parseWireSchedule,
   parseWireScheduleDraft,
   parseWireScheduleEdit,
@@ -612,18 +613,35 @@ test('the new keys of a schedule are shape-checked', () => {
   assert.throws(() => parseWireSchedule({ ...after, everyMs: 60_000 }), /exactly one/);
 });
 
-test('apply-title-rule takes a sealed icon, or a sealed title with the title it expects, and nothing else', async () => {
+test('apply-title-rule takes a sealed icon, sealed labels, or a sealed title with the title it expects, and nothing else', async () => {
   const icon = await sealed('icon', '🔎');
+  const labels = await sealed('labels', '["review"]');
   const title = await sealed('title', 'New');
   const expectTitle = await sealed('title', 'Old');
   assert.deepEqual(parseWireTitleRuleApply({ icon }), { icon });
   assert.deepEqual(parseWireTitleRuleApply({ title, expectTitle }), { title, expectTitle });
   assert.deepEqual(parseWireTitleRuleApply({ icon, title, expectTitle }), { icon, title, expectTitle });
-  assert.throws(() => parseWireTitleRuleApply({}), /icon or a title/);
+  assert.deepEqual(parseWireTitleRuleApply({ labels }), { labels });
+  assert.deepEqual(parseWireTitleRuleApply({ icon, labels }), { icon, labels });
+  assert.throws(() => parseWireTitleRuleApply({ labels: '["review"]' }), /must be encrypted/);
+  assert.throws(() => parseWireTitleRuleApply({}), /icon, labels or a title/);
   assert.throws(() => parseWireTitleRuleApply({ title }), /go together/);
   assert.throws(() => parseWireTitleRuleApply({ icon, expectTitle }), /go together/);
   assert.throws(() => parseWireTitleRuleApply({ icon: '🔎' }), /must be encrypted/);
   assert.throws(() => parseWireTitleRuleApply({ icon, extra: 1 }), /unknown key "extra"/);
+});
+
+test('an apply-title-rule answer without labels, from a server before task.title-rule-labels, stored no labels', () => {
+  assert.deepEqual(parseWireTitleRuleResult({ icon: true, title: false }), { icon: true, labels: false, title: false });
+  assert.deepEqual(parseWireTitleRuleResult({ icon: false, labels: true, title: false }), {
+    icon: false,
+    labels: true,
+    title: false,
+  });
+  assert.throws(
+    () => parseWireTitleRuleResult({ icon: false, labels: 'yes', title: false }),
+    /labels must be a boolean/,
+  );
 });
 
 test('a task carries held only when it waits for a free slot of its schedule', () => {
