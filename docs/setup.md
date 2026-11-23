@@ -209,9 +209,9 @@ Stopping the listener waits for a dispatch tick that is running. The unit's `Tim
 
 The listener checks the API range each time it connects. When the server no longer serves this CLI, the listener logs that and exits, and systemd restarts it every 10 seconds until the CLI matches. When the server is older than the CLI, the listener logs that once and keeps reconnecting with its usual backoff.
 
-### Releases come from mloureiro/agent-board
+### Releases come from mloureiro/agent-board (CLI 0.35.0)
 
-`board self-update`, the dispatcher's `autoUpdate` and `install.sh` download `cli-v*` releases from `mloureiro/agent-board`. The CLI alone changes, and the first release after 0.34.0 carries it.
+`board self-update`, the dispatcher's `autoUpdate` and `install.sh` download `cli-v*` releases from `mloureiro/agent-board`. The CLI alone changes, from 0.35.0 on.
 
 A CLI at 0.34.0 or older still lists and downloads the releases of `codeplant-de/agent-board`. It never sees a fork-only release, and an upstream release newer than its own would replace it with upstream's binary. Each such machine needs one manual install from the fork, after which `board self-update` works again:
 
