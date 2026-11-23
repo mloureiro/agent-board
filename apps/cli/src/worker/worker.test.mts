@@ -1,4 +1,8 @@
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
+import { mkdtempSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { MAX_BATCH_EVENTS } from '@agent-board/shared';
 import type { Note, RunEvent, Task, WireBackend } from '@agent-board/shared';
@@ -11,7 +15,8 @@ import { createWatchStore, newWatchId } from '../watch/store.mts';
 import type { WatchEvent } from '../watch/store.mts';
 import { commandDef, tempDir, timerDef, watchDef } from '../__tests__/helpers/watch.mts';
 import type { Invocation, Supervision } from './plan.mts';
-import { runWorker } from './worker.mts';
+import { latchShutdownSignal, runWorker } from './worker.mts';
+import { groupExists, runProcess } from './process.mts';
 import type { RunChannel, RunResult, Watch } from './process.mts';
 import type { WorkerDeps } from './worker.mts';
 import {
@@ -1455,6 +1460,10 @@ function fakeChannel() {
       if (open) calls.push('interrupt', 'end');
       open = false;
     },
+    kill() {
+      calls.push('kill');
+      return true;
+    },
   };
   return { channel, calls, sent };
 }
@@ -1505,6 +1514,210 @@ test('a pause request is told to the agent as a message, once, and an agent that
   );
   assert.ok(decisions[2]?.kind === 'stop' && decisions[2].why === 'pause-forced');
   assert.ok(backend.writes.some((w) => w.startsWith('pause w1')));
+});
+
+function shutdownHarness(options: { graceMs?: number; deadline?: Date } = {}) {
+  const harness = setup({ exitCode: 0, signal: null });
+  const channel = fakeChannel();
+  let announce: (() => void) | undefined;
+  harness.deps.watchShutdown = (onRequest) => {
+    announce = onRequest;
+    return () => void (announce = undefined);
+  };
+  harness.deps.shutdownGraceMs = options.graceMs ?? 30;
+  if (options.deadline !== undefined) harness.deps.files.requestShutdown('w1', options.deadline);
+  Object.assign(harness.backend.tasks[0]!, { sessionId: 's' });
+  return { ...harness, channel, announce: () => announce?.() };
+}
+
+test('a shutdown request interrupts the agent, stops it once the grace is over, and pauses the task with its own note', async () => {
+  const { deps, backend, channel, announce } = shutdownHarness();
+  deps.run = async (_invocation, _taskId, _env, watch) => {
+    watch.start?.(channel.channel);
+    announce();
+    assert.deepEqual(channel.calls, ['interrupt']);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    return { exitCode: 143, signal: null };
+  };
+  await runWorker(deps, 'w1');
+  assert.deepEqual(channel.calls, ['interrupt', 'interrupt', 'end']);
+  const pause = backend.writes.filter((w) => w.startsWith('pause w1'));
+  assert.deepEqual(pause, ['pause w1: Paused: the worker on here shut down. Resumes next, on here.']);
+  assert.ok(!backend.writes.some((w) => w.startsWith('fail ')));
+});
+
+test('an agent that ends its turn within the grace is not stopped, and a second request changes nothing', async () => {
+  const { deps, backend, channel, announce } = shutdownHarness({ graceMs: 5_000 });
+  deps.run = async (_invocation, _taskId, _env, watch) => {
+    watch.start?.(channel.channel);
+    announce();
+    announce();
+    channel.channel.end();
+    return { exitCode: 0, signal: null };
+  };
+  await runWorker(deps, 'w1');
+  assert.deepEqual(channel.calls, ['interrupt', 'end']);
+  assert.equal(backend.writes.filter((w) => w.startsWith('pause w1')).length, 1);
+});
+
+test('the grace comes from the deadline the shutdown command wrote, and a deadline that has passed stops at once', async () => {
+  const { deps, channel, announce } = shutdownHarness({ graceMs: 60_000, deadline: new Date(Date.now() - 1_000) });
+  deps.run = async (_invocation, _taskId, _env, watch) => {
+    watch.start?.(channel.channel);
+    announce();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    return { exitCode: 143, signal: null };
+  };
+  await runWorker(deps, 'w1');
+  assert.deepEqual(channel.calls, ['interrupt', 'interrupt', 'end']);
+});
+
+test('a shutdown request after the agent ended its turn kills the agent once, and the task is paused', async () => {
+  const { deps, backend, calls, channel, announce } = shutdownHarness({ graceMs: 5_000 });
+  deps.run = async (_invocation, _taskId, _env, watch) => {
+    watch.start?.(channel.channel);
+    channel.channel.end();
+    announce();
+    announce();
+    return { exitCode: null, signal: 'SIGTERM' };
+  };
+  await runWorker(deps, 'w1');
+  assert.deepEqual(channel.calls, ['end', 'kill']);
+  assert.ok(calls.some((line) => /stopped the agent, which had ended its turn/.test(line)));
+  assert.deepEqual(
+    backend.writes.filter((w) => w.startsWith('pause w1')),
+    ['pause w1: Paused: the worker on here shut down. Resumes next, on here.'],
+  );
+  assert.ok(!backend.writes.some((w) => w.startsWith('fail ')));
+});
+
+test('an agent that ends its turn during the grace but lingers is killed when the grace is over', async () => {
+  const { deps, channel, announce } = shutdownHarness({ graceMs: 30 });
+  deps.run = async (_invocation, _taskId, _env, watch) => {
+    watch.start?.(channel.channel);
+    announce();
+    channel.channel.end();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    return { exitCode: null, signal: 'SIGTERM' };
+  };
+  await runWorker(deps, 'w1');
+  assert.deepEqual(channel.calls, ['interrupt', 'end', 'kill']);
+});
+
+test('SIGUSR2 reaches an agent that ended its turn and still runs background work: it is stopped and the task paused', async () => {
+  process.env['AGENT_BOARD_STATE_DIR'] = mkdtempSync(join(tmpdir(), 'agent-board-shutdown-'));
+  const { deps, backend } = shutdownHarness({ graceMs: 5_000 });
+  const signals = new EventEmitter();
+  deps.watchShutdown = latchShutdownSignal(signals);
+  const pidFile = join(mkdtempSync(join(tmpdir(), 'agent-board-lingering-')), 'pgid');
+  const lingeringAgent = [
+    'read -r prompt',
+    `echo $$ > '${pidFile}'`,
+    `printf '%s\\n' '{"type":"result","subtype":"success"}'`,
+    'sleep 300 &',
+    'wait',
+  ].join('\n');
+  deps.run = (invocation, taskId, env, watch, onLine) =>
+    runProcess(
+      { ...invocation, command: 'sh', args: ['-c', lingeringAgent] },
+      taskId,
+      env,
+      {
+        ...watch,
+        start: (live) => {
+          watch.start?.(live);
+          setTimeout(() => signals.emit('SIGUSR2'), 300);
+        },
+      },
+      onLine,
+    );
+  const started = Date.now();
+  await runWorker(deps, 'w1');
+  assert.ok(Date.now() - started < 3_000, 'the run ended at the signal, not at the grace');
+  assert.deepEqual(
+    backend.writes.filter((w) => w.startsWith('pause w1')),
+    ['pause w1: Paused: the worker on here shut down. Resumes next, on here.'],
+  );
+  const pgid = Number(readFileSync(pidFile, 'utf8').trim());
+  assert.equal(groupExists(pgid), false, 'the agent and its background work are gone');
+});
+
+test('a request that came before the agent started interrupts it as soon as it has', async () => {
+  const { deps, channel, announce } = shutdownHarness({ graceMs: 5_000 });
+  deps.run = async (_invocation, _taskId, _env, watch) => {
+    announce();
+    assert.deepEqual(channel.calls, []);
+    watch.start?.(channel.channel);
+    assert.deepEqual(channel.calls, ['interrupt']);
+    channel.channel.end();
+    return { exitCode: 0, signal: null };
+  };
+  await runWorker(deps, 'w1');
+});
+
+test('while the machine shuts down, no message from the board is handed to the agent', async () => {
+  const { deps, backend, channel, announce } = shutdownHarness({ graceMs: 5_000 });
+  backend.inboxes.set('w1', { stop: false, messages: [userMessage('hello', { id: 'm1' })] });
+  deps.run = async (_invocation, _taskId, _env, watch) => {
+    announce();
+    watch.start?.(channel.channel);
+    await settle();
+    channel.channel.end();
+    return { exitCode: 0, signal: null };
+  };
+  await runWorker(deps, 'w1');
+  assert.deepEqual(channel.sent, []);
+});
+
+test('a board that refuses the pause report is logged and the worker still ends', async () => {
+  const { deps, backend, calls, channel, announce } = shutdownHarness();
+  backend.pause = async () => {
+    throw new BackendError('pause: HTTP 503', 503, true);
+  };
+  deps.run = async (_invocation, _taskId, _env, watch) => {
+    watch.start?.(channel.channel);
+    announce();
+    channel.channel.end();
+    return { exitCode: 0, signal: null };
+  };
+  await runWorker(deps, 'w1');
+  assert.ok(calls.some((line) => /the board did not take the pause report/.test(line)));
+});
+
+test('SIGUSR2 on the real process path ends the agent turn, and the task is reported paused', async () => {
+  process.env['AGENT_BOARD_STATE_DIR'] = mkdtempSync(join(tmpdir(), 'agent-board-shutdown-'));
+  const { deps, backend } = shutdownHarness({ graceMs: 5_000 });
+  const signals = new EventEmitter();
+  deps.watchShutdown = latchShutdownSignal(signals);
+  const fakeAgent = [
+    'read -r prompt',
+    'while IFS= read -r line; do',
+    '  case "$line" in',
+    `    *control_request*) printf '%s\\n' '{"type":"result","subtype":"error_during_execution"}';;`,
+    '  esac',
+    'done',
+  ].join('\n');
+  deps.run = (invocation, taskId, env, watch, onLine) =>
+    runProcess(
+      { ...invocation, command: 'sh', args: ['-c', fakeAgent] },
+      taskId,
+      env,
+      {
+        ...watch,
+        start: (live) => {
+          watch.start?.(live);
+          setTimeout(() => signals.emit('SIGUSR2'), 50);
+        },
+      },
+      onLine,
+    );
+  const started = Date.now();
+  await runWorker(deps, 'w1');
+  assert.ok(Date.now() - started < 3_000, 'the run ended by its own turn end, not by the grace');
+  assert.deepEqual(
+    backend.writes.filter((w) => w.startsWith('pause w1')),
+    ['pause w1: Paused: the worker on here shut down. Resumes next, on here.'],
+  );
 });
 
 test('the pause message is not sent into a closed stdin', async () => {

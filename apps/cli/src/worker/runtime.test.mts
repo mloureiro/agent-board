@@ -91,3 +91,21 @@ test('the next due time is written whole, read back, and removed', () => {
     rmSync(root, { recursive: true });
   }
 });
+
+test('a shutdown request holds the worker deadline and goes with the run', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'board-run-'));
+  try {
+    const files = createRunFiles(join(dir, 'run'));
+    assert.equal(files.shutdownDeadline('abc'), undefined);
+    const deadline = new Date('2026-01-01T10:00:15.000Z');
+    files.requestShutdown('abc', deadline);
+    assert.deepEqual(files.shutdownDeadline('abc'), deadline);
+    writeFileSync(join(dir, 'run', 'abc.shutdown'), 'soon');
+    assert.equal(files.shutdownDeadline('abc'), undefined);
+    files.requestShutdown('abc', deadline);
+    files.clear('abc');
+    assert.equal(existsSync(join(dir, 'run', 'abc.shutdown')), false);
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});

@@ -182,6 +182,29 @@ test('a stop from the channel arms the same kill fallback as the watch: an agent
   assert.equal(result.stopped, undefined);
 });
 
+test('kill ends an agent that outlives its closed stdin with everything it started, and is a no-op once it exited', async () => {
+  let channel: RunChannel | undefined;
+  const started = Date.now();
+  const result = await runProcess(
+    { command: 'sh', args: ['-c', 'sleep 30 & wait'], prompt: 'go', cwd: tmpdir() },
+    'proc-kill',
+    {},
+    {
+      everyMs: 1000,
+      killGraceMs: 60_000,
+      tick: async () => ({ kind: 'continue' }),
+      start: (live) => {
+        channel = live;
+        live.end();
+        setTimeout(() => assert.equal(live.kill(), true), 100);
+      },
+    },
+  );
+  assert.ok(Date.now() - started < 5_000);
+  assert.equal(result.signal, 'SIGTERM');
+  assert.equal(channel?.kill(), false);
+});
+
 test('a stop decision interrupts the agent and closes stdin, and the process leaves by itself before the kill', async () => {
   const started = Date.now();
   const result = await runProcess(

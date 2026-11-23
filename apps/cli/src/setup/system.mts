@@ -20,6 +20,7 @@ export interface System {
   // Task ids of the worker units that are running now.
   activeWorkers(): Promise<string[]>;
   stop(unit: string): Promise<void>;
+  signalWorker(unit: string, signal: 'SIGUSR2'): Promise<void>;
   startWorker(taskId: string): Promise<{ pid: number | undefined }>;
 }
 
@@ -77,6 +78,18 @@ async function systemctl(run: RunCommand, args: string[]): Promise<string> {
   }
 }
 
+// systemd before 252 names the option --kill-who and refuses --kill-whom. The rejection's message holds the whole
+// command line, so only stderr tells a refused option from a real failure.
+function refusedKillWhom(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'stderr' in error &&
+    typeof error.stderr === 'string' &&
+    error.stderr.includes('--kill-whom')
+  );
+}
+
 export function createSystem(input: { dryRun: boolean; print: (line: string) => void; run?: RunCommand }): System {
   const run = input.run ?? runCommand;
   return {
@@ -105,6 +118,14 @@ export function createSystem(input: { dryRun: boolean; print: (line: string) => 
     async stop(unit) {
       if (input.dryRun) return input.print(`DRY systemctl --user stop ${unit}`);
       await run('systemctl', ['--user', 'stop', unit]).catch(() => undefined);
+    },
+    async signalWorker(unit, signal) {
+      if (input.dryRun) return input.print(`DRY systemctl --user kill --kill-whom=main --signal=${signal} ${unit}`);
+      // The agent runs in the unit's cgroup: the default `--kill-whom=all` would signal it too.
+      const kill = (option: string) => run('systemctl', ['--user', 'kill', option, `--signal=${signal}`, unit]);
+      await kill('--kill-whom=main')
+        .catch((error: unknown) => (refusedKillWhom(error) ? kill('--kill-who=main') : undefined))
+        .catch(() => undefined);
     },
     async startWorker(taskId) {
       // The id becomes a unit name and an argument, so only the safe shape goes in, whoever named it.
