@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { buildServer } from './server';
 import { testConfig, useTestDb } from './test/helpers';
 
-const { db } = useTestDb();
+const { db } = await useTestDb();
 
 const guarded = { ...testConfig, auth: { login: false as const, user: 'me' }, allowedHosts: ['127.0.0.1:4785'] };
 
