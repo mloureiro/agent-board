@@ -240,9 +240,12 @@ async function check(name: string, run: () => Promise<void>): Promise<void> {
 const empty = join(root, 'empty');
 mkdirSync(empty);
 
-await check('--version shows the injected version', async () => {
+await check('--version shows the injected version and the release repository', async () => {
   const result = await board(['--version'], empty);
-  assert.deepEqual([result.code, result.stdout], [0, `board ${version} (api ${API_VERSION})\n`]);
+  assert.deepEqual(
+    [result.code, result.stdout],
+    [0, `board ${version} (api ${API_VERSION}, updates from mloureiro/agent-board)\n`],
+  );
 });
 await check('help and help schedule', async () => {
   const help = await board(['help'], empty);

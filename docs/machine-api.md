@@ -104,7 +104,7 @@ A server without `machine.dirs`, `machine.catalog`, `machine.usage`, `machine.fe
 
 **After the handshake** the CLI derives its keys for `owner`. It stops when the board has no data key yet (`keyId: null`: set up encryption in the browser first) or when its key's id differs from `keyId`.
 
-`board --version` prints `(api 9)`. `board doctor` shows the CLI's break level, the server's range and the features the server lacks.
+`board --version` prints `(api 9, ...)`. `board doctor` shows the CLI's break level, the server's range and the features the server lacks.
 
 ### Features
 

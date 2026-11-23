@@ -17,8 +17,8 @@ import { LONG_RUNNING_SERVICES } from '../setup/setup.mts';
 import { agentLabel, agentTarget, isAgentLoaded } from '../setup/launchd.mts';
 import { SystemError } from '../setup/system.mts';
 import { errorText } from '../output/text.mts';
+import { RELEASE_REPO } from './version.mts';
 
-export const RELEASE_REPO = 'mloureiro/agent-board';
 const TAG_PREFIX = 'cli-v';
 // Releases are x.y.z only: a pre-release tag would rank above its release by number alone.
 const RELEASE_TAG = /^cli-v\d+\.\d+\.\d+$/;
