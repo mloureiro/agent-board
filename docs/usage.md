@@ -699,6 +699,10 @@ Both put the task at the top of its priority in Todo with `next: resume`. The ne
 
 Typing `/` at the start of a reply offers the skills of the task's machine and directory, as in the New task form. The message to a running agent, a comment and the text beside an answer do not offer skills.
 
+#### Unsent text
+
+Text you typed and did not send comes back after you move to another page, go back, or reload the page. This covers the reply box, the answer to a question, a rename, **Edit prompt**, **Fork**, the prompt of a proposal you are about to start and **Edit schedule** (title and prompt). It is kept in the browser tab only: it is gone when the tab closes, on **Lock** and on sign-out. A successful send, save or **Cancel** removes it, and so does a change of the task's own text in the meantime (another edit of the prompt, say). The **New task** form keeps its text while you move between pages, not across a reload. Passphrases, the sign-in page and Settings are never kept.
+
 ### While a task runs
 
 The composer messages the running agent and can stop it.

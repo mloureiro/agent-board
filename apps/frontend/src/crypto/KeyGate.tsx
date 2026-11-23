@@ -2,6 +2,8 @@ import type { Keys } from '@agent-board/shared';
 import { Center, Loader } from '@mantine/core';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useState, type PropsWithChildren } from 'react';
+import { DraftsProvider } from '../components/DraftsProvider';
+import { removeDrafts, type DraftStorage } from '../lib/drafts';
 import { useTRPC } from '../lib/trpc';
 import { createIndexedDbKeyStore, inspectStoredKeys, type KeyStore, type StoredKeysCheck } from './keyStore';
 import { KeyChangedScreen } from './KeyChangedScreen';
@@ -14,6 +16,7 @@ const defaultStore = createIndexedDbKeyStore();
 interface Props {
   me: { username: string; keyId: string | null };
   store?: KeyStore;
+  draftStorage?: DraftStorage;
 }
 
 /** What the gate's own screens read; everything else in the cache is decrypted board content. */
@@ -31,7 +34,7 @@ const dropBoard = (queryClient: QueryClient): void =>
  * means setup, no usable key in this browser means unlock, and only then the app, with the keys in context. A stored key counts
  * only when it is this user's and has the board's key id.
  */
-export function KeyGate({ me, store = defaultStore, children }: PropsWithChildren<Props>) {
+export function KeyGate({ me, store = defaultStore, draftStorage, children }: PropsWithChildren<Props>) {
   const queryClient = useQueryClient();
   const trpc = useTRPC();
   const { username, keyId } = me;
@@ -39,6 +42,16 @@ export function KeyGate({ me, store = defaultStore, children }: PropsWithChildre
   const [loaded, setLoaded] = useState<{ identity: string; check: StoredKeysCheck }>();
   // An import sets the key up first and reads the file after; the board then reports a key, which must not end the import.
   const [importing, setImporting] = useState(false);
+
+  const check = loaded?.identity === identity ? loaded.check : undefined;
+  const settled = check !== undefined;
+  const showsApp = check?.kind === 'usable' && keyId !== null;
+
+  useEffect(() => {
+    if (!settled) return;
+    if (showsApp && keyId !== null) removeDrafts({ keep: { username, keyId }, storage: draftStorage });
+    else removeDrafts({ storage: draftStorage });
+  }, [settled, showsApp, username, keyId, draftStorage]);
 
   useEffect(() => {
     let current = true;
@@ -70,7 +83,8 @@ export function KeyGate({ me, store = defaultStore, children }: PropsWithChildre
   const dropAll = useCallback((): void => {
     dropBoard(queryClient);
     queryClient.getMutationCache().clear();
-  }, [queryClient]);
+    removeDrafts({ storage: draftStorage });
+  }, [queryClient, draftStorage]);
   const lock = useCallback(async () => {
     await store.clear();
     setLoaded({ identity, check: { kind: 'none' } });
@@ -78,7 +92,6 @@ export function KeyGate({ me, store = defaultStore, children }: PropsWithChildre
   }, [store, identity, dropAll]);
 
   if (importing) return <SetupScreen owner={username} onComplete={setUp} onImporting={setImporting} />;
-  const check = loaded?.identity === identity ? loaded.check : undefined;
   if (check === undefined)
     return (
       <Center h="100vh">
@@ -90,7 +103,9 @@ export function KeyGate({ me, store = defaultStore, children }: PropsWithChildre
   if (check.kind === 'none') return <UnlockScreen owner={username} onUnlocked={unlocked} />;
   return (
     <KeyProvider keys={check.keys} lock={lock}>
-      {children}
+      <DraftsProvider identity={{ username, keyId }} storage={draftStorage} key={identity}>
+        {children}
+      </DraftsProvider>
     </KeyProvider>
   );
 }

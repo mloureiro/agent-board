@@ -1,7 +1,8 @@
 import { Alert, Button, Group, Modal, Stack, Text, TextInput } from '@mantine/core';
 import { useMutation } from '@tanstack/react-query';
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { forkSlot } from '../lib/drafts';
+import { useDraft } from '../lib/draftsContext';
 import { forkProblem } from '../lib/sealing';
 import { errorMessage, useTRPC, type BoardTask } from '../lib/trpc';
 import { MarkdownEditor } from './MarkdownEditor';
@@ -17,8 +18,7 @@ interface Props {
 export function ForkModal({ opened, onClose, parent }: Props) {
   const trpc = useTRPC();
   const navigate = useNavigate();
-  const [title, setTitle] = useState(`Fork of ${parent.title}`);
-  const [input, setInput] = useState('');
+  const [{ title, input }, setText, clearText] = useDraft(forkSlot(parent));
   const fork = useMutation(trpc.tasks.fork.mutationOptions());
   const problem = forkProblem(parent);
   const ready = input.trim() !== '' && problem === undefined;
@@ -29,6 +29,7 @@ export function ForkModal({ opened, onClose, parent }: Props) {
       { parent, title, input },
       {
         onSuccess: (task) => {
+          clearText();
           onClose();
           navigate(`/t/${task.id}`);
         },
@@ -52,13 +53,17 @@ export function ForkModal({ opened, onClose, parent }: Props) {
         <MarkdownEditor
           label="Instructions"
           value={input}
-          onChange={setInput}
+          onChange={(next) => setText({ title, input: next })}
           minRows={6}
           onSubmit={submit}
           autoFocus
           placeholder="What the fork should do, as you would tell it in the conversation"
         />
-        <TextInput label="Title" value={title} onChange={(event) => setTitle(event.currentTarget.value)} />
+        <TextInput
+          label="Title"
+          value={title}
+          onChange={(event) => setText({ title: event.currentTarget.value, input })}
+        />
         {fork.error && (
           <Text size="sm" c="red">
             {errorMessage(fork.error)}

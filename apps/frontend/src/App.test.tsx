@@ -48,6 +48,7 @@ function renderApp(path = '/') {
 beforeEach(() => {
   fetchMe.mockReset();
   localStorage.clear();
+  sessionStorage.clear();
 });
 
 describe('App', () => {
@@ -109,6 +110,16 @@ describe('App', () => {
     expect(await screen.findByText('the sign-in page')).toBeInTheDocument();
     expect(screen.queryByLabelText('draft of jascha')).not.toBeInTheDocument();
     expect(screen.queryByText('Board unreachable, retrying')).not.toBeInTheDocument();
+  });
+
+  it('removes every unsent draft when the session has ended', async () => {
+    sessionStorage.setItem('agent-board.draft/jascha/k1/reply:t1', '{"value":"half a reply"}');
+    sessionStorage.setItem('unrelated', 'x');
+    fetchMe.mockRejectedValueOnce(refused());
+    renderApp();
+    await screen.findByText('the sign-in page');
+    expect(sessionStorage.getItem('agent-board.draft/jascha/k1/reply:t1')).toBeNull();
+    expect(sessionStorage.getItem('unrelated')).toBe('x');
   });
 
   it('follows another tab’s sign-in and sign-out', async () => {
