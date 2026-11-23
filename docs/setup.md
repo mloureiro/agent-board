@@ -213,7 +213,13 @@ The listener checks the API range each time it connects. When the server no long
 
 The CLI adds `board feeds`, `board plugins` and a `feeds` key in `config.json` (see [Feeds](usage.md#feeds) and [Plugins](plugins.md)). The server adds the feature `machine.feeds`, migrations `0047_machine-sources`, `0050_drop-machine-sources` and `0051_machine-feeds`, and the **Feeds** page under Settings. The migrations run when the backend starts. Deploy and release in any order. No `MIN_CLIENT` or `API_VERSION` change.
 
-Until a machine runs this CLI, it sends no feeds and the page lists nothing for it. The `sources` command and its `sources` key in `config.json` were on `main` only, in no CLI release, and are renamed with no alias: a machine that ran a build from `main` re-adds its entries as feeds. A feed takes an integration from a marketplace in place of a `command`, and an entry with a `command` or a key prefix is a config error that `board feeds` shows.
+Until a machine runs this CLI, it sends no feeds and the page lists nothing for it. CLI 0.33.0 has `board sources` and a `sources` key in `config.json`. They are renamed with no alias, so a machine that configured sources moves them by hand:
+
+1. Re-add each entry as a feed under `feeds` with `board feeds add`. A feed takes an integration from a marketplace in place of the `command`, and an entry with a `command` or a key prefix is a config error that `board feeds` shows.
+2. Delete the `sources` key. CLI 0.34.0 only warns about it (`unknown key "sources", ignored`), and its sources stop without an error.
+3. Delete `~/.local/state/agent-board/sources/`, which nothing reads any more.
+
+Expect one duplicate task per open item, once: the old tasks are keyed `source:<name>:` and the feed keys its tasks `feed:<name>:`. Until the machine runs 0.34.0, its 0.33.0 sources keep running, and the page does not list them.
 
 On each machine:
 
@@ -555,7 +561,7 @@ Machine settings are in `~/.config/agent-board/config.json`. `AGENT_BOARD_CONFIG
 | `usageLimits`       | Holds Todo tasks back while Claude usage is high. See [usageLimits](#usagelimits).                                                                                                               | Absent.                            |
 | `agents`            | Named agents a task can run as. See [agents](#agents).                                                                                                                                           | Absent.                            |
 | `dirs`              | The directories workers may run in. See [dirs](#dirs).                                                                                                                                           | Absent.                            |
-| `feeds`             | Commands that make this machine's tasks from other tools, on a timer. See [feeds](#feeds).                                                                                                       | Absent.                            |
+| `feeds`             | Integrations from installed plugins that make this machine's tasks from other tools, on a timer. See [feeds](#feeds).                                                                            | Absent.                            |
 
 An `intake` key is ignored with a warning, and `board doctor` fails on it. See [The built-in intake is removed](#the-built-in-intake-is-removed-cli-0130).
 
@@ -584,7 +590,7 @@ An agent can also be a file in the `agents` directory beside `config.json`, whic
 
 ### feeds
 
-An object keyed by feed name (1 to 40 letters, digits, `.`, `-` and `_`, starting with a letter or digit):
+An object keyed by feed name (1 to 40 letters, digits, `.`, `-` and `_`, starting with a letter or digit). The board shows at most 30 feeds per machine: `board feeds add` refuses a 31st, and when config.json holds more, only the first 30 are sent and `board feeds` and `board doctor` warn.
 
 ```json
 "feeds": {

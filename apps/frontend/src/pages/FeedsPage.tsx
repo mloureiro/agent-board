@@ -270,9 +270,9 @@ export function FeedsPage() {
     <Stack>
       <Title order={5}>Feeds</Title>
       <Text size="sm" c="dimmed">
-        A feed is a command a machine runs on a timer to make tasks from another tool, one task per item it lists. Each
-        machine shows its own; the commands stay on the machine. Pause, Resume and Run now reach the machine on its next
-        tick. Add one with <Code>board feeds add</Code>.
+        A feed runs an integration from an installed plugin on a timer to make tasks from another tool, one task per
+        item it lists. Each machine shows its own; its integration, options and tokens stay on the machine. Pause,
+        Resume and Run now reach the machine on its next tick. Add one with <Code>board feeds add</Code>.
       </Text>
       <QueryStatus query={feeds} what="feeds" />
       {machines.length === 0
