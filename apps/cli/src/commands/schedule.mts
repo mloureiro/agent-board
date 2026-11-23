@@ -606,7 +606,18 @@ const REQUEUEABLE: readonly Task['status'][] = ['needs-me', 'done'];
 // Finds or creates the task of the key; a new version requeues one that waits in Needs me or is Done, and a start time moves the wait of one in Todo.
 export type KeyedDeps = Pick<ScheduleDeps, 'backend' | 'machine' | 'workdir' | 'print' | 'confirm' | 'link'>;
 
-export async function scheduleKeyed(deps: KeyedDeps, args: ScheduleArgs, key: string): Promise<Scheduled> {
+// What a feed hands a requeue: the text the resumed session is told, and where the worker that resumes it finds the text.
+export interface KeyedUpdate {
+  prompt: string;
+  spool: { put: (taskId: string, prompt: string) => void; drop: (taskId: string) => void };
+}
+
+export async function scheduleKeyed(
+  deps: KeyedDeps,
+  args: ScheduleArgs,
+  key: string,
+  update?: KeyedUpdate,
+): Promise<Scheduled> {
   const { backend } = deps;
   const { task, created } = await backend.addTask({
     title: args.title || defaultTitle(args.prompt),
@@ -666,23 +677,29 @@ export async function scheduleKeyed(deps: KeyedDeps, args: ScheduleArgs, key: st
   if (task.head !== null && task.head === (await backend.indexHead(args.version))) return exists(task, 'same-version');
   if (!REQUEUEABLE.includes(task.status)) return exists(task, 'busy');
   if (isOtherAgent) return exists(task, 'other-agent');
+  const resumeWith = update !== undefined && task.sessionId !== null ? update : undefined;
   let requeued: Task;
   try {
+    // The prompt is spooled first: a worker that claims the task the moment it is in Todo must find it.
+    resumeWith?.spool.put(task.id, resumeWith.prompt);
     // One atomic update, and only if the task is still as it was read: a head changed without the move would leave it behind.
     requeued = await backend.updateTask(task.id, {
       status: 'todo',
       head: args.version,
-      next: 'fresh',
+      next: resumeWith === undefined ? 'fresh' : 'resume',
       ...(args.notBefore ? { notBefore: args.notBefore } : {}),
       expect: task.status,
     });
   } catch (error) {
+    resumeWith?.spool.drop(task.id);
     if (error instanceof BackendError && error.status === 409) return exists(task, 'changed');
     throw error;
   }
   await backend.addNote(
     task.id,
-    `New version ${args.version}. Queued again${args.notBefore ? `, starts ${localTime(args.notBefore)}` : ''}.`,
+    resumeWith === undefined
+      ? `New version ${args.version}. Queued again${args.notBefore ? `, starts ${localTime(args.notBefore)}` : ''}.`
+      : `New version ${args.version}. Queued again to resume its session${args.notBefore ? `, starts ${localTime(args.notBefore)}` : ''}.\n\n${resumeWith.prompt}`,
     { author: 'system' },
   );
   say('requeued', requeued);

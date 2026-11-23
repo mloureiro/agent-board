@@ -9,6 +9,7 @@ import {
   parseScheduleArgs as toScheduleArgs,
   schedule,
   scheduleAfter,
+  scheduleKeyed,
 } from './schedule.mts';
 import type { Duplicate, ScheduleArgs, ScheduleDeps, ScheduleFlags } from './schedule.mts';
 import { BackendError } from '../backend/backend.mts';
@@ -794,6 +795,73 @@ test('a new version requeues a task from Needs me or Done, or one without a head
     );
     assert.deepEqual(printed, ['requeued old https://board.test/t/old']);
   }
+});
+
+const SESSION = '3f2b6c1e-8d4a-4e0b-9a57-1c2d3e4f5a6b';
+
+function recordingSpool(events: string[]) {
+  return {
+    put: (taskId: string, prompt: string) => void events.push(`put ${taskId}: ${prompt}`),
+    drop: (taskId: string) => void events.push(`drop ${taskId}`),
+  };
+}
+
+test('a requeue with an update prompt resumes the session: the prompt is spooled before the move and shown in the note', async () => {
+  const { deps, backend } = keyedSetup({ status: 'done', sessionId: SESSION });
+  const events: string[] = [];
+  const updateTask = backend.updateTask.bind(backend);
+  backend.updateTask = async (id, patch) => {
+    events.push('update');
+    return updateTask(id, patch);
+  };
+  const outcome = await scheduleKeyed(deps, parseScheduleArgs(KEYED), PR, {
+    prompt: 'Review it again.',
+    spool: recordingSpool(events),
+  });
+  assert.deepEqual(outcome.keyed, { result: 'requeued' });
+  assert.deepEqual(events, ['put old: Review it again.', 'update']);
+  assert.equal(backend.tasks[0]?.next, 'resume');
+  assert.ok(
+    backend.writes.includes(
+      'note old (system): New version sha2. Queued again to resume its session.\n\nReview it again.',
+    ),
+  );
+});
+
+test('a requeue with an update prompt but no session starts fresh and spools nothing', async () => {
+  const { deps, backend } = keyedSetup({ status: 'done', sessionId: null });
+  const events: string[] = [];
+  await scheduleKeyed(deps, parseScheduleArgs(KEYED), PR, {
+    prompt: 'Review it again.',
+    spool: recordingSpool(events),
+  });
+  assert.deepEqual(events, []);
+  assert.equal(backend.tasks[0]?.next, 'fresh');
+  assert.ok(backend.writes.includes('note old (system): New version sha2. Queued again.'));
+});
+
+test('a refused requeue drops the spooled update prompt', async () => {
+  const { deps, backend } = keyedSetup({ status: 'done', sessionId: SESSION });
+  backend.updateTask = async () => {
+    throw new BackendError('the task moved', 409);
+  };
+  const events: string[] = [];
+  const outcome = await scheduleKeyed(deps, parseScheduleArgs(KEYED), PR, {
+    prompt: 'Review it again.',
+    spool: recordingSpool(events),
+  });
+  assert.deepEqual(outcome.keyed, { result: 'exists', reason: 'changed' });
+  assert.deepEqual(events, ['put old: Review it again.', 'drop old']);
+
+  backend.updateTask = async () => {
+    throw new Error('the board is down');
+  };
+  events.length = 0;
+  await assert.rejects(
+    scheduleKeyed(deps, parseScheduleArgs(KEYED), PR, { prompt: 'Review it again.', spool: recordingSpool(events) }),
+    /the board is down/,
+  );
+  assert.deepEqual(events, ['put old: Review it again.', 'drop old']);
 });
 
 test('a task of another agent, or one whose agent is unreadable, is not requeued', async () => {
