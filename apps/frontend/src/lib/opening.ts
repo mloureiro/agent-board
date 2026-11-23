@@ -109,7 +109,7 @@ export interface LastNote {
   unreadable: boolean;
 }
 
-export type ListedTask = BoardTask & { lastNote: LastNote | null };
+export type ListedTask = BoardTask & { lastNote: LastNote | null; context: ContextReading | null };
 
 export interface ThreadNote {
   id: string;
@@ -257,12 +257,13 @@ async function openLastNote(keys: Keys, taskId: string, wire: WireLastNote): Pro
 
 export async function openListedTasks(keys: Keys, wire: WireListedTask[]): Promise<ListedTask[]> {
   return Promise.all(
-    wire.map(async ({ lastNote, ...task }) => {
-      const [opened, note] = await Promise.all([
+    wire.map(async ({ lastNote, context, ...task }) => {
+      const [opened, note, reading] = await Promise.all([
         openBoardTask(keys, task),
         lastNote === null ? null : openLastNote(keys, task.id, lastNote),
+        openContext(keys, task.id, context),
       ]);
-      return { ...opened, lastNote: note };
+      return { ...opened, lastNote: note, context: reading === 'unreadable' ? null : reading };
     }),
   );
 }
