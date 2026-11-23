@@ -18,3 +18,6 @@ export function parseIntegrationRef(ref: string): IntegrationRef | undefined {
   if (parts.length !== 2 || marketplace === undefined || integration === undefined) return undefined;
   return isMarketplaceName(marketplace) && isIntegrationName(integration) ? { marketplace, integration } : undefined;
 }
+
+export const ACTION_NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
+export const isActionName = (name: string): boolean => ACTION_NAME.test(name);
