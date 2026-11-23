@@ -8,7 +8,9 @@ import { act } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { BoardTask, ThreadNote } from '../lib/trpc';
 import { stamp } from '../lib/time';
+import { createMemoryDraftStorage, draftKeys, type MemoryDraftStorage } from '../test/draftStorage';
 import { ActionPanel } from './ActionPanel';
+import { DraftsProvider } from './DraftsProvider';
 
 const takeBack = vi.hoisted(() => vi.fn(async (_: unknown) => null));
 const setNotBefore = vi.hoisted(() => vi.fn(async (_: unknown) => null));
@@ -194,6 +196,11 @@ describe('ActionPanel draft', () => {
       </MemoryRouter>
     );
     const note_ = () => screen.getByPlaceholderText('Anything else the agent should know (optional)');
+    const stored = (client: QueryClient, task: BoardTask, thread: ThreadNote[], storage: MemoryDraftStorage) => (
+      <DraftsProvider identity={{ username: 'jascha', keyId: 'k1' }} storage={storage}>
+        {withThread(client, task, thread)}
+      </DraftsProvider>
+    );
 
     it('moves the typed text into the focused note, caret at its end', async () => {
       const client = new QueryClient();
@@ -206,6 +213,29 @@ describe('ActionPanel draft', () => {
       expect([field.selectionStart, field.selectionEnd]).toEqual([11, 11]);
       view.rerender(withThread(client, running({ status: 'needs-me', openQuestion: false }), []));
       expect(screen.getByRole('textbox')).toHaveValue('');
+    });
+
+    it('keeps the text moved into the note when the page is left and shown again', async () => {
+      const storage = createMemoryDraftStorage();
+      const client = new QueryClient();
+      const view = render(stored(client, running({}), [], storage));
+      await userEvent.type(screen.getByRole('textbox'), 'half a sent');
+      view.rerender(stored(client, running({ status: 'needs-me', openQuestion: true }), [note], storage));
+      expect(note_()).toHaveValue('half a sent');
+      view.unmount();
+      render(stored(client, running({ status: 'needs-me', openQuestion: true }), [note], storage));
+      expect(note_()).toHaveValue('half a sent');
+    });
+
+    it('leaves no answer draft behind once the answer is sent', async () => {
+      answer.mockClear();
+      const storage = createMemoryDraftStorage();
+      render(stored(new QueryClient(), running({ status: 'needs-me', openQuestion: true }), [note], storage));
+      await userEvent.click(screen.getByText('Yes'));
+      expect(draftKeys(storage).some((key) => key.includes('/answer:'))).toBe(true);
+      await userEvent.click(screen.getByRole('button', { name: /Answer & continue/ }));
+      await waitFor(() => expect(answer).toHaveBeenCalled());
+      await waitFor(() => expect(draftKeys(storage).filter((key) => key.includes('/answer:'))).toEqual([]));
     });
 
     it('leaves the note empty and unfocused when nothing was typed', () => {
@@ -810,5 +840,61 @@ describe('ActionPanel skill completion', () => {
     renderWith(running({}));
     await userEvent.type(screen.getByRole('textbox'), '/re');
     expect(screen.getByRole('textbox')).not.toHaveAttribute('data-expanded');
+  });
+});
+
+describe('ActionPanel unsent reply', () => {
+  const identity = { username: 'jascha', keyId: 'k1' };
+  const withDrafts = (client: QueryClient, task: BoardTask, storage: ReturnType<typeof createMemoryDraftStorage>) => (
+    <MemoryRouter>
+      <MantineProvider>
+        <ModalsProvider>
+          <QueryClientProvider client={client}>
+            <DraftsProvider identity={identity} storage={storage}>
+              <ActionPanel task={task} thread={[]} followUps={[]} />
+            </DraftsProvider>
+          </QueryClientProvider>
+        </ModalsProvider>
+      </MantineProvider>
+    </MemoryRouter>
+  );
+
+  it('comes back after a reload, and only on the task it was typed on', async () => {
+    const storage = createMemoryDraftStorage();
+    const first = render(withDrafts(new QueryClient(), running({}), storage));
+    await userEvent.type(screen.getByRole('textbox'), 'half a sent');
+    first.unmount();
+    const second = render(withDrafts(new QueryClient(), running({}), storage));
+    expect(screen.getByRole('textbox')).toHaveValue('half a sent');
+    second.unmount();
+    render(withDrafts(new QueryClient(), running({ id: 'other999' }), storage));
+    expect(screen.getByRole('textbox')).toHaveValue('');
+  });
+
+  it('is cleared by a send that succeeds after the panel is gone', async () => {
+    const storage = createMemoryDraftStorage();
+    let finish: () => void = () => undefined;
+    send.mockImplementationOnce(() => new Promise((resolve) => (finish = () => resolve(null))));
+    const client = new QueryClient();
+    const view = render(withDrafts(client, running({}), storage));
+    await userEvent.type(screen.getByRole('textbox'), 'on my way');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(send).toHaveBeenCalled());
+    view.unmount();
+    expect(draftKeys(storage)).toHaveLength(1);
+    await act(async () => finish());
+    await waitFor(() => expect(draftKeys(storage)).toHaveLength(0));
+  });
+
+  it('is kept when the send fails', async () => {
+    const storage = createMemoryDraftStorage();
+    send.mockRejectedValueOnce(new Error('refused'));
+    render(withDrafts(new QueryClient(), running({}), storage));
+    await userEvent.type(screen.getByRole('textbox'), 'keep me');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(send).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled());
+    expect(draftKeys(storage)).toHaveLength(1);
+    expect(screen.getByRole('textbox')).toHaveValue('keep me');
   });
 });

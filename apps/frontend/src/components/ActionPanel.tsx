@@ -20,6 +20,8 @@ import { useMutation } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { openQuestionOf } from '../lib/answers';
+import { answerSlot, replySlot, type DraftStore } from '../lib/drafts';
+import { useDraft, useDraftStore } from '../lib/draftsContext';
 import { canTakeBack } from '../lib/liveness';
 import { canPolish, isOpenPolishOf } from '../lib/polish';
 import { isStopHintDue, isStopping, STOP_LABEL, stopKind } from '../lib/stopping';
@@ -34,14 +36,22 @@ import { confirmStart, moveConfirmed } from './confirmStart';
 import { QuestionPanel } from './QuestionPanel';
 import { usePolish } from './usePolish';
 
-function useActions(id: string) {
+function useActions(id: string, drafts: DraftStore | null) {
   const trpc = useTRPC();
+  // Hook-level, not per call: TanStack Query skips per-call callbacks once the component is gone, and a reply sent just
+  // before leaving the page must not come back as a draft.
+  const clearSent = ({ id: taskId, message }: { id: string; message?: string | undefined }): void => {
+    if (message !== undefined) drafts?.clearIfSent(replySlot(taskId).key, message);
+  };
   return {
-    answer: useMutation(trpc.tasks.answer.mutationOptions()),
+    answer: useMutation({
+      ...trpc.tasks.answer.mutationOptions(),
+      onSuccess: (_result, vars) => drafts?.clear(answerSlot(vars.id, vars.questionNoteId, 0, vars.questions).key),
+    }),
     dismissQuestion: useMutation(trpc.tasks.dismissQuestion.mutationOptions()),
-    reply: useMutation(trpc.tasks.reply.mutationOptions()),
-    send: useMutation(trpc.tasks.send.mutationOptions()),
-    stop: useMutation(trpc.tasks.stop.mutationOptions()),
+    reply: useMutation({ ...trpc.tasks.reply.mutationOptions(), onSuccess: (_result, vars) => clearSent(vars) }),
+    send: useMutation({ ...trpc.tasks.send.mutationOptions(), onSuccess: (_result, vars) => clearSent(vars) }),
+    stop: useMutation({ ...trpc.tasks.stop.mutationOptions(), onSuccess: (_result, vars) => clearSent(vars) }),
     done: useMutation(trpc.tasks.done.mutationOptions()),
     rerun: useMutation(trpc.tasks.rerun.mutationOptions()),
     close: useMutation(trpc.tasks.setClosed.mutationOptions()),
@@ -73,6 +83,7 @@ interface ShellContext {
   message: string;
   setMessage: (message: string) => void;
   skills?: readonly CatalogSkill[];
+  drafts: DraftStore | null;
   isProposal: boolean;
   polishing: boolean;
   polish: ReturnType<typeof usePolish>;
@@ -423,7 +434,7 @@ function todoShell(c: ShellContext): Shell {
 }
 
 function replyShell(c: ShellContext): Shell {
-  const { task, thread, actions, message, setMessage, isProposal } = c;
+  const { task, thread, actions, message, setMessage, isProposal, drafts } = c;
   const suggestion = isProposal || task.status !== 'needs-me' ? undefined : currentSuggestion(thread);
   const sendMessage = (text: string) => {
     if (!text.trim() || isProposal || actions.reply.isPending) return;
@@ -481,7 +492,9 @@ function replyShell(c: ShellContext): Shell {
                   color="grape"
                   leftSection={<IconPlayerPlay size={14} />}
                   onClick={() =>
-                    confirmStart(task, (sent) => actions.move.mutate({ id: task.id, status: 'todo', task: sent }))
+                    confirmStart(task, drafts, (sent) =>
+                      actions.move.mutate({ id: task.id, status: 'todo', task: sent }),
+                    )
                   }
                   loading={actions.move.isPending}
                 >
@@ -599,14 +612,15 @@ export function ActionPanel({
   /** What a reply may start with after a `/`: the skills of the task's machine and directory. */
   skills?: readonly CatalogSkill[];
 }) {
-  const actions = useActions(task.id);
+  const drafts = useDraftStore();
+  const actions = useActions(task.id, drafts);
   const polish = usePolish();
   const polishing = followUps.some((child) => isOpenPolishOf(child, task.id));
   const now = useNow(30_000);
   const runNow = useNow(5_000);
   const waiting = startsIn(task.notBefore, now) !== undefined;
   const [stopClickedAt, setStopClickedAt] = useState<number | null>(null);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useDraft(replySlot(task.id));
   const [replyFocused, setReplyFocused] = useState(false);
   const [handover, setHandover] = useState<{ text: string; focus: boolean } | null>(null);
   const openQuestion = openQuestionOf(task, thread);
@@ -615,9 +629,15 @@ export function ActionPanel({
   // A proposal waits for the user to start it, even with a question on it: its alert comes first.
   const asking = !task.closed && openQuestion?.questions !== undefined && !isProposal;
   const moveToTodo = () =>
-    moveConfirmed(task, 'todo', (sent) => actions.move.mutate({ id: task.id, status: 'todo', task: sent }));
+    moveConfirmed(task, 'todo', drafts, (sent) => actions.move.mutate({ id: task.id, status: 'todo', task: sent }));
 
   if (asking && message !== '') {
+    if (drafts && openQuestion?.questions) {
+      const slot = answerSlot(task.id, openQuestion.id, 0, openQuestion.questions);
+      const stored = drafts.read(slot);
+      if (stored === undefined || stored.note.trim() === '')
+        drafts.write(slot, { ...(stored ?? slot.initial), note: message });
+    }
     setHandover({ text: message, focus: replyFocused });
     setMessage('');
   } else if (!asking && handover !== null) {
@@ -647,6 +667,8 @@ export function ActionPanel({
     return (
       <QuestionPanel
         key={openQuestion.id}
+        taskId={task.id}
+        noteId={openQuestion.id}
         questions={openQuestion.questions}
         submitting={actions.answer.isPending}
         onSubmit={(questions, answers, note) =>
@@ -667,6 +689,7 @@ export function ActionPanel({
     message,
     setMessage,
     skills,
+    drafts,
     isProposal,
     polishing,
     polish,

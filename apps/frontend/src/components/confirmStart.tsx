@@ -1,21 +1,25 @@
 import type { Status } from '@agent-board/shared';
 import { Alert, Button, Group, Text, Textarea } from '@mantine/core';
 import { modals } from '@mantine/modals';
-import { useState } from 'react';
+import type { DraftStore } from '../lib/drafts';
+import { proposalSlot } from '../lib/drafts';
+import { useDraftIn } from '../lib/draftsContext';
 import { startsProposal, type Proposal } from '../lib/sealing';
 
 const TITLE = 'Start this agent’s proposal as yours?';
 
 function StartProposal({
   proposal,
+  drafts,
   close,
   onStart,
 }: {
   proposal: Proposal;
+  drafts: DraftStore | null;
   close: () => void;
   onStart: (input: string) => void;
 }) {
-  const [input, setInput] = useState(proposal.input);
+  const [input, setInput, clearInput] = useDraftIn(drafts, proposalSlot(proposal));
   return (
     <>
       <Text size="sm" mb="xs">
@@ -35,7 +39,13 @@ function StartProposal({
         }}
       />
       <Group justify="flex-end" mt="md">
-        <Button variant="default" onClick={close}>
+        <Button
+          variant="default"
+          onClick={() => {
+            clearInput();
+            close();
+          }}
+        >
           Cancel
         </Button>
         <Button
@@ -58,7 +68,11 @@ function StartProposal({
  * seals exactly the text they confirm as theirs, and a worker then runs it with their permissions. `onConfirm` gets the
  * proposal with that text as its prompt.
  */
-export function confirmStart(proposal: Proposal, onConfirm: (proposal: Proposal) => void): void {
+export function confirmStart(
+  proposal: Proposal,
+  drafts: DraftStore | null,
+  onConfirm: (proposal: Proposal) => void,
+): void {
   if (proposal.unreadable.includes('input')) {
     modals.openConfirmModal({
       title: TITLE,
@@ -75,6 +89,7 @@ export function confirmStart(proposal: Proposal, onConfirm: (proposal: Proposal)
     children: (
       <StartProposal
         proposal={proposal}
+        drafts={drafts}
         close={() => modals.close(id)}
         onStart={(input) => onConfirm({ ...proposal, input })}
       />
@@ -86,7 +101,12 @@ export function confirmStart(proposal: Proposal, onConfirm: (proposal: Proposal)
  * Runs `move` with the proposal as it should be sent: after a confirmation that shows (and lets the user edit) the prompt when
  * the move starts an agent's proposal, else at once and unchanged.
  */
-export function moveConfirmed(proposal: Proposal, to: Status, move: (proposal: Proposal) => void): void {
-  if (startsProposal(proposal, to)) confirmStart(proposal, move);
+export function moveConfirmed(
+  proposal: Proposal,
+  to: Status,
+  drafts: DraftStore | null,
+  move: (proposal: Proposal) => void,
+): void {
+  if (startsProposal(proposal, to)) confirmStart(proposal, drafts, move);
   else move(proposal);
 }

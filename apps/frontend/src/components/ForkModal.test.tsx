@@ -5,6 +5,8 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BoardTask } from '../lib/trpc';
+import { createMemoryDraftStorage, draftKeys } from '../test/draftStorage';
+import { DraftsProvider } from './DraftsProvider';
 import { ForkModal } from './ForkModal';
 
 const fork = vi.hoisted(() => vi.fn(async (_: unknown) => ({ id: 'fork0001' })));
@@ -91,5 +93,36 @@ describe('ForkModal', () => {
     expect(screen.getByText(/directory or agent cannot be read/)).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText('Instructions'), 'go');
     expect(start()).toBeDisabled();
+  });
+});
+
+describe('ForkModal unsent text', () => {
+  const view = (storage: ReturnType<typeof createMemoryDraftStorage>) => (
+    <MemoryRouter>
+      <MantineProvider>
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <DraftsProvider identity={{ username: 'jascha', keyId: 'k1' }} storage={storage}>
+            <Routes>
+              <Route path="/" element={<ForkModal opened onClose={() => undefined} parent={parent} />} />
+              <Route path="/t/:id" element={<p>task page</p>} />
+            </Routes>
+          </DraftsProvider>
+        </QueryClientProvider>
+      </MantineProvider>
+    </MemoryRouter>
+  );
+
+  it('restores the instructions and title after a remount, and a fork clears them', async () => {
+    const storage = createMemoryDraftStorage();
+    const first = render(view(storage));
+    await userEvent.type(screen.getByLabelText('Instructions'), 'look into it');
+    await userEvent.type(screen.getByLabelText('Title'), '!');
+    first.unmount();
+    render(view(storage));
+    expect(screen.getByLabelText('Instructions')).toHaveValue('look into it');
+    expect(screen.getByLabelText('Title')).toHaveValue('Fork of Fix the export!');
+    await userEvent.click(start());
+    await waitFor(() => expect(screen.getByText('task page')).toBeInTheDocument());
+    expect(draftKeys(storage)).toHaveLength(0);
   });
 });

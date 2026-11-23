@@ -1,4 +1,5 @@
 import { Badge, Center, Loader, Text } from '@mantine/core';
+import { modals } from '@mantine/modals';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
@@ -9,6 +10,7 @@ import { AccountDeletedProvider } from './components/AccountDeletedProvider';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { LinkRulesProvider } from './components/LinkRulesProvider';
 import { KeyGate } from './crypto/KeyGate';
+import { removeDrafts } from './lib/drafts';
 import { subscribeToSession } from './lib/session';
 import { errorMessage, POLL_MS, useTRPC } from './lib/trpc';
 import { isUnauthorized } from './lib/unauthorized';
@@ -37,6 +39,12 @@ function SignedInApp() {
       query.state.status === 'error' && !isUnauthorized(query.state.error) ? POLL_MS : false,
   });
   const signedOut = isUnauthorized(me.error);
+  useEffect(() => {
+    if (signedOut) {
+      removeDrafts();
+      modals.closeAll();
+    }
+  }, [signedOut]);
   // Another tab signing in or out changes what this one is allowed to see.
   useEffect(() => subscribeToSession(() => void queryClient.resetQueries()), [queryClient]);
 

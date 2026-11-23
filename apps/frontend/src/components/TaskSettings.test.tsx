@@ -6,6 +6,8 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Machine } from '../lib/opening';
 import type { BoardTask } from '../lib/trpc';
+import { createMemoryDraftStorage } from '../test/draftStorage';
+import { DraftsProvider } from './DraftsProvider';
 import { AutoDoneSetting, EffortPicker, LanePicker, ModelPicker, TitleSetting, WorkdirSetting } from './TaskSettings';
 
 const configure = vi.hoisted(() => vi.fn(async (_: unknown) => ({})));
@@ -112,6 +114,27 @@ describe('TitleSetting', () => {
     await userEvent.type(screen.getByRole('textbox', { name: 'Title' }), '{Escape}');
     expect(screen.getByRole('heading', { name: 'Old title' })).toBeInTheDocument();
     expect(configure).not.toHaveBeenCalled();
+  });
+
+  it('opens the rename again with the typed title after the page is left and shown again', async () => {
+    const storage = createMemoryDraftStorage();
+    const tree = (
+      <MantineProvider>
+        <ModalsProvider>
+          <QueryClientProvider client={new QueryClient()}>
+            <DraftsProvider identity={{ username: 'jascha', keyId: 'k1' }} storage={storage}>
+              <TitleSetting task={task({ title: 'Old title' })} />
+            </DraftsProvider>
+          </QueryClientProvider>
+        </ModalsProvider>
+      </MantineProvider>
+    );
+    const first = render(tree);
+    await rename();
+    await userEvent.type(screen.getByRole('textbox', { name: 'Title' }), ' and more');
+    first.unmount();
+    render(tree);
+    expect(screen.getByRole('textbox', { name: 'Title' })).toHaveValue('Old title and more');
   });
 
   it('offers no rename on a card of a schedule', () => {
