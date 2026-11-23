@@ -7,7 +7,7 @@ import {
   type MachineFeed,
 } from '@agent-board/shared';
 import { Anchor, Badge, Button, Code, Collapse, Group, Paper, Stack, Table, Text, Title } from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
+import { useDisclosure, useId } from '@mantine/hooks';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { QueryStatus } from '../components/QueryStatus';
@@ -165,6 +165,7 @@ function FeedCard({
   now: number;
 }) {
   const [open, { toggle }] = useDisclosure(false);
+  const panelId = useId();
   const status = feedStatus(feed, now);
   const what = feed.integration === undefined ? undefined : `${feed.integration} · ${feed.action ?? 'unknown action'}`;
   return (
@@ -196,11 +197,18 @@ function FeedCard({
           {runSummary(feed, status?.detail !== undefined && status.detail === feed.last?.error)}
         </Text>
         <div>
-          <Button variant="subtle" size="compact-xs" onClick={toggle} aria-expanded={open}>
+          <Button
+            variant="subtle"
+            size="compact-xs"
+            onClick={toggle}
+            aria-expanded={open}
+            aria-controls={panelId}
+            aria-label={`${open ? 'Hide' : 'Show'} details of ${feed.name}`}
+          >
             {open ? 'Hide details' : 'Show details'}
           </Button>
         </div>
-        <Collapse expanded={open}>
+        <Collapse expanded={open} id={panelId}>
           <Stack gap="md" pt="xs">
             <Stack gap={4}>
               <Text size="sm" fw={500}>

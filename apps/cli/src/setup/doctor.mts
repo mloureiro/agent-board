@@ -1087,7 +1087,12 @@ const checkPluginsAndFeeds: Check = async (deps) => {
     results.push(
       answer.ok
         ? ok(`integrations.${ref}`, answer.summary ?? 'ready')
-        : problem(`integrations.${ref}`, 'fail', answer.reason, 'the watch unit runs feeds with this PATH'),
+        : problem(
+            `integrations.${ref}`,
+            'fail',
+            answer.reason,
+            "the watch unit runs feeds with this PATH: the program's interpreter (its shebang) and the tools it calls must be found on it, for example through a link in ~/.local/bin",
+          ),
     );
   }
   return results;

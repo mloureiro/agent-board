@@ -93,7 +93,9 @@ describe('Settings › Feeds', () => {
     await waitFor(() => expect(request).toHaveBeenCalled());
     expect(request.mock.calls[0]?.[0]).toEqual({ machine: 'laptop', action: 'run', id: FEED.id });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Show details' }));
+    const fold = screen.getByRole('button', { name: `Show details of ${FEED.name}` });
+    await userEvent.click(fold);
+    expect(document.getElementById(fold.getAttribute('aria-controls') ?? '')).not.toBeNull();
     expect(await screen.findByRole('link', { name: 'Review PR 17' })).toHaveAttribute('href', '/t/task0001');
   });
 });
