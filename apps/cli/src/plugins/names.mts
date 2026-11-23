@@ -11,7 +11,6 @@ export interface IntegrationRef {
   integration: string;
 }
 
-/** Splits `<marketplace>:<integration>`; undefined unless both halves are valid names. */
 export function parseIntegrationRef(ref: string): IntegrationRef | undefined {
   if (!INTEGRATION_REF.test(ref)) return undefined;
   const [marketplace = '', integration = ''] = ref.split(':');

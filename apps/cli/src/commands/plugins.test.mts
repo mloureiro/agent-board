@@ -12,8 +12,8 @@ import { verifyPin } from '../plugins/pin.mts';
 import { checkoutDir, pluginsDir, readRegistry } from '../plugins/registry.mts';
 import { resolveIntegration } from '../plugins/resolve.mts';
 import { runBoard } from './program.mts';
-import { pluginsInstall, pluginsList, pluginsRemove, pluginsUpdate } from './plugin.mts';
-import type { PluginsDeps } from './plugin.mts';
+import { pluginsInstall, pluginsList, pluginsRemove, pluginsUpdate } from './plugins.mts';
+import type { PluginsDeps } from './plugins.mts';
 
 const NOW = new Date('2026-11-23T10:00:00Z');
 

@@ -8,7 +8,6 @@ export interface FeedStatus {
 
 const MIN_OVERDUE_MARGIN_MS = 2 * 60_000;
 
-/** The first status that applies to a feed, or undefined for a feed that is running as it should. */
 export function feedStatus(feed: MachineFeed, now: number): FeedStatus | undefined {
   const { last } = feed;
   if (feed.problem !== undefined) return { label: 'Not read', color: 'red', detail: feed.problem };

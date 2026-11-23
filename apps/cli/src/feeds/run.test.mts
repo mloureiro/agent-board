@@ -6,7 +6,7 @@ import type { TaskDraft } from '@agent-board/shared';
 import { fakeBackend, task } from '../__tests__/helpers/fakes.mts';
 import { commitFiles, makeMarketplace } from '../__tests__/helpers/marketplace.mts';
 import { tempDir } from '../__tests__/helpers/watch.mts';
-import { pluginsInstall } from '../commands/plugin.mts';
+import { pluginsInstall } from '../commands/plugins.mts';
 import { runGit } from '../config/checkout-repo.mts';
 import { runCommand } from '../dispatch/waits.mts';
 import { runTransfer } from '../plugins/git.mts';

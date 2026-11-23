@@ -5,6 +5,7 @@ import { isRecord } from '@agent-board/shared';
 import { UsageError } from '../cli.mts';
 import { ConfigError } from '../config/config.mts';
 import { readConfigFile } from '../config/config-file.mts';
+import { isDirectory } from '../config/dirs.mts';
 import type { GitRunner } from '../config/checkout-repo.mts';
 import { plainLine } from '../output/terminal.mts';
 import { TRANSFER_TIMEOUT_MS } from '../plugins/git.mts';
@@ -44,14 +45,6 @@ function shown(text: string, max: number): string {
   return line.length > max ? `${line.slice(0, max - 1)}…` : line;
 }
 
-const isDirectory = (path: string): boolean => {
-  try {
-    return statSync(path).isDirectory();
-  } catch {
-    return false;
-  }
-};
-
 function writableRegistry(deps: PluginsDeps): Registry {
   const { registry, unreadable } = readRegistry(deps.paths);
   if (unreadable !== undefined)
@@ -79,7 +72,6 @@ interface FeedUse {
   integration: string;
 }
 
-/** The feeds of config.json whose `integration` names a marketplace's integration. */
 function feedsUsing(configFile: string, marketplace: string): FeedUse[] {
   if (!existsSync(configFile)) return [];
   const feeds = readConfigFile(configFile).raw['feeds'];

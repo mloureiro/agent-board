@@ -8,7 +8,6 @@ import type { CommandResult, CommandSpec } from '../dispatch/waits.mts';
 import { KEY_MAX, parseScheduleArgs, scheduleKeyed } from '../commands/schedule.mts';
 import { errorText } from '../output/text.mts';
 import type { Resolved } from '../plugins/resolve.mts';
-import { withoutControls } from '../watch/fence.mts';
 import { MIN_EVERY_MS } from './config.mts';
 import type { FeedConfig } from './config.mts';
 import { list } from './integration.mts';
@@ -16,7 +15,7 @@ import { parseItems, undeclaredField } from './items.mts';
 import type { FeedItem } from './items.mts';
 import { LAST_TASKS_LIMIT, zeroCounts } from './store.mts';
 import type { FeedControl, FeedRecord, FeedRun, FeedStore } from './store.mts';
-import { render } from './template.mts';
+import { oneLine, render } from './template.mts';
 import type { FeedUpdates } from './updates.mts';
 import { validateFeed } from './validate.mts';
 
@@ -36,8 +35,6 @@ export interface FeedRunDeps {
 }
 
 const ERROR_MAX = 300;
-
-const tidy = (text: string): string => withoutControls(text).replaceAll('\n', ' ').slice(0, ERROR_MAX);
 
 const isWaitingFresh = (task: Task | undefined): boolean => task?.status === 'todo' && task.next === 'fresh';
 
@@ -94,8 +91,8 @@ export async function runFeed(deps: FeedRunDeps, feed: FeedConfig): Promise<Feed
     let error: string | undefined;
     const fail = (item: FeedItem, why: string): void => {
       counts.failed++;
-      error ??= tidy(`${item.key.slice(0, 80)}: ${why}`);
-      log(`FEED ${feed.name} ${tidy(item.key.slice(0, 80))} failed: ${tidy(why)}`);
+      error ??= oneLine(`${item.key.slice(0, 80)}: ${why}`, ERROR_MAX);
+      log(`FEED ${feed.name} ${oneLine(item.key.slice(0, 80), ERROR_MAX)} failed: ${oneLine(why, ERROR_MAX)}`);
     };
     for (const item of listed) {
       const key = `feed:${feed.name}:${item.key}`;
@@ -159,7 +156,7 @@ export async function runFeed(deps: FeedRunDeps, feed: FeedConfig): Promise<Feed
         if (outcome === undefined || outcome.result === 'exists') continue;
         counts[outcome.result]++;
         note(scheduled.task.id, outcome.result);
-        log(`FEED ${feed.name} ${outcome.result} ${scheduled.task.id} ${tidy(item.key.slice(0, 80))}`);
+        log(`FEED ${feed.name} ${outcome.result} ${scheduled.task.id} ${oneLine(item.key.slice(0, 80), ERROR_MAX)}`);
       } catch (thrown) {
         fail(item, errorText(thrown));
       }
@@ -173,11 +170,11 @@ export async function runFeed(deps: FeedRunDeps, feed: FeedConfig): Promise<Feed
           await backend.updateTask(id, { status: 'done', expect: 'todo' });
           counts.closed++;
           note(id, 'closed');
-          log(`FEED ${feed.name} done ${id}: ${tidy(key.slice(0, 80))} is no longer listed`);
+          log(`FEED ${feed.name} done ${id}: ${oneLine(key.slice(0, 80), ERROR_MAX)} is no longer listed`);
         } catch (thrown) {
           if (thrown instanceof BackendError && thrown.status === 409) continue;
           tasks[key] = id;
-          log(`FEED ${feed.name} cannot move ${id} to done: ${tidy(errorText(thrown))}`);
+          log(`FEED ${feed.name} cannot move ${id} to done: ${oneLine(errorText(thrown), ERROR_MAX)}`);
         }
       }
     }
@@ -194,7 +191,7 @@ export async function runFeed(deps: FeedRunDeps, feed: FeedConfig): Promise<Feed
     );
   } catch (thrown) {
     // Recorded like a failed listing, so the feed waits for its interval instead of trying again on every scan.
-    const message = tidy(errorText(thrown));
+    const message = oneLine(errorText(thrown), ERROR_MAX);
     log(`FEED ${feed.name} failed: ${message}`);
     return finish(
       { startedAt, at: deps.now().toISOString(), ok: false, error: message, counts: zeroCounts() },
@@ -207,9 +204,9 @@ export async function runFeed(deps: FeedRunDeps, feed: FeedConfig): Promise<Feed
 
 async function listing(deps: FeedRunDeps, feed: FeedConfig, program: string): Promise<FeedItem[] | string> {
   const result = await list(program, feed.action, feed.options, feed.dir, deps.run, feed.timeoutMs, deps.signal);
-  if (!result.ok) return tidy(result.reason);
+  if (!result.ok) return oneLine(result.reason, ERROR_MAX);
   const parsed = parseItems(result.stdout);
-  return parsed.ok ? parsed.items : tidy(parsed.error);
+  return parsed.ok ? parsed.items : oneLine(parsed.error, ERROR_MAX);
 }
 
 export function runAsked(control: FeedControl, record: FeedRecord): boolean {

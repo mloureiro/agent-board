@@ -104,13 +104,11 @@ export function programProblem(
   return undefined;
 }
 
-/** The manifest at `commit`, read from the commit and not from the working tree. */
 export function readMarketplace(git: GitRunner, checkoutDir: string, commit: string): Marketplace | string {
   const text = git(checkoutDir, ['show', `${commit}:${MANIFEST_PATH}`]);
   return text === undefined ? `no ${MANIFEST_PATH} at commit ${commit.slice(0, 12)}` : parseMarketplace(text);
 }
 
-/** `readMarketplace` plus the check of every listed program at `commit`. */
 export function loadMarketplace(git: GitRunner, checkoutDir: string, commit: string): Marketplace | string {
   const marketplace = readMarketplace(git, checkoutDir, commit);
   if (typeof marketplace === 'string') return marketplace;

@@ -6,9 +6,11 @@ export const FIELD_NAME = /^[A-Za-z][A-Za-z0-9_]{0,39}$/;
 
 export const VALUE_MAX = 500;
 
-/** Third-party text on one line: runs of newlines and tabs become one space, and control and format characters go. */
-export const oneLine = (text: string): string =>
-  withoutControls(text.replace(/[\r\n\t]+/g, ' ')).replace(/\p{Cf}/gu, '');
+/** Third-party text on one line: runs of newlines and tabs become one space, control and format characters go, cut to `max` characters. */
+export const oneLine = (text: string, max: number): string =>
+  Array.from(withoutControls(text.replace(/[\r\n\t]+/g, ' ')).replace(/\p{Cf}/gu, ''))
+    .slice(0, max)
+    .join('');
 
 export type Rendered = { ok: true; text: string } | { ok: false; missing: string };
 
@@ -26,7 +28,7 @@ export function render(text: string, values: Readonly<Record<string, string>>): 
       missing ??= name;
       return '';
     }
-    return Array.from(oneLine(value)).slice(0, VALUE_MAX).join('');
+    return oneLine(value, VALUE_MAX);
   });
   return missing === undefined ? { ok: true, text: rendered } : { ok: false, missing };
 }

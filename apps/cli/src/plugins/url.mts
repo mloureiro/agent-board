@@ -1,4 +1,4 @@
-import { statSync } from 'node:fs';
+import { isDirectory } from '../config/dirs.mts';
 
 const MAX_URL = 500;
 const FORMS = [
@@ -7,20 +7,11 @@ const FORMS = [
   /^[A-Za-z0-9._-]+@[A-Za-z0-9.-]+:[A-Za-z0-9._~/-]+$/,
 ];
 
-const isDirectory = (path: string): boolean => {
-  try {
-    return statSync(path).isDirectory();
-  } catch {
-    return false;
-  }
-};
-
 function isBlankOrControl(char: string): boolean {
   const code = char.codePointAt(0) ?? 0;
   return /\s/.test(char) || code < 0x20 || (code >= 0x7f && code <= 0x9f);
 }
 
-/** Why `url` may not reach `git clone`, or undefined when it may. */
 export function checkInstallUrl(url: string): string | undefined {
   if (url === '') return 'the install URL is empty';
   if (url.length > MAX_URL) return `the install URL is longer than ${MAX_URL} characters`;

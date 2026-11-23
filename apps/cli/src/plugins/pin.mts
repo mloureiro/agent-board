@@ -1,5 +1,5 @@
-import { statSync } from 'node:fs';
 import type { GitRunner } from '../config/checkout-repo.mts';
+import { isDirectory } from '../config/dirs.mts';
 
 export const LOCAL_CHANGES_ADVICE =
   'discard them with git checkout -- . in that directory, or keep a copy elsewhere first';
@@ -7,15 +7,6 @@ export const LOCAL_CHANGES_ADVICE =
 export const localChangesProblem = (name: string, dir: string): string =>
   `marketplace ${name} has local changes in ${dir}; ${LOCAL_CHANGES_ADVICE}`;
 
-const isDirectory = (path: string): boolean => {
-  try {
-    return statSync(path).isDirectory();
-  } catch {
-    return false;
-  }
-};
-
-/** Whether tracked files of the checkout differ from HEAD; undefined when git fails. */
 export function hasLocalChanges(dir: string, git: GitRunner): boolean | undefined {
   const status = git(dir, ['status', '--porcelain', '--untracked-files=no']);
   return status === undefined ? undefined : status !== '';

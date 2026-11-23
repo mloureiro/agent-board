@@ -3,10 +3,9 @@ import type { CommandResult, CommandSpec } from '../dispatch/waits.mts';
 import { shellQuote } from '../output/text.mts';
 import { PROTOCOL } from '../plugins/manifest.mts';
 import { isActionName } from '../plugins/names.mts';
-import { withoutControls } from '../watch/fence.mts';
 import { parseSchema } from './schema.mts';
 import type { Schema } from './schema.mts';
-import { FIELD_NAME } from './template.mts';
+import { FIELD_NAME, oneLine } from './template.mts';
 
 export type Run = (spec: CommandSpec) => Promise<CommandResult>;
 
@@ -30,12 +29,10 @@ export const REASON_MAX = 200;
 const STDOUT_LIMIT = 200_000;
 const SUMMARY_MAX = 300;
 
-const cut = (text: string, max: number): string => Array.from(text).slice(0, max).join('');
-
 /** The first non-empty line of what a program wrote to stderr, as one line of text a terminal and a state file may hold. */
 export function firstLine(stderr: string): string {
   const line = stderr.split('\n').find((text) => text.trim() !== '') ?? '';
-  return cut(withoutControls(line).trim(), REASON_MAX);
+  return oneLine(line.trim(), REASON_MAX);
 }
 
 function failure(label: string, result: CommandResult, limitMs: number): string | undefined {
@@ -59,16 +56,17 @@ async function call(
   return { ok: true, stdout: result.stdout };
 }
 
-const notAnAction = (action: string): Outcome => ({ ok: false, reason: `"${cut(action, 40)}" is not an action name` });
+const notAnAction = (action: string): Outcome => ({
+  ok: false,
+  reason: `"${oneLine(action, 40)}" is not an action name`,
+});
 
-/** Runs `describe`: what the integration's actions take and provide, as the text it printed. */
 export function describe(program: string, dir: string, run: Run): Promise<Outcome> {
   return call(run, program, ['describe'], { label: 'describe', cwd: dir, timeLimitMs: PROTOCOL_TIMEOUT_MS });
 }
 
 export type DoctorOutcome = { ok: true; summary?: string } | { ok: false; reason: string };
 
-/** Runs `doctor`: the integration's own prerequisites. `path`, when given, replaces PATH, so the answer is the one the units would get. */
 export async function doctor(program: string, dir: string, run: Run, path?: string): Promise<DoctorOutcome> {
   const outcome = await call(run, program, ['doctor'], {
     label: 'doctor',
@@ -77,14 +75,10 @@ export async function doctor(program: string, dir: string, run: Run, path?: stri
     ...(path === undefined ? {} : { path }),
   });
   if (!outcome.ok) return outcome;
-  const summary = cut(
-    withoutControls(outcome.stdout.split('\n').find((text) => text.trim() !== '') ?? '').trim(),
-    REASON_MAX,
-  );
+  const summary = oneLine((outcome.stdout.split('\n').find((text) => text.trim() !== '') ?? '').trim(), REASON_MAX);
   return summary === '' ? { ok: true } : { ok: true, summary };
 }
 
-/** Runs `check <action>` with the options on stdin: offline, and exit 0 when they are valid. */
 export async function check(
   program: string,
   action: string,
@@ -101,7 +95,6 @@ export async function check(
   });
 }
 
-/** Runs the action with the options on stdin; its stdout is the listing. */
 export async function list(
   program: string,
   action: string,
@@ -122,7 +115,7 @@ export async function list(
 }
 
 function parseAction(name: string, entry: unknown, ref: string): ActionDescription | string {
-  const where = `${ref} describes ${cut(name, 40)}`;
+  const where = `${ref} describes ${oneLine(name, 40)}`;
   if (!isRecord(entry)) return `${where} with something that is not an object`;
   const { summary, fields } = entry;
   if (summary !== undefined && (typeof summary !== 'string' || summary.length > SUMMARY_MAX))
@@ -139,7 +132,6 @@ function parseAction(name: string, entry: unknown, ref: string): ActionDescripti
   return { summary, options, fields: [...new Set<string>(names)] };
 }
 
-/** The `describe` answer of the integration `ref`, or the reason it cannot be used. Fails closed on any protocol but this one's. */
 export function parseDescription(stdout: string, ref: string): Description | string {
   let raw: unknown;
   try {
@@ -149,13 +141,13 @@ export function parseDescription(stdout: string, ref: string): Description | str
   }
   if (!isRecord(raw)) return `${ref} printed a describe answer that is not a JSON object`;
   if (raw['protocol'] !== PROTOCOL)
-    return `${ref} speaks protocol ${cut(String(raw['protocol']), 20)}; this CLI speaks ${PROTOCOL}`;
+    return `${ref} speaks protocol ${oneLine(String(raw['protocol']), 20)}; this CLI speaks ${PROTOCOL}`;
   const declared = raw['actions'];
   if (!isRecord(declared)) return `${ref} describes no actions object`;
   const actions: Record<string, ActionDescription> = {};
   for (const [name, entry] of Object.entries(declared)) {
     if (!isActionName(name))
-      return `${ref} describes an action named "${cut(name, 40)}", which is not a valid action name`;
+      return `${ref} describes an action named "${oneLine(name, 40)}", which is not a valid action name`;
     const action = parseAction(name, entry, ref);
     if (typeof action === 'string') return action;
     actions[name] = action;

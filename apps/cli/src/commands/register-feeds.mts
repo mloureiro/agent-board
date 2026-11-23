@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import { Command } from 'commander';
 import { readStdin, ReportedFailure, UsageError } from '../cli.mts';
 import { runGit } from '../config/checkout-repo.mts';
-import { getPaths, loadConfig } from '../config/config.mts';
+import { getPaths } from '../config/config.mts';
 import { runCommand } from '../dispatch/waits.mts';
 import { plainLine } from '../output/terminal.mts';
 import { createFeedStore } from '../feeds/store.mts';
@@ -60,7 +60,6 @@ export function registerFeedsCommand(shared: ProgramShared): void {
       const context = contextOf(command, { strictConfig: true });
       const paths = getPaths(env);
       const store = createFeedStore(join(paths.stateDir, 'feeds'), isProcessAlive);
-      const config = loadConfig(paths.configFile);
       const deps: FeedsDeps = {
         configFile: paths.configFile,
         dirs: context.config.dirs,
@@ -70,8 +69,8 @@ export function registerFeedsCommand(shared: ProgramShared): void {
         runDeps: () => ({
           backend: context.backend,
           machine: context.config.machine,
-          dirs: config.dirs,
-          repos: config.repos,
+          dirs: context.config.dirs,
+          repos: context.config.repos,
           store,
           updates: createFeedUpdates(join(paths.stateDir, 'feeds', 'updates')),
           run: (spec) => runCommand(spec),

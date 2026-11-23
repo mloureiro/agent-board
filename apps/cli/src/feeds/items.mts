@@ -47,7 +47,7 @@ function item(value: unknown, line: number): FeedItem | string {
     return `line ${line} has no field "${unknown.slice(0, 40)}" (it takes ${ITEM_FIELDS.join(', ')})`;
   const { key, title, version, dir, repo, notBefore } = value;
   if (typeof key !== 'string' || key.trim() === '') return `line ${line} has no key`;
-  const cleanTitle = typeof title === 'string' ? Array.from(oneLine(title)).slice(0, TITLE_MAX).join('').trim() : '';
+  const cleanTitle = typeof title === 'string' ? oneLine(title, TITLE_MAX).trim() : '';
   if (cleanTitle === '') return `line ${line} has no title`;
   if (version !== undefined && typeof version !== 'string') return `line ${line}: version must be text`;
   if (dir !== undefined && typeof dir !== 'string') return `line ${line}: dir must be a path`;
@@ -71,7 +71,6 @@ function item(value: unknown, line: number): FeedItem | string {
   };
 }
 
-/** The first field of the item that the action did not declare in `describe`, or undefined. */
 export const undeclaredField = (feedItem: FeedItem, declared: readonly string[]): string | undefined =>
   Object.keys(feedItem.fields ?? {}).find((name) => !declared.includes(name));
 

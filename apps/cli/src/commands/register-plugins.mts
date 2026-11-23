@@ -5,8 +5,8 @@ import { plainLine } from '../output/terminal.mts';
 import { runTransfer } from '../plugins/git.mts';
 import { examples, paragraphs, SETUP } from './help-text.mts';
 import type { ProgramShared } from './program-shared.mts';
-import { pluginsInstall, pluginsList, pluginsRemove, pluginsUpdate } from './plugin.mts';
-import type { PluginsDeps } from './plugin.mts';
+import { pluginsInstall, pluginsList, pluginsRemove, pluginsUpdate } from './plugins.mts';
+import type { PluginsDeps } from './plugins.mts';
 
 const ACTIONS = ['list', 'install', 'update', 'remove'] as const;
 type Action = (typeof ACTIONS)[number];

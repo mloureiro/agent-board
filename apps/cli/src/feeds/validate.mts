@@ -1,9 +1,8 @@
-import { withoutControls } from '../watch/fence.mts';
 import type { Resolved } from '../plugins/resolve.mts';
 import { check, describe, parseDescription } from './integration.mts';
 import type { Run } from './integration.mts';
 import { validate as validateOptions } from './schema.mts';
-import { placeholders } from './template.mts';
+import { oneLine, placeholders } from './template.mts';
 
 export interface FeedBinding {
   integration: string;
@@ -25,7 +24,7 @@ export const ITEM_BASE_FIELDS = ['key', 'title', 'version'] as const;
 
 const refuse = (reason: string): Validated => ({
   ok: false,
-  reason: Array.from(withoutControls(reason).replaceAll('\n', ' ')).slice(0, REASON_LIMIT).join(''),
+  reason: oneLine(reason, REASON_LIMIT),
 });
 
 /**
