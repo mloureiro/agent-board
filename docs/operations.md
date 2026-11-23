@@ -50,6 +50,7 @@ The cluster side lives in the separate, private `codeplant-de/cloud-infra` repos
 | `CLI_VERSION`      | The newest CLI release, `x.y.z`. See below.                                                                                                 |
 | `GIT_SHA`          | The commit the image was built from. See below.                                                                                             |
 | `PORT`             | Default 4000.                                                                                                                               |
+| `HOST`             | Address the backend binds to. Default 0.0.0.0; set 127.0.0.1 to accept local connections only.                                              |
 | `BACKFILL_OWNER`   | Only for the first start on a database from before boards were separated per user: the username that owns the existing tasks.               |
 
 **`APP_DATABASE_URL`.** The role must be `board_app`, with no superuser and no BYPASSRLS. On start the backend creates it with this URL's password, or resets the password. It refuses to start if the role is privileged.

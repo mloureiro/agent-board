@@ -60,6 +60,8 @@ export type AuthConfig = LoginConfig | NoLoginConfig;
 export interface Config {
   nodeEnv: string;
   port: number;
+  /** Address the backend binds to. */
+  host: string;
   /** Owner/admin connection: bootstrap and migrations only. */
   databaseUrl: string;
   /** The unprivileged `board_app` connection that serves every request. */
@@ -248,6 +250,7 @@ export function loadConfig(env: Env = process.env): Config {
   return {
     nodeEnv,
     port: Number(env.PORT ?? 4000),
+    host: optionalEnv(env, 'HOST') ?? '0.0.0.0',
     databaseUrl: requireEnv(env, 'DATABASE_URL'),
     appDatabaseUrl: requireEnv(env, 'APP_DATABASE_URL'),
     backfillOwner: env.BACKFILL_OWNER?.trim().toLowerCase() || null,
