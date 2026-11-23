@@ -1010,17 +1010,22 @@ Done.
 
 The watch unit runs every feed that is due; `board feeds` lists them with their
 last run. `add <name> <file | ->` reads the entry as JSON from a file or from
-stdin and writes `feeds.<name>` to config.json; adding a name again replaces it.
-`rm <name>` removes it; the tasks it made stay. `run <name>` runs it now, here,
-and exits 1 when the run failed. `pause` and `resume` stop and restart its
-timer.
+stdin and validates it as a run would (the plugin, the action, the options, the
+prompts and the check of the integration) and only then writes `feeds.<name>` to
+config.json; adding a name again replaces it. It then runs the `doctor` of the
+integration and warns when a prerequisite is missing, such as a login; the feed
+stays added. `rm <name>` removes it; the tasks it made stay. `run <name>` runs
+it now, here, and exits 1 when the run failed. `pause` and `resume` stop and
+restart its timer.
 
 Before every run the feed is validated: the plugin must be installed and at the
 commit that was installed, the action must exist, the options must fit what the
 integration describes, the prompts may use only the fields it provides, and its
 own check must pass. A feed that does not validate is reported and never runs. A
 listing that fails (an exit other than 0, a time limit, a line that is not a
-valid item) schedules nothing and closes nothing.
+valid item) schedules nothing and closes nothing. Each item carries a `key`, a
+`title` and a `version`, and the fields its action declares; the full contract,
+with the entry format, is in docs/plugins.md.
 
 Arguments:
   action      list, add, rm, run, pause or resume, the feed name, and for add
@@ -1031,6 +1036,7 @@ Options:
 
 Examples:
   board feeds
+  board plugins install <repository URL>
   board feeds add gh-reviews ./gh-reviews.json
   board feeds run gh-reviews
   board feeds pause gh-reviews
@@ -1417,13 +1423,16 @@ token is never printed.
 Checks: Node 24+ (checkout only), the config directory, web.json, env (mode 600
 or 400, token, data key), the board (reachable, token accepted, API version
 range, and whether it has a data key and this machine holds the same one),
-config.json, and for a worker machine claude, gh, flock, systemd-run, systemctl
-and the installed units with their timers and the listener (on macOS: claude,
-gh, lockf, the launchd agents and whether launchd has loaded them, the run
-directory, and a warning for a checkout under ~/Documents, ~/Desktop,
-~/Downloads or iCloud Drive, which macOS keeps background jobs out of). The
-worker checks only warn on a machine with no unit or agent installed, and are
-left out on a system other than Linux and macOS, where no worker runs.
+config.json, each installed plugin marketplace (still at the commit that was
+installed), each feed (it validates) and each integration the feeds use (its own
+`doctor`, run with the PATH the units run with), and for a worker machine
+claude, gh, flock, systemd-run, systemctl and the installed units with their
+timers and the listener (on macOS: claude, gh, lockf, the launchd agents and
+whether launchd has loaded them, the run directory, and a warning for a checkout
+under ~/Documents, ~/Desktop, ~/Downloads or iCloud Drive, which macOS keeps
+background jobs out of). The worker checks only warn on a machine with no unit
+or agent installed, and are left out on a system other than Linux and macOS,
+where no worker runs.
 
 Options:
   --json      print JSON on stdout instead of text

@@ -31,6 +31,17 @@ import {
   SERVER_FEATURES,
 } from '@agent-board/shared';
 import type { Keys } from '@agent-board/shared';
+import { runGit } from '../config/checkout-repo.mts';
+import { runCommand } from '../dispatch/waits.mts';
+import type { CommandResult, CommandSpec } from '../dispatch/waits.mts';
+import { parseFeeds } from '../feeds/config.mts';
+import { doctor } from '../feeds/integration.mts';
+import { validateFeed } from '../feeds/validate.mts';
+import { verifyPin } from '../plugins/pin.mts';
+import { checkoutDir, readRegistry } from '../plugins/registry.mts';
+import type { RegistryRead } from '../plugins/registry.mts';
+import { resolveIntegration } from '../plugins/resolve.mts';
+import type { Resolved } from '../plugins/resolve.mts';
 import { pluginPlaceholders } from '../worker/plan.mts';
 import { catalogDirs, composeCatalog } from '../catalog/catalog.mts';
 import { createCatalogStore } from '../catalog/cache.mts';
@@ -109,6 +120,14 @@ export interface DoctorDeps {
   // The subscription usage this machine's runs reported.
   usageStore: Pick<UsageStore, 'read'>;
   now: () => Date;
+  // Runs a program of an integration; a `path` in the spec replaces PATH.
+  runCommand: (spec: CommandSpec) => Promise<CommandResult>;
+  // The installed plugin marketplaces: the registry, why a checkout is not at its pinned commit, and an integration's program.
+  plugins: {
+    read: () => RegistryRead;
+    verify: (name: string, commit: string) => string | undefined;
+    resolve: (ref: string) => Resolved;
+  };
 }
 
 // What the macOS worker checks touch.
@@ -198,6 +217,12 @@ export function realDoctorDeps(
     catalogStore: createCatalogStore(),
     usageStore: createUsageStore(usageFile(getPaths().stateDir)),
     now: () => new Date(),
+    runCommand: (spec) => runCommand(spec),
+    plugins: {
+      read: () => readRegistry(getPaths()),
+      verify: (name, commit) => verifyPin({ name, commit }, checkoutDir(getPaths(), name), runGit),
+      resolve: (ref) => resolveIntegration(ref, { paths: getPaths(), git: runGit }),
+    },
   };
 }
 
@@ -1000,6 +1025,74 @@ async function checkService(
   ];
 }
 
+const unitsPath = ({ platform, home }: DoctorDeps): string =>
+  platform === 'darwin' ? agentPath(home) : unitPath(home);
+
+const FEED_HINT = "fix the entry in config.json, or run the program's describe to see what it takes";
+
+const checkPluginsAndFeeds: Check = async (deps) => {
+  const { registry, unreadable } = deps.plugins.read();
+  const marketplaces = Object.entries(registry.marketplaces);
+  const text = deps.readText(join(deps.configDir, 'config.json'));
+  let feedsRaw: unknown;
+  try {
+    feedsRaw = text === undefined ? undefined : (JSON.parse(text) as { feeds?: unknown } | null)?.feeds;
+  } catch {
+    feedsRaw = undefined;
+  }
+  const parsed = ((): ReturnType<typeof parseFeeds> => {
+    try {
+      return parseFeeds(feedsRaw);
+    } catch (error) {
+      if (!(error instanceof ConfigError)) throw error;
+      return { feeds: [], feedErrors: { feeds: error.message } };
+    }
+  })();
+  const results: CheckResult[] = [];
+  if (unreadable !== undefined)
+    results.push(
+      problem('plugins', 'fail', `the plugin registry is unreadable: ${unreadable}`, 'run "board plugins list"'),
+    );
+  for (const [name, entry] of marketplaces) {
+    const reason = deps.plugins.verify(name, entry.commit);
+    results.push(
+      reason === undefined
+        ? ok(`plugins.${name}`, `${name} at ${entry.commit.slice(0, 12)}`)
+        : problem(`plugins.${name}`, 'fail', plainLine(reason), `run "board plugins update ${name}"`),
+    );
+  }
+  if (marketplaces.length > 0 && deps.whichInUnits('git') === undefined)
+    results.push(
+      problem(
+        'git',
+        'warn',
+        `git is not on the units' PATH (${unitsPath(deps)})`,
+        'install git where the units can find it; the pin check of every feed needs it',
+      ),
+    );
+  for (const [name, message] of Object.entries(parsed.feedErrors))
+    results.push(problem(`feeds.${plainLine(name)}`, 'fail', plainLine(message.replace(/^config: /, '')), FEED_HINT));
+  const programs = new Map<string, { program: string; dir: string }>();
+  for (const feed of parsed.feeds) {
+    const validated = await validateFeed(feed, { resolve: deps.plugins.resolve, run: deps.runCommand });
+    if (!validated.ok) {
+      results.push(problem(`feeds.${feed.name}`, 'fail', validated.reason, FEED_HINT));
+      continue;
+    }
+    results.push(ok(`feeds.${feed.name}`, `${feed.integration} · ${feed.action}`));
+    if (!programs.has(feed.integration)) programs.set(feed.integration, { program: validated.program, dir: feed.dir });
+  }
+  for (const [ref, { program, dir }] of programs) {
+    const answer = await doctor(program, dir, deps.runCommand, unitsPath(deps));
+    results.push(
+      answer.ok
+        ? ok(`integrations.${ref}`, answer.summary ?? 'ready')
+        : problem(`integrations.${ref}`, 'fail', answer.reason, 'the watch unit runs feeds with this PATH'),
+    );
+  }
+  return results;
+};
+
 const CHECKS: Check[] = [
   checkNode,
   checkConfigDir,
@@ -1009,6 +1102,7 @@ const CHECKS: Check[] = [
   checkConfig,
   checkDirs,
   checkUsageLimits,
+  checkPluginsAndFeeds,
   checkWorker,
 ];
 

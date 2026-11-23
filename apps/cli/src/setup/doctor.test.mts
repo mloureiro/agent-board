@@ -5,6 +5,7 @@ import { DATA_KEY, fakeCatalogStore, KEYS, OWNER, SERVER_API, SERVER_HAS } from 
 import { BackendError } from '../backend/backend.mts';
 import { formatResult, hasFailure, runChecks } from './doctor.mts';
 import type { CheckResult, DoctorDeps } from './doctor.mts';
+import type { CommandResult, CommandSpec } from '../dispatch/waits.mts';
 import { renderAgents } from './launchd.mts';
 import { renderUnits } from './setup.mts';
 
@@ -45,6 +46,12 @@ function machine(
     catalogStore: fakeCatalogStore(),
     usageStore: { read: () => ({}) },
     now: () => new Date('2026-11-17T12:00:00Z'),
+    runCommand: async () => ({ exitCode: 0, timedOut: false, output: '', stdout: '', stderr: '' }),
+    plugins: {
+      read: () => ({ registry: { marketplaces: {} } }),
+      verify: () => undefined,
+      resolve: () => ({ problem: 'no marketplace is installed' }),
+    },
     ...overrides,
   };
 }
@@ -993,4 +1000,157 @@ test('doctor warns, and does not fail, when this machine applied an older versio
     behind.map(({ level, message }) => [level, message]),
     [['warn', 'the board holds agents v3, this machine applied none']],
   );
+});
+
+const COMMIT = 'a'.repeat(40);
+const FEED_ENTRY = {
+  integration: 'acme:github',
+  action: 'list',
+  every: '10m',
+  dir: '/work',
+  prompts: { new: 'review {url}', update: '{url} changed' },
+};
+const DESCRIBE = JSON.stringify({ protocol: 1, actions: { list: { options: { type: 'object' }, fields: ['url'] } } });
+const done = (extra: Partial<CommandResult> = {}): CommandResult => ({
+  exitCode: 0,
+  timedOut: false,
+  output: '',
+  stdout: '',
+  stderr: '',
+  ...extra,
+});
+
+function withPlugins(options: {
+  feeds?: Record<string, unknown>;
+  pin?: string;
+  doctor?: Partial<CommandResult>;
+  git?: string | undefined;
+  calls?: CommandSpec[];
+  platform?: string;
+}): DoctorDeps {
+  const files = withConfig({ machine: 'box', ...(options.feeds === undefined ? {} : { feeds: options.feeds }) });
+  return machine(files, {
+    ...(options.platform === undefined ? {} : { platform: options.platform }),
+    whichInUnits: (program) => (program === 'git' && 'git' in options ? options.git : `/usr/bin/${program}`),
+    plugins: {
+      read: () => ({
+        registry: {
+          marketplaces: { acme: { url: 'u', commit: COMMIT, installedAt: 't', updatedAt: 't' } },
+        },
+      }),
+      verify: (name) => (options.pin === undefined ? undefined : `marketplace ${name} ${options.pin}`),
+      resolve: (ref) => (ref === 'acme:github' ? { program: '/p/run', commit: COMMIT } : { problem: `no ${ref}` }),
+    },
+    runCommand: async (spec) => {
+      options.calls?.push(spec);
+      const verb = spec.command.split(' ')[1];
+      if (verb === 'describe') return done({ stdout: DESCRIBE });
+      if (verb === 'doctor') return done(options.doctor ?? { stdout: 'gh is logged in\n' });
+      return done();
+    },
+  });
+}
+
+const named = (results: CheckResult[], pattern: RegExp): [string, string, string][] =>
+  results.filter((result) => pattern.test(result.name)).map(({ name, level, message }) => [name, level, message]);
+
+test('plugin, feed and integration checks over a pin that holds or moved, a feed valid or not, and an integration doctor that passes or fails', async () => {
+  const feeds = { gh: FEED_ENTRY };
+  const cases: [string, Parameters<typeof withPlugins>[0], [string, string, string][]][] = [
+    [
+      'everything in order',
+      { feeds },
+      [
+        ['plugins.acme', 'ok', `acme at ${COMMIT.slice(0, 12)}`],
+        ['feeds.gh', 'ok', 'acme:github · list'],
+        ['integrations.acme:github', 'ok', 'gh is logged in'],
+      ],
+    ],
+    [
+      'the pin moved',
+      { feeds, pin: 'is not at its pinned commit' },
+      [
+        ['plugins.acme', 'fail', 'marketplace acme is not at its pinned commit'],
+        ['feeds.gh', 'ok', 'acme:github · list'],
+        ['integrations.acme:github', 'ok', 'gh is logged in'],
+      ],
+    ],
+    [
+      'a feed that does not validate',
+      { feeds: { gh: { ...FEED_ENTRY, action: 'nope' } } },
+      [
+        ['plugins.acme', 'ok', `acme at ${COMMIT.slice(0, 12)}`],
+        ['feeds.gh', 'fail', 'acme:github has no action nope (it has: list)'],
+      ],
+    ],
+    [
+      'a feed the config cannot read',
+      { feeds: { gh: { ...FEED_ENTRY, every: 'often' } } },
+      [
+        ['plugins.acme', 'ok', `acme at ${COMMIT.slice(0, 12)}`],
+        ['feeds.gh', 'fail', 'feeds.gh.every'],
+      ],
+    ],
+    [
+      'an integration doctor that fails',
+      { feeds, doctor: { exitCode: 1, stderr: 'gh is not logged in\n' } },
+      [
+        ['plugins.acme', 'ok', `acme at ${COMMIT.slice(0, 12)}`],
+        ['feeds.gh', 'ok', 'acme:github · list'],
+        ['integrations.acme:github', 'fail', 'doctor exited 1: gh is not logged in'],
+      ],
+    ],
+    [
+      'an integration doctor with no summary',
+      { feeds, doctor: { stdout: '' } },
+      [
+        ['plugins.acme', 'ok', `acme at ${COMMIT.slice(0, 12)}`],
+        ['feeds.gh', 'ok', 'acme:github · list'],
+        ['integrations.acme:github', 'ok', 'ready'],
+      ],
+    ],
+    [
+      'git missing on the units PATH',
+      { git: undefined },
+      [
+        ['plugins.acme', 'ok', `acme at ${COMMIT.slice(0, 12)}`],
+        ['git', 'warn', "git is not on the units' PATH (/home/me/.local/bin:/usr/local/bin:/usr/bin:/bin)"],
+      ],
+    ],
+  ];
+  for (const [label, options, expected] of cases) {
+    const results = await runChecks(withPlugins(options));
+    const got = named(results, /^(plugins|git$|feeds|integrations)/);
+    assert.equal(got.length, expected.length, label);
+    for (const [index, [name, level, message]] of expected.entries()) {
+      const actual = got[index];
+      assert.deepEqual([actual?.[0], actual?.[1]], [name, level], label);
+      assert.ok(actual?.[2].includes(message), `${label}: ${actual?.[2]} should include ${message}`);
+    }
+  }
+});
+
+test('the integration doctor runs once per integration, under the PATH the units run with', async () => {
+  const calls: CommandSpec[] = [];
+  const feeds = { one: FEED_ENTRY, two: { ...FEED_ENTRY, dir: '/work/two' } };
+  await runChecks(withPlugins({ feeds, calls }));
+  const doctors = calls.filter((spec) => spec.command.split(' ')[1] === 'doctor');
+  assert.equal(doctors.length, 1);
+  assert.equal(doctors[0]?.path, '/home/me/.local/bin:/usr/local/bin:/usr/bin:/bin');
+  assert.equal(
+    calls.filter((spec) => spec.command.split(' ')[1] === 'describe').every((spec) => spec.path === undefined),
+    true,
+  );
+  const mac = await (async () => {
+    const macCalls: CommandSpec[] = [];
+    await runChecks(withPlugins({ feeds, calls: macCalls, platform: 'darwin' }));
+    return macCalls.find((spec) => spec.command.split(' ')[1] === 'doctor');
+  })();
+  assert.match(mac?.path ?? '', /\/opt\/homebrew\/bin/);
+  assert.notEqual(mac?.path, doctors[0]?.path);
+});
+
+test('a machine with no marketplace and no feed adds no plugin check', async () => {
+  const results = await runChecks(machine(withConfig({ machine: 'box' })));
+  assert.deepEqual(named(results, /^(plugins|git$|feeds|integrations)/), []);
 });
