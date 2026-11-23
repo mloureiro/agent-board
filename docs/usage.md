@@ -246,6 +246,7 @@ The pencil next to the title on the task page renames it. Enter saves and Escape
 
 - It works in every status, a running or closed task included, and on an agent's proposal.
 - Your browser seals the new title. No note is written and the old title is not kept.
+- A title you renamed is never replaced by a [title rule](#title-rules).
 - A card of a repeating schedule has no pencil: its title belongs to the schedule. Rename the schedule on the Schedules page, which reaches the card too while it has not started.
 - A title the browser cannot read can be replaced: the field starts empty.
 
@@ -877,7 +878,7 @@ A task made with a key (`board schedule --key`) is left open. A closed task is "
 
 ## Settings
 
-**Settings** has six pages, listed beside the content (above it on a phone). **Machines** lists the worker machines with their CLI versions and usage, and issues and revokes their tokens. **Agents** shows the agent definitions on the board and which machines run them ([Agents on the board](workers.md#agents-on-the-board)). **Links** has the link rules ([Link rules](#link-rules)). **Notifications** has the desktop notifications switch. **Encryption** changes the passphrase. **Account** has the passkeys, sign out, and your data (export, import, delete). The web and server revisions show at the bottom of each page. `/settings` opens Machines.
+**Settings** has seven pages, listed beside the content (above it on a phone). **Machines** lists the worker machines with their CLI versions and usage, and issues and revokes their tokens. **Agents** shows the agent definitions on the board and which machines run them ([Agents on the board](workers.md#agents-on-the-board)). **Links** has the link rules ([Link rules](#link-rules)). **Titles** has the title rules ([Title rules](#title-rules)). **Notifications** has the desktop notifications switch. **Encryption** changes the passphrase. **Account** has the passkeys, sign out, and your data (export, import, delete). The web and server revisions show at the bottom of each page. `/settings` opens Machines.
 
 ## Signing in and out
 
@@ -927,6 +928,26 @@ What a capture inserts is percent-encoded, so it cannot add a slash, a query or 
 
 The rules are sealed with your key and only your browser reads them (see [The link rules](encryption.md#the-link-rules)). They never reach an agent or a machine: the prompt a task runs with is the text you wrote, not the links it shows as. If the saved rules cannot be read with this key, no rule applies and the page says so. They go with an export and an import of the board.
 
+## Title rules
+
+**Settings › Titles** holds rules that give a task an icon and a title when it runs with the title it got by default, the first line of its prompt. A rule has a pattern, a JavaScript regular expression tested against the whole prompt, an optional icon and an optional title instruction. A rule needs at least one of the two.
+
+With the pattern `^/pj-acme:review\b`, the icon 🔎 and the instruction "The pull request number and its title", a task started with `/pj-acme:review https://github.com/acme/app/pull/8` gets 🔎 at once. A moment later it gets a title such as "#8 Fix the login redirect", written by Haiku from the pull request.
+
+**What happens when a run starts.** The worker takes the first rule, in the order of the page, whose pattern matches. It sets the icon at once, only if the task has none. Haiku then writes the title from the instruction while the run goes on, reading only the pull request or issue the prompt names, with `gh` on the machine that runs the task. A rule without an instruction leaves the title alone, and a rule without an icon leaves the icon alone.
+
+**What is never touched.**
+
+- A title you typed or renamed.
+- An icon you chose.
+- The cards of a repeating schedule, whose title is the schedule's.
+
+**On the page.** Each rule is a pattern, **Ignore case**, an icon (the button opens the emoji picker and offers **Remove icon**), a title instruction and a bin. **Add rule** adds a row. A problem shows under the field it concerns, and **Save** stays off until every rule works. At most 50 rules, a pattern of up to 300 characters and an instruction of up to 2000. **Try it** takes a prompt and says which rule matches it, with its icon, using the rules as they stand on the page, saved or not. If the page says the rules changed somewhere else, reload it and make your change again: another tab or browser saved first.
+
+The rules are sealed with your key. Your browser and your machines read them with it, and the server cannot. They go with an export and an import of the board.
+
+**When nothing happens.** Check the task's log: the worker writes whether a rule matched and what it did, or why it wrote no title. See [Title rules](workers.md#title-rules) for the lines.
+
 ## Desktop notifications
 
 **Settings › Notifications** has a **Desktop notifications** switch, off by default. Turning it on asks the browser for permission.
@@ -956,7 +977,7 @@ Open the installed app and turn the switch on there. A phone pauses an app soon 
 
 **Download export** writes one file, `agent-board-<username>-<date>.ndjson`. It holds:
 
-- every task, schedule, note, pull request link and machine, the agents on the board, your link rules, and the transcripts, exactly as the server stores them (encrypted)
+- every task, schedule, note, pull request link and machine, the agents on the board, your link rules, your title rules, and the transcripts, exactly as the server stores them (encrypted)
 - the wrapped key slots, which only your passphrase or recovery key opens
 - the hashes of the machine tokens
 - the notification setting of this browser
