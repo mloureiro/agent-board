@@ -143,17 +143,79 @@ describe('ActionPanel draft', () => {
     </MemoryRouter>
   );
 
-  it.each(['needs-me', 'waiting'] as const)(
-    'keeps a note typed while the task runs when a poll moves it to %s',
+  it.each(['needs-me', 'waiting', 'done', 'todo', 'backlog'] as const)(
+    'keeps the same focused editor, text and selection when a poll moves a running task to %s',
     async (status) => {
       const client = new QueryClient();
       const view = render(ui(client, running({})));
-      await userEvent.type(screen.getByRole('textbox'), 'half a sent');
+      const before = screen.getByRole('textbox') as HTMLTextAreaElement;
+      await userEvent.type(before, 'half a sent');
+      before.setSelectionRange(2, 6);
       view.rerender(ui(client, running({ status })));
-      expect(screen.getByRole('button', { name: 'Send & continue' })).toBeInTheDocument();
-      expect(screen.getByRole('textbox')).toHaveValue('half a sent');
+      const after = screen.getByRole('textbox') as HTMLTextAreaElement;
+      expect(after).toBe(before);
+      expect(after).toHaveFocus();
+      expect(after).toHaveValue('half a sent');
+      expect([after.selectionStart, after.selectionEnd]).toEqual([2, 6]);
     },
   );
+
+  describe('when the agent asks a question', () => {
+    const questions = [
+      {
+        header: 'Tests',
+        question: 'Add a regression test for the fix?',
+        multiSelect: false,
+        options: [
+          { label: 'Yes', description: '' },
+          { label: 'No', description: '' },
+        ],
+      },
+    ];
+    const note = {
+      id: 'q-new',
+      kind: 'question',
+      author: 'agent',
+      text: '',
+      createdAt: new Date().toISOString(),
+      by: 'laptop',
+      unreadable: false,
+      questions,
+    } as unknown as ThreadNote;
+    const withThread = (client: QueryClient, task: BoardTask, thread: ThreadNote[]) => (
+      <MemoryRouter>
+        <MantineProvider>
+          <ModalsProvider>
+            <QueryClientProvider client={client}>
+              <ActionPanel task={task} thread={thread} followUps={[]} />
+            </QueryClientProvider>
+          </ModalsProvider>
+        </MantineProvider>
+      </MemoryRouter>
+    );
+    const note_ = () => screen.getByPlaceholderText('Anything else the agent should know (optional)');
+
+    it('moves the typed text into the focused note, caret at its end', async () => {
+      const client = new QueryClient();
+      const view = render(withThread(client, running({}), []));
+      await userEvent.type(screen.getByRole('textbox'), 'half a sent');
+      view.rerender(withThread(client, running({ status: 'needs-me', openQuestion: true }), [note]));
+      const field = note_() as HTMLTextAreaElement;
+      expect(field).toHaveValue('half a sent');
+      expect(field).toHaveFocus();
+      expect([field.selectionStart, field.selectionEnd]).toEqual([11, 11]);
+      view.rerender(withThread(client, running({ status: 'needs-me', openQuestion: false }), []));
+      expect(screen.getByRole('textbox')).toHaveValue('');
+    });
+
+    it('leaves the note empty and unfocused when nothing was typed', () => {
+      const client = new QueryClient();
+      const view = render(withThread(client, running({}), []));
+      view.rerender(withThread(client, running({ status: 'needs-me', openQuestion: true }), [note]));
+      expect(note_()).toHaveValue('');
+      expect(note_()).not.toHaveFocus();
+    });
+  });
 });
 
 describe('ActionPanel of a running task: messages and stopping', () => {
