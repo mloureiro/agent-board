@@ -534,51 +534,77 @@ The prompt, `--model`, `--effort`, `--lane`, `--priority` and `--title` apply to
 
 ### Feeds
 
-A feed is a script that `board schedule --key` would otherwise run from a timer of your own, run by the machine instead. The watch unit (`agent-board-watch.service`) runs each feed on its timer, makes the tasks and closes the stale ones. `board feeds` shows how each feed did.
+A feed turns the items of an outside tool into tasks on a timer: one task per item, a task sent back to Todo when its item changes, and the task closed when the item goes away. The watch unit (`agent-board-watch.service`) runs each feed on its timer. The items come from an integration, a program that a plugin marketplace provides ([Plugins](plugins.md) has installing one and writing one), and the prompts come from templates in the feed. The board never holds the integration, its options or a third-party token: they stay on the machine.
 
 ```text
-board feeds                                                    # each feed, its timer and its last run
-board feeds add <name> --every <dur> [--dir d] [--agent a] [--lane l] [--key-prefix p] [--timeout t] -- <command>
+board plugins install <url>            # once per marketplace
+board feeds                            # each feed, its timer and its last run
+board feeds add <name> <file | ->      # the entry as JSON, validated before it is written
 board feeds run <name>
 board feeds pause <name>
 board feeds resume <name>
 board feeds rm <name>
 ```
 
-**The command** prints one JSON object per line, one for each item that should have a task now:
+A feed is an entry under `feeds` in `config.json` (see [feeds](setup.md#feeds)), and `board feeds add` writes it after checking it. This one makes a review task for each GitHub pull request that asks for your review, with the integration from an example marketplace:
 
 ```json
 {
-  "key": "https://github.com/acme/app/pull/7",
-  "title": "#7 Fix login",
-  "prompt": "/review-pr https://github.com/acme/app/pull/7 --auto",
-  "version": "4f2c9e1"
+  "integration": "mloureiro:github",
+  "action": "list-pull-requests",
+  "options": {
+    "repositories": ["acme/app", "acme/infra"],
+    "query": "is:open draft:false review-requested:@me"
+  },
+  "every": "10m",
+  "dir": "~/workspace/acme/app",
+  "agent": "reviewer",
+  "lane": "reviews",
+  "prompts": {
+    "new": "/review-pr {url} --auto",
+    "update": "{url} changed since your last review. Review it again: /review-pr {url} --auto"
+  }
 }
 ```
 
-- `key`, `title` and `prompt` are required. `version` and `dir` are optional. Any other field fails the line.
-- `dir` makes that item's task in another listed directory, such as the checkout of the PR's repository.
-- The command runs with `bash -c` in the feed's directory, with the `env` of your Claude Code settings on top, like a command watch. Tokens stay on the machine.
+The `options` are the integration's own and `board feeds add` checks them against what the action says it takes. Both prompts are required. A `{name}` in them is replaced by the item's `key`, `title`, `version` or a field the action provides. Prefer `{url}`: a title is text someone else wrote, and the agent reads the item itself from the link.
 
-**Each run.**
+**What a run does to each item.**
 
-- Every item goes through `board schedule --key <prefix><key>`, with the feed's agent and lane. The prefix defaults to `feed:<name>:`. So the board keeps one task per item, and a new `version` sends a task that waits in Needs me or is Done back to Todo, as described under [Results](#results).
-- An item that an earlier run scheduled and that is no longer listed: its task is moved to Done if it still waits in Todo for its first start. A task that started, or that waits in Needs me, is left to you.
-- A run that fails schedules nothing and closes nothing. It fails on an exit other than 0, the time limit, more than 200 items or 200 KB of output, or a line that is not a valid item. An item that cannot be scheduled fails alone, for example when its `dir` is not listed.
+| The item is                     | What the board does                                                                                                                                                                                            |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| new                             | Makes a task from `prompts.new`, with the feed's agent and lane.                                                                                                                                               |
+| changed (its `version` differs) | Sends its task from Needs me or Done back to Todo. An agent picks it up and continues the same Claude session with `prompts.update`. A task that never ran has no session and starts fresh from `prompts.new`. |
+| unchanged                       | Nothing.                                                                                                                                                                                                       |
+| no longer listed                | Moves its task to Done if it still waits in Todo for its first start. A task that started, or that waits in Needs me, is left to you.                                                                          |
 
-**The timer.** A feed runs when its interval has passed since its last run, whether that run succeeded or not. The watch unit looks every 15 seconds and reads `config.json` each time, so a feed added or changed takes effect without a restart. `run` runs it at once in the terminal, prints the counts and exits 1 if the run failed. `pause` stops the timer until `resume`. **Run now** on the board beats a pause, but a feed starts at most once a minute, so a request that arrives sooner waits for the minute. A feed never runs twice at once.
+A task is bound to the item by its key, `feed:<name>:<key>`, so the board keeps one task per item. A task still in Todo, Running, Waiting or Backlog when its item changes is left as it is, and the change is picked up once it sits in Needs me or Done. An integration that has a head or a state still settling can send `notBefore`, which makes the task wait in Todo until then. The prompt is sealed as yours: your installed, pinned integration and your templates wrote it on your machine, outside any board run.
 
-**State.** Two files per feed in `~/.local/state/agent-board/feeds/`. `<name>.control.json` holds the pause, a run asked for and the id the board knows the feed by, and only `pause`, `resume` and the board's requests write it. `<name>.json` holds the task of each item and the last ten runs, and only a run writes it. The board cannot read a key back, so the second file is how a run finds the tasks of items that went away. `rm` refuses while the feed runs, then deletes both; the tasks stay on the board.
+A resume belongs to the machine that holds the session. The update text waits in a file on the feed's machine and is handed to the session when it resumes there. When another machine ran the task last, it has no such file and starts a fresh run from `prompts.new`.
 
-**On the board.** **Settings › Feeds** lists every machine's feeds (and when the machine was last seen) with a status (Not read, Invalid, Paused, Run asked for…, Overdue when the timer has not fired for longer than the interval plus half of it, at least two minutes, or Failed), the timer, the last run and what it did. A fold per feed shows the tasks of the last run, linked, with what became of each, and the last ten runs. **Pause**, **Resume** and **Run now** (which also works on a paused feed, once) reach the machine on its next dispatch tick, which the click starts; the button says "Pausing…" and the like until the machine has applied it. The page shows what the machine last sent: the dispatch tick sends the feeds when they changed, and the watch unit after each run. The commands, keys and items never leave the machine. A server without the feature shows nothing, and the CLI goes on without it.
+**Failing.**
 
-Without the watch unit no feed runs on its timer, and `board feeds` says so. Keep the prompt free of text copied from the item, such as a Slack message or a PR description. Put a link in it instead, so the agent reads that text as data.
+- A run that fails schedules nothing and closes nothing. It fails when the integration exits other than 0, runs past the feed's `timeout` (default `2m`, at most `30m`), lists more than 200 items or 200 KB, or prints a line that is not a valid item.
+- An item that cannot be scheduled fails alone, for example when its `dir` is not listed or a prompt names a field it did not send.
+- An **invalid** feed never runs. Before every run the board checks that the marketplace is installed and still at its pinned commit, that the integration describes the action, that `options` fit its schema, that the prompts only use fields it provides, and that its `check` passes. The reason shows in `board feeds` and on the page, and the feed waits for its next interval. `board doctor` runs the same checks and the integration's own `doctor`.
+
+**The timer.** A feed runs when its interval has passed since its last run started, whether that run succeeded or not. The watch unit looks every 15 seconds and reads `config.json` each time, so a feed added or changed takes effect without a restart. `run` runs it at once in the terminal, prints the counts and exits 1 if the run failed or the feed is invalid. `pause` stops the timer until `resume`. A feed never runs twice at once.
+
+**Run now** on the board runs the feed once, even while it is paused, and the timer stays as it was. A feed starts at most once a minute, so a request that arrives sooner, or the same request replayed, waits for the minute and runs once.
+
+**State.** Files per feed in `~/.local/state/agent-board/feeds/`. `<name>.control.json` holds the pause, a run asked for and the id the board knows the feed by, and only `pause`, `resume` and the board's requests write it. `<name>.json` holds the task of each item and the last ten runs, and only a run writes it. The board cannot read a key back, so the second file is how a run finds the tasks of items that went away. `rm` refuses while the feed runs, then deletes both; the tasks stay on the board.
+
+**On the board.** **Settings › Feeds** lists every machine's feeds (and when the machine was last seen) with the integration and action, a status (Not read, Invalid, Paused, Run asked for…, Overdue when the timer has not fired for longer than the interval plus half of it, at least two minutes, or Failed), the timer, the last run and what it did. A fold per feed shows the tasks of the last run, linked, with what became of each, and the last ten runs. **Pause**, **Resume** and **Run now** reach the machine on its next dispatch tick, which the click starts; the button says "Pausing…" and the like until the machine has applied it. The page shows what the machine last sent: the dispatch tick sends the feeds when they changed, and the watch unit after each run. Plugins are managed in a terminal on the machine, never from the page. A server without the feature shows nothing, and the CLI goes on without it.
+
+Without the watch unit no feed runs on its timer, and `board feeds` says so.
 
 ### Review requests from GitHub
 
 `board example github-reviews.sh` prints a POSIX shell script that turns GitHub review requests into tasks. It needs `gh`, logged in, and `board`.
 
 `board example` lists all examples. They are built into the CLI, so they match its version. The files are in `apps/cli/examples`.
+
+A [feed](#feeds) through a plugin can do the same: install a marketplace such as `mloureiro/agent-board-plugins` with `board plugins install`, and name its GitHub integration in a feed's `integration` (see [Plugins](plugins.md)). The feed adds a changed pull request going back to the session that reviewed it with a prompt of its own, a timer that the watch unit runs and no script to copy, and Settings › Feeds. The GitHub integration of that marketplace is planned. Both route to the same reviews, and they make different tasks, because the feed's key is `feed:<name>:<url>` and the script's is the URL. Running both makes two tasks for each review request, so stop the script's timer before you add the feed.
 
 ```sh
 board example github-reviews.sh > ~/.local/bin/github-reviews.sh && chmod +x ~/.local/bin/github-reviews.sh

@@ -1039,7 +1039,7 @@ The CLI sends it at the end of a dispatch tick, whether or not the machine has `
 
 #### `set-feeds`
 
-The machine's [feeds](usage.md#feeds), for the Feeds page: each one's name, integration and action, timer, pause, what its last run did and its recent runs. The commands, the options and the plugin's commit, URL and description stay on the machine.
+The machine's [feeds](usage.md#feeds), for Settings › Feeds: each one's name, integration and action, timer, pause, what its last run did and its recent runs. The commands, the options and the plugin's commit, URL and description stay on the machine.
 
 ```json
 {
