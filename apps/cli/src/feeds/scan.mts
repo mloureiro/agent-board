@@ -12,16 +12,16 @@ export interface FeedJob {
 
 /** The runs of the feeds that are due, one job each, from config.json as it is now. */
 export function dueFeedJobs(
-  deps: Omit<FeedRunDeps, 'dirs'>,
+  deps: Omit<FeedRunDeps, 'dirs' | 'repos'>,
   configFile: string,
   afterRun: () => Promise<void> = () => Promise.resolve(),
 ): FeedJob[] {
   let loaded;
-  let dirs;
+  let config;
   try {
     const { raw } = readConfigFile(configFile);
     loaded = parseFeeds(raw['feeds']);
-    dirs = parseConfig(raw).dirs;
+    config = parseConfig(raw);
   } catch (error) {
     deps.log(`WARN feeds not read: ${errorText(error)}`);
     return [];
@@ -32,7 +32,7 @@ export function dueFeedJobs(
     .map((feed) => ({
       key: `feed:${feed.name}`,
       job: async () => {
-        if ((await runFeed({ ...deps, dirs }, feed)) !== undefined) await afterRun();
+        if ((await runFeed({ ...deps, dirs: config.dirs, repos: config.repos }, feed)) !== undefined) await afterRun();
       },
     }));
 }

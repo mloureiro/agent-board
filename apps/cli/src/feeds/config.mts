@@ -1,19 +1,38 @@
 import { isAgentName, isRecord, parseDuration } from '@agent-board/shared';
 import { ConfigError, expandHome } from '../config/config.mts';
 import { readConfigFile } from '../config/config-file.mts';
+import { isActionName, parseIntegrationRef } from '../plugins/names.mts';
+
+export interface FeedPrompts {
+  new: string;
+  update: string;
+}
 
 export interface FeedConfig {
   name: string;
-  command: string;
+  integration: string;
+  action: string;
+  options: Record<string, unknown>;
   everyMs: number;
   dir: string;
-  keyPrefix: string;
   agent?: string;
   lane?: string;
   timeoutMs: number;
+  prompts: FeedPrompts;
 }
 
-export const FEED_KEYS = ['command', 'every', 'dir', 'keyPrefix', 'agent', 'lane', 'timeout'] as const;
+export const FEED_KEYS = [
+  'integration',
+  'action',
+  'options',
+  'every',
+  'dir',
+  'agent',
+  'lane',
+  'timeout',
+  'prompts',
+] as const;
+const PROMPT_KEYS = ['new', 'update'] as const;
 
 export const FEED_NAME_RULE = '1 to 40 letters, digits, dots, dashes or underscores, starting with a letter or digit';
 export const isFeedName = (name: string): boolean => /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/.test(name);
@@ -21,7 +40,8 @@ export const isFeedName = (name: string): boolean => /^[A-Za-z0-9][A-Za-z0-9._-]
 export const MIN_EVERY_MS = 60_000;
 export const DEFAULT_TIMEOUT_MS = 120_000;
 const MAX_TIMEOUT_MS = 30 * 60_000;
-const MAX_KEY_PREFIX = 100;
+export const MAX_OPTIONS_BYTES = 16 * 1024;
+export const MAX_PROMPT_CHARS = 10_000;
 
 function duration(value: unknown, where: string): number {
   if (typeof value !== 'string') throw new ConfigError(`config: ${where} must be a duration such as 10m`);
@@ -32,23 +52,64 @@ function duration(value: unknown, where: string): number {
   }
 }
 
+function integration(value: unknown, where: string): string {
+  if (typeof value !== 'string')
+    throw new ConfigError(`config: ${where}.integration must be <marketplace>:<integration>`);
+  if (!value.includes(':'))
+    throw new ConfigError(
+      `config: ${where}.integration must name the plugin: <marketplace>:<integration>, see board plugins list`,
+    );
+  if (parseIntegrationRef(value) === undefined)
+    throw new ConfigError(
+      `config: ${where}.integration must be <marketplace>:<integration>, each 1 to 40 lowercase letters, digits or dashes`,
+    );
+  return value;
+}
+
+function options(value: unknown, where: string): Record<string, unknown> {
+  if (value === undefined) return {};
+  if (!isRecord(value)) throw new ConfigError(`config: ${where}.options must be an object`);
+  if (Buffer.byteLength(JSON.stringify(value)) > MAX_OPTIONS_BYTES)
+    throw new ConfigError(`config: ${where}.options must be at most ${MAX_OPTIONS_BYTES / 1024} KiB as JSON`);
+  return value;
+}
+
+function prompts(value: unknown, where: string): FeedPrompts {
+  if (!isRecord(value)) throw new ConfigError(`config: ${where}.prompts must be an object with new and update`);
+  const unknown = Object.keys(value).find((key) => !PROMPT_KEYS.some((known) => known === key));
+  if (unknown !== undefined)
+    throw new ConfigError(
+      `config: ${where}.prompts has no setting "${unknown.slice(0, 40)}" (it takes ${PROMPT_KEYS.join(', ')})`,
+    );
+  const text = (key: (typeof PROMPT_KEYS)[number]): string => {
+    const prompt = value[key];
+    if (typeof prompt !== 'string' || prompt.trim() === '' || prompt.length > MAX_PROMPT_CHARS)
+      throw new ConfigError(`config: ${where}.prompts.${key} must be text of 1 to ${MAX_PROMPT_CHARS} characters`);
+    return prompt;
+  };
+  return { new: text('new'), update: text('update') };
+}
+
 export function parseFeed(name: string, entry: unknown): FeedConfig {
   const where = `feeds.${name}`;
   if (!isRecord(entry)) throw new ConfigError(`config: ${where} must be an object`);
+  const gone = ['command', 'keyPrefix'].find((key) => Object.hasOwn(entry, key));
+  if (gone !== undefined) throw new ConfigError(`config: ${where}.${gone} is gone: feeds take ${FEED_KEYS.join(', ')}`);
   const unknown = Object.keys(entry).find((key) => !FEED_KEYS.some((known) => known === key));
   if (unknown !== undefined)
     throw new ConfigError(
       `config: ${where} has no setting "${unknown.slice(0, 40)}" (it takes ${FEED_KEYS.join(', ')})`,
     );
-  const { command, dir, keyPrefix, agent, lane } = entry;
-  if (typeof command !== 'string' || command.trim() === '')
-    throw new ConfigError(`config: ${where}.command must be a shell command`);
+  const { action, dir, agent, lane } = entry;
+  const ref = integration(entry['integration'], where);
+  if (typeof action !== 'string' || !isActionName(action))
+    throw new ConfigError(
+      `config: ${where}.action must be the name of an action: 1 to 64 lowercase letters, digits or dashes`,
+    );
   const everyMs = duration(entry['every'], `${where}.every`);
   if (everyMs < MIN_EVERY_MS) throw new ConfigError(`config: ${where}.every must be at least 1m`);
   if (typeof dir !== 'string' || !expandHome(dir).startsWith('/'))
     throw new ConfigError(`config: ${where}.dir must be an absolute path (or ~/...)`);
-  if (keyPrefix !== undefined && (typeof keyPrefix !== 'string' || keyPrefix.length > MAX_KEY_PREFIX))
-    throw new ConfigError(`config: ${where}.keyPrefix must be text of at most ${MAX_KEY_PREFIX} characters`);
   if (agent !== undefined && (typeof agent !== 'string' || !isAgentName(agent)))
     throw new ConfigError(`config: ${where}.agent must be the name of an agent`);
   if (lane !== undefined && (typeof lane !== 'string' || lane === ''))
@@ -58,13 +119,15 @@ export function parseFeed(name: string, entry: unknown): FeedConfig {
   if (timeoutMs > MAX_TIMEOUT_MS) throw new ConfigError(`config: ${where}.timeout must be at most 30m`);
   return {
     name,
-    command,
+    integration: ref,
+    action,
+    options: options(entry['options'], where),
     everyMs,
     dir: expandHome(dir),
-    keyPrefix: keyPrefix ?? `feed:${name}:`,
     ...(agent === undefined ? {} : { agent }),
     ...(lane === undefined ? {} : { lane }),
     timeoutMs,
+    prompts: prompts(entry['prompts'], where),
   };
 }
 

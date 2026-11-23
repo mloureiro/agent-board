@@ -27,10 +27,16 @@ function setup(feeds: Record<string, unknown>) {
   return { backend, store, logs, deps, clock };
 }
 
-const GH = { command: 'list-prs', every: '10m', dir: '/work' };
+const GH = {
+  integration: 'acme:github',
+  action: 'list',
+  every: '10m',
+  dir: '/work',
+  prompts: { new: 'n', update: 'u' },
+};
 
 test('every feed gets an id that stays, and a broken one is sent with its problem', () => {
-  const { store, deps } = setup({ gh: GH, bad: { command: 'x', every: '30s', dir: '/work' }, '../x': GH });
+  const { store, deps } = setup({ gh: GH, bad: { ...GH, every: '30s' }, '../x': GH });
   const first = machineFeeds(deps.configFile, store);
   assert.deepEqual(
     first.feeds.map(({ name, everyMs, problem }) => ({ name, everyMs, broken: problem !== undefined })),
@@ -87,7 +93,12 @@ test('a run the feed made after the request clears runNow on the board', async (
   assert.equal(machineFeeds(deps.configFile, store).feeds[0]?.runNow, true);
   const at = new Date(clock.at.getTime() + 1000).toISOString();
   store.writeRecord('gh', {
-    last: { startedAt: at, at, ok: true, counts: { listed: 0, created: 0, requeued: 0, closed: 0, failed: 0 } },
+    last: {
+      startedAt: at,
+      at,
+      ok: true,
+      counts: { listed: 0, created: 0, requeued: 0, rescheduled: 0, closed: 0, failed: 0 },
+    },
     history: [],
     tasks: {},
   });

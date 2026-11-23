@@ -6,9 +6,8 @@ import { BackendError } from '../backend/backend.mts';
 import { fakeBackend, task } from '../__tests__/helpers/fakes.mts';
 import { tempDir } from '../__tests__/helpers/watch.mts';
 import type { CommandResult } from '../dispatch/waits.mts';
-import { MIN_EVERY_MS, parseFeeds } from './config.mts';
+import { MIN_EVERY_MS } from './config.mts';
 import type { FeedConfig } from './config.mts';
-import { parseItems } from './items.mts';
 import { isFeedDue, runAsked, runFeed } from './run.mts';
 import type { FeedRunDeps } from './run.mts';
 import { createFeedStore } from './store.mts';
@@ -21,12 +20,17 @@ const line = (item: Record<string, unknown>): string => JSON.stringify(item);
 
 const FEED: FeedConfig = {
   name: 'gh',
-  command: 'list-prs',
+  integration: 'acme:github',
+  action: 'list',
+  options: {},
   everyMs: 600_000,
   dir: DIR,
-  keyPrefix: 'feed:gh:',
   timeoutMs: 120_000,
+  prompts: { new: 'review {key}', update: '{key} changed' },
 };
+
+const DESCRIBE = JSON.stringify({ protocol: 1, actions: { list: { options: { type: 'object' }, fields: ['url'] } } });
+const OK: CommandResult = { exitCode: 0, timedOut: false, output: '', stdout: '', stderr: '' };
 
 function setup(output: Partial<CommandResult>, tasks = [task({ id: 'Old1' })]) {
   const backend = fakeBackend(tasks);
@@ -37,10 +41,15 @@ function setup(output: Partial<CommandResult>, tasks = [task({ id: 'Old1' })]) {
     backend,
     machine: 'laptop',
     dirs: undefined,
+    repos: {},
     store,
-    run: async () => {
+    resolve: () => ({ program: '/plugins/run', commit: 'c' }),
+    run: async (spec) => {
+      const verb = spec.command.split(' ')[1];
+      if (verb === 'describe') return { ...OK, stdout: DESCRIBE };
+      if (verb === 'check') return OK;
       clock.beforeRun();
-      return { exitCode: 0, timedOut: false, output: '', stdout: '', stderr: '', ...clock.output };
+      return { ...OK, ...clock.output };
     },
     link: (id) => `https://board.test/t/${id}`,
     now: () => clock.at,
@@ -49,7 +58,7 @@ function setup(output: Partial<CommandResult>, tasks = [task({ id: 'Old1' })]) {
   return { backend, store, logs, deps, clock };
 }
 
-const ZERO_COUNTS = { listed: 0, created: 0, requeued: 0, closed: 0, failed: 0 };
+const ZERO_COUNTS = { listed: 0, created: 0, requeued: 0, rescheduled: 0, closed: 0, failed: 0 };
 
 const iso = (offsetMs: number): string => new Date(NOW.getTime() + offsetMs).toISOString();
 
@@ -63,50 +72,12 @@ const recordWith = (tasks: Record<string, string>, startedAtOffsetMs?: number): 
   tasks,
 });
 
-test('parseItems reads one item per line and skips empty lines', () => {
-  const parsed = parseItems(
-    `${line({ key: 'a', title: 'A', prompt: '/review a', version: 'v1' })}\n\n${line({ key: 'b', title: 'B', prompt: 'p' })}\n`,
-  );
-  assert.deepEqual(parsed, {
-    ok: true,
-    items: [
-      { key: 'a', title: 'A', prompt: '/review a', version: 'v1' },
-      { key: 'b', title: 'B', prompt: 'p' },
-    ],
-  });
-});
-
-test('parseItems fails the whole listing on one bad line', () => {
-  assert.deepEqual(parseItems('not json'), { ok: false, error: 'line 1 is not JSON' });
-  assert.deepEqual(parseItems(line({ key: 'a', prompt: 'p' })), { ok: false, error: 'line 1 has no title' });
-  assert.deepEqual(parseItems(line({ key: 'a', title: 'A', prompt: 'p', agent: 'x' })), {
-    ok: false,
-    error: 'line 1 has no field "agent" (it takes key, title, prompt, version, dir)',
-  });
-  const twice = line({ key: 'a', title: 'A', prompt: 'p' });
-  assert.deepEqual(parseItems(`${twice}\n${twice}`), { ok: false, error: 'line 2 repeats the key of an earlier line' });
-});
-
-test('parseFeeds keeps the error of a bad feed apart from the good ones', () => {
-  const { feeds, feedErrors } = parseFeeds({
-    gh: { command: 'list-prs', every: '10m', dir: DIR },
-    fast: { command: 'x', every: '30s', dir: DIR },
-    'bad name!': { command: 'x', every: '10m', dir: DIR },
-  });
-  assert.deepEqual(
-    feeds.map(({ name, keyPrefix, everyMs }) => ({ name, keyPrefix, everyMs })),
-    [{ name: 'gh', keyPrefix: 'feed:gh:', everyMs: 600_000 }],
-  );
-  assert.match(feedErrors['fast'] ?? '', /"30s" is not a duration/);
-  assert.match(feedErrors['bad name!'] ?? '', /must be 1 to 40 letters/);
-});
-
 test('a run schedules each listed item under the prefixed key and remembers its task', async () => {
-  const { backend, store, deps } = setup({ stdout: line({ key: 'pr/7', title: '#7 Fix', prompt: '/review pr/7' }) });
+  const { backend, store, deps } = setup({ stdout: line({ key: 'pr/7', title: '#7 Fix' }) });
   const run = await runFeed(deps, FEED);
   assert.equal(run?.ok, true);
-  assert.deepEqual(run?.counts, { listed: 1, created: 1, requeued: 0, closed: 0, failed: 0 });
-  assert.deepEqual(backend.writes, ['create #7 Fix | /review pr/7 | review | key feed:gh:pr/7']);
+  assert.deepEqual(run?.counts, { listed: 1, created: 1, requeued: 0, rescheduled: 0, closed: 0, failed: 0 });
+  assert.deepEqual(backend.writes, ['create #7 Fix | review pr/7 |  | key feed:gh:pr/7']);
   assert.deepEqual(store.readRecord('gh').tasks, { 'pr/7': 'new' });
 });
 
@@ -116,7 +87,7 @@ test('a failed listing schedules nothing, closes nothing and keeps what it remem
   store.updateControl('gh', { runRequestedAt: iso(-1000) });
   const run = await runFeed(deps, FEED);
   assert.equal(run?.ok, false);
-  assert.equal(run?.error, 'the command exited 1: gh: not logged in');
+  assert.equal(run?.error, 'list exited 1: gh: not logged in');
   assert.deepEqual(backend.writes, []);
   assert.deepEqual(store.readRecord('gh').tasks, { gone: 'Old1' });
   assert.equal(store.readRecord('gh').last?.startedAt, NOW.toISOString());
@@ -135,8 +106,49 @@ test('an item no longer listed: its task waiting in Todo goes to Done, a started
   assert.deepEqual(store.readRecord('gh').tasks, {});
 });
 
+test('the last run names the tasks it changed, at most twenty, and the history keeps only counts', async () => {
+  const { store, deps, clock } = setup({
+    stdout: Array.from({ length: 25 }, (_, n) => line({ key: `k${n}`, title: 'T' })).join('\n'),
+  });
+  const run = await runFeed(deps, FEED);
+  assert.equal(run?.counts.created, 25);
+  assert.equal(store.readRecord('gh').last?.tasks?.length, 20);
+  assert.deepEqual(store.readRecord('gh').last?.tasks?.[0], { id: 'new', outcome: 'created' });
+  assert.equal(store.readRecord('gh').history[0]?.tasks, undefined);
+  clock.output = { stdout: '' };
+  clock.at = new Date(NOW.getTime() + 1000);
+  store.writeRecord('gh', { ...store.readRecord('gh'), tasks: { a: 'Old1' } });
+  await runFeed({ ...deps, backend: fakeBackend([task({ id: 'Old1', status: 'todo', next: 'fresh' })]) }, FEED);
+  assert.deepEqual(store.readRecord('gh').last?.tasks, [{ id: 'Old1', outcome: 'closed' }]);
+});
+
+test('a record keeps only the task entries with a safe id and a known outcome', () => {
+  const dir = join(tempDir(), 'feeds');
+  const store = createFeedStore(dir, () => false);
+  store.updateControl('gh', {});
+  const last = {
+    startedAt: iso(0),
+    at: iso(0),
+    ok: false,
+    invalid: true,
+    counts: { listed: 1 },
+    tasks: [
+      { id: 'Good1', outcome: 'requeued' },
+      { id: '../x', outcome: 'created' },
+      { id: 'Good2', outcome: 'exploded' },
+      'text',
+    ],
+  };
+  writeFileSync(join(dir, 'gh.json'), JSON.stringify({ last, history: [last], tasks: {} }));
+  const record = store.readRecord('gh');
+  assert.deepEqual(record.last?.tasks, [{ id: 'Good1', outcome: 'requeued' }]);
+  assert.equal(record.last?.invalid, true);
+  assert.deepEqual(record.last?.counts, { listed: 1, created: 0, requeued: 0, rescheduled: 0, closed: 0, failed: 0 });
+  assert.equal(record.history[0]?.tasks, undefined);
+});
+
 test('an item mapped by an earlier run that fails to schedule keeps its task, and is closed once it is unlisted', async () => {
-  const { backend, store, deps, clock } = setup({ stdout: line({ key: 'a', title: 'A', prompt: 'p' }) }, [
+  const { backend, store, deps, clock } = setup({ stdout: line({ key: 'a', title: 'A' }) }, [
     task({ id: 'Wait1', status: 'todo', next: 'fresh' }),
   ]);
   store.writeRecord('gh', recordWith({ a: 'Wait1' }));
@@ -156,7 +168,7 @@ test('an item mapped by an earlier run that fails to schedule keeps its task, an
 });
 
 test('listing the board throws after tasks were made: the record keeps the new ids and the old mapping', async () => {
-  const { backend, store, deps } = setup({ stdout: line({ key: 'fresh', title: 'F', prompt: 'p' }) });
+  const { backend, store, deps } = setup({ stdout: line({ key: 'fresh', title: 'F' }) });
   store.writeRecord('gh', recordWith({ gone: 'Old1' }));
   backend.listTasks = async () => {
     throw new Error('network down');
@@ -182,12 +194,12 @@ test('closing: a 409 drops the mapping, another error keeps it for the next run'
 });
 
 test('a task that waits in Done for a new version is requeued and counted', async () => {
-  const { backend, store, deps } = setup({ stdout: line({ key: 'pr/1', title: 'P', prompt: 'p', version: 'v2' }) }, [
+  const { backend, store, deps } = setup({ stdout: line({ key: 'pr/1', title: 'P', version: 'v2' }) }, [
     task({ id: 'Old1', status: 'done' }),
   ]);
   backend.keys.set('Old1', 'feed:gh:pr/1');
   const run = await runFeed(deps, FEED);
-  assert.deepEqual(run?.counts, { listed: 1, created: 0, requeued: 1, closed: 0, failed: 0 });
+  assert.deepEqual(run?.counts, { listed: 1, created: 0, requeued: 1, rescheduled: 0, closed: 0, failed: 0 });
   assert.deepEqual(store.readRecord('gh').tasks, { 'pr/1': 'Old1' });
 });
 
@@ -202,14 +214,16 @@ test('a run keeps the last ten runs, newest first, and the control file untouche
   const { last, history } = store.readRecord('gh');
   assert.equal(history.length, 10);
   assert.equal(last?.startedAt, iso(11_000));
-  assert.deepEqual(history[0], last);
+  const { tasks, ...summary } = last ?? { tasks: undefined };
+  assert.deepEqual(history[0], summary);
+  assert.deepEqual(tasks, []);
   assert.equal(history[9]?.startedAt, iso(2000));
   assert.deepEqual(store.readControl('gh'), control);
 });
 
 test('an item outside the listed directories fails alone', async () => {
   const { backend, deps } = setup({
-    stdout: line({ key: 'x', title: 'X', prompt: 'p', dir: '/elsewhere' }),
+    stdout: line({ key: 'x', title: 'X', dir: '/elsewhere' }),
   });
   const run = await runFeed({ ...deps, dirs: [{ path: DIR }] }, FEED);
   assert.equal(run?.ok, false);
@@ -220,7 +234,7 @@ test('an item outside the listed directories fails alone', async () => {
 
 test('a feed another live process runs is left alone', async () => {
   const dir = join(tempDir(), 'feeds');
-  const { backend, deps } = setup({ stdout: line({ key: 'x', title: 'X', prompt: 'p' }) });
+  const { backend, deps } = setup({ stdout: line({ key: 'x', title: 'X' }) });
   const store = createFeedStore(dir, () => true);
   assert.equal(createFeedStore(dir, () => true).lock('gh'), true);
   assert.equal(await runFeed({ ...deps, store }, FEED), undefined);

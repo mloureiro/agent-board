@@ -111,7 +111,7 @@ export interface ScheduleFlags {
   version?: string;
 }
 
-const KEY_MAX = 500;
+export const KEY_MAX = 500;
 const VERSION_MAX = 200;
 
 export function addScheduleOptions(command: Command): Command {
@@ -604,7 +604,9 @@ export interface Scheduled {
 const REQUEUEABLE: readonly Task['status'][] = ['needs-me', 'done'];
 
 // Finds or creates the task of the key; a new version requeues one that waits in Needs me or is Done, and a start time moves the wait of one in Todo.
-async function scheduleKeyed(deps: ScheduleDeps, args: ScheduleArgs, key: string): Promise<Scheduled> {
+export type KeyedDeps = Pick<ScheduleDeps, 'backend' | 'machine' | 'workdir' | 'print' | 'confirm' | 'link'>;
+
+export async function scheduleKeyed(deps: KeyedDeps, args: ScheduleArgs, key: string): Promise<Scheduled> {
   const { backend } = deps;
   const { task, created } = await backend.addTask({
     title: args.title || defaultTitle(args.prompt),

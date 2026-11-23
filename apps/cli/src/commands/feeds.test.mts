@@ -6,11 +6,17 @@ import { UsageError } from '../cli.mts';
 import { fakeBackend } from '../__tests__/helpers/fakes.mts';
 import { tempDir } from '../__tests__/helpers/watch.mts';
 import { createFeedStore } from '../feeds/store.mts';
-import { feedsList, feedsRemove, feedsSetPaused } from './feeds.mts';
+import { feedsAdd, feedsList, feedsRemove, feedsSetPaused } from './feeds.mts';
 import type { FeedsDeps } from './feeds.mts';
 
 const NOW = new Date('2026-11-21T12:00:00Z');
-const GH = { command: 'list-prs', every: '10m', dir: '/work' };
+const GH = {
+  integration: 'acme:github',
+  action: 'list',
+  every: '10m',
+  dir: '/work',
+  prompts: { new: 'n', update: 'u' },
+};
 
 function setup(isAlive: (pid: number) => boolean = () => false) {
   const dir = tempDir('board-feeds-cmd-');
@@ -21,7 +27,6 @@ function setup(isAlive: (pid: number) => boolean = () => false) {
   const printed: string[] = [];
   const deps: FeedsDeps = {
     configFile,
-    cwd: '/work',
     dirs: undefined,
     unitRunning: true,
     now: () => NOW,
@@ -30,7 +35,9 @@ function setup(isAlive: (pid: number) => boolean = () => false) {
       backend: fakeBackend([]),
       machine: 'laptop',
       dirs: undefined,
+      repos: {},
       store,
+      resolve: () => ({ problem: 'unused' }),
       run: async () => ({ exitCode: 0, timedOut: false, output: '', stdout: '', stderr: '' }),
       link: (id) => id,
       now: () => NOW,
@@ -81,11 +88,43 @@ test('list shows a paused feed, one a run was asked of, and one waiting for its 
       startedAt: NOW.toISOString(),
       at: NOW.toISOString(),
       ok: true,
-      counts: { listed: 0, created: 0, requeued: 0, closed: 0, failed: 0 },
+      counts: { listed: 0, created: 0, requeued: 0, rescheduled: 0, closed: 0, failed: 0 },
     },
     history: [],
     tasks: {},
   });
   feedsList(deps);
   assert.match(printed.at(-1) ?? '', /^gh {2}every 10m/);
+});
+
+test('add writes a feed entry given as JSON, and replacing a name says so', () => {
+  const { deps, printed } = setup();
+  const entry = { ...GH, dir: '/work/other', prompts: { new: 'n', update: 'u' } };
+  feedsAdd(deps, 'second', JSON.stringify(entry));
+  feedsAdd(deps, 'second', JSON.stringify(entry));
+  const written = JSON.parse(readFileSync(deps.configFile, 'utf8')) as { feeds: Record<string, unknown> };
+  assert.deepEqual(Object.keys(written.feeds), ['gh', 'second']);
+  assert.deepEqual(written.feeds['second'], entry);
+  assert.deepEqual(printed, [
+    'added feed second: acme:github · list every 10m in /work/other',
+    'changed feed second: acme:github · list every 10m in /work/other',
+  ]);
+});
+
+test('add refuses an entry that is not JSON, one with a leftover command, and a directory that is not listed, and writes nothing', () => {
+  const { deps } = setup();
+  const before = readFileSync(deps.configFile, 'utf8');
+  const listed = { ...deps, dirs: [{ path: '/work' }] };
+  const cases: [string, string, RegExp][] = [
+    ['not JSON', '{', /not valid JSON/],
+    ['a leftover command', JSON.stringify({ ...GH, command: 'x' }), /command is gone/],
+    ['an unlisted directory', JSON.stringify({ ...GH, dir: '/elsewhere' }), /not a listed directory/],
+  ];
+  for (const [label, text, reason] of cases)
+    assert.throws(
+      () => feedsAdd(listed, 'gh2', text),
+      (error) => error instanceof UsageError && reason.test(error.message),
+      label,
+    );
+  assert.equal(readFileSync(deps.configFile, 'utf8'), before);
 });

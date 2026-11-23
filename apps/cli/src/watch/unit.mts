@@ -20,6 +20,8 @@ import { forgetWakeTries, isRunLive, tryWake } from './wake.mts';
 import { getPaths } from '../config/config.mts';
 import { createFeedStore } from '../feeds/store.mts';
 import { dueFeedJobs } from '../feeds/scan.mts';
+import { resolveIntegration } from '../plugins/resolve.mts';
+import { runGit } from '../config/checkout-repo.mts';
 import { publishFeeds } from '../feeds/publish.mts';
 import type { FeedJob } from '../feeds/scan.mts';
 
@@ -280,6 +282,7 @@ export async function watchUnitMain(): Promise<void> {
             machine: context.config.machine,
             store: feedStore,
             run: (spec) => runCommand(spec),
+            resolve: (ref) => resolveIntegration(ref, { paths: getPaths(), git: runGit }),
             link: context.taskLink,
             now: () => new Date(),
             log: print,

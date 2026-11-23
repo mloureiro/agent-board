@@ -6,23 +6,33 @@
 import { linkSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
-import { isRecord, isFeedId } from '@agent-board/shared';
+import { isRecord, isFeedId, isSafeTaskId } from '@agent-board/shared';
 import { getPaths } from '../config/config.mts';
 
 export interface FeedCounts {
   listed: number;
   created: number;
   requeued: number;
+  rescheduled: number;
   closed: number;
   failed: number;
+}
+
+export type FeedTaskOutcomeName = 'created' | 'requeued' | 'rescheduled' | 'closed';
+
+export interface FeedTaskOutcome {
+  id: string;
+  outcome: FeedTaskOutcomeName;
 }
 
 export interface FeedRun {
   startedAt: string;
   at: string;
   ok: boolean;
+  invalid?: true;
   error?: string;
   counts: FeedCounts;
+  tasks?: FeedTaskOutcome[];
 }
 
 export interface FeedControl {
@@ -53,14 +63,29 @@ export interface FeedStore {
 }
 
 export const HISTORY_LIMIT = 10;
+export const LAST_TASKS_LIMIT = 20;
+
+const OUTCOMES: readonly FeedTaskOutcomeName[] = ['created', 'requeued', 'rescheduled', 'closed'];
 
 const EMPTY_CONTROL: FeedControl = { paused: false };
 
-const ZERO: FeedCounts = { listed: 0, created: 0, requeued: 0, closed: 0, failed: 0 };
+const ZERO: FeedCounts = { listed: 0, created: 0, requeued: 0, rescheduled: 0, closed: 0, failed: 0 };
 
 const isInstant = (value: unknown): value is string => typeof value === 'string' && !Number.isNaN(Date.parse(value));
 
-function parseRun(value: unknown): FeedRun | undefined {
+function parseTasks(value: unknown): FeedTaskOutcome[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .flatMap((entry): FeedTaskOutcome[] => {
+      if (!isRecord(entry)) return [];
+      const { id } = entry;
+      const outcome = OUTCOMES.find((name) => name === entry['outcome']);
+      return typeof id === 'string' && isSafeTaskId(id) && outcome !== undefined ? [{ id, outcome }] : [];
+    })
+    .slice(0, LAST_TASKS_LIMIT);
+}
+
+function parseRun(value: unknown, withTasks: boolean): FeedRun | undefined {
   if (!isRecord(value) || !isInstant(value['at']) || typeof value['ok'] !== 'boolean') return undefined;
   const counts = isRecord(value['counts']) ? value['counts'] : {};
   const count = (name: keyof FeedCounts): number => {
@@ -71,14 +96,17 @@ function parseRun(value: unknown): FeedRun | undefined {
     startedAt: isInstant(value['startedAt']) ? value['startedAt'] : value['at'],
     at: value['at'],
     ok: value['ok'],
+    ...(value['invalid'] === true ? { invalid: true as const } : {}),
     ...(typeof value['error'] === 'string' ? { error: value['error'] } : {}),
     counts: {
       listed: count('listed'),
       created: count('created'),
       requeued: count('requeued'),
+      rescheduled: count('rescheduled'),
       closed: count('closed'),
       failed: count('failed'),
     },
+    ...(withTasks && value['tasks'] !== undefined ? { tasks: parseTasks(value['tasks']) } : {}),
   };
 }
 
@@ -96,9 +124,9 @@ export function parseFeedRecord(value: unknown): FeedRecord {
   const tasks: Record<string, string> = {};
   if (isRecord(value['tasks']))
     for (const [key, id] of Object.entries(value['tasks'])) if (typeof id === 'string') tasks[key] = id;
-  const last = parseRun(value['last']);
+  const last = parseRun(value['last'], true);
   const history = Array.isArray(value['history'])
-    ? value['history'].flatMap((run) => parseRun(run) ?? []).slice(0, HISTORY_LIMIT)
+    ? value['history'].flatMap((run) => parseRun(run, false) ?? []).slice(0, HISTORY_LIMIT)
     : [];
   return { ...(last === undefined ? {} : { last }), history, tasks };
 }

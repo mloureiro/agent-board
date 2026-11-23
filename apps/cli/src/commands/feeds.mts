@@ -1,6 +1,6 @@
 import { formatDuration, isRecord } from '@agent-board/shared';
 import { UsageError } from '../cli.mts';
-import { ConfigError, expandHome } from '../config/config.mts';
+import { ConfigError } from '../config/config.mts';
 import type { DirEntry } from '../config/config.mts';
 import { readConfigFile, writeConfigFile } from '../config/config-file.mts';
 import { isAllowedDir } from '../config/dirs.mts';
@@ -13,7 +13,6 @@ import type { FeedRun } from '../feeds/store.mts';
 
 export interface FeedsDeps {
   configFile: string;
-  cwd: string;
   dirs: readonly DirEntry[] | undefined;
   unitRunning: boolean;
   now: () => Date;
@@ -21,23 +20,15 @@ export interface FeedsDeps {
   runDeps: () => FeedRunDeps;
 }
 
-export interface FeedAddFlags {
-  every?: string;
-  dir?: string;
-  agent?: string;
-  lane?: string;
-  keyPrefix?: string;
-  timeout?: string;
-}
-
 const counted = (run: FeedRun): string => {
-  const { listed, created, requeued, closed, failed } = run.counts;
-  return `${listed} listed, ${created} created, ${requeued} requeued, ${closed} closed${failed > 0 ? `, ${failed} failed` : ''}`;
+  const { listed, created, requeued, rescheduled, closed, failed } = run.counts;
+  return `${listed} listed, ${created} created, ${requeued} requeued${rescheduled > 0 ? `, ${rescheduled} rescheduled` : ''}, ${closed} closed${failed > 0 ? `, ${failed} failed` : ''}`;
 };
 
 export function describeRun(run: FeedRun | undefined): string {
   if (run === undefined) return 'never run';
   const when = new Date(run.at).toLocaleString();
+  if (run.invalid === true) return `invalid ${when}: ${plainLine(run.error ?? 'unknown error')}`;
   return run.ok
     ? `ran ${when}: ${counted(run)}`
     : `failed ${when}: ${plainLine(run.error ?? 'unknown error')}${run.counts.listed > 0 ? ` (${counted(run)})` : ''}`;
@@ -74,7 +65,7 @@ export function feedsList(deps: FeedsDeps): void {
       : runAsked(control, record)
         ? 'runs next'
         : `every ${formatDuration(feed.everyMs)}`;
-    deps.print(`${feed.name}  ${status}  ${describeRun(record.last)}`);
+    deps.print(`${feed.name}  ${status}  ${feed.integration} · ${feed.action}  ${describeRun(record.last)}`);
   }
   for (const [name, error] of Object.entries(feedErrors)) deps.print(`${plainLine(name)}  not read: ${error}`);
   if (!deps.unitRunning)
@@ -83,34 +74,31 @@ export function feedsList(deps: FeedsDeps): void {
     );
 }
 
-export function feedsAdd(deps: FeedsDeps, name: string, flags: FeedAddFlags, command: string): void {
+export function feedsAdd(deps: FeedsDeps, name: string, text: string): void {
   if (!isFeedName(name)) throw new UsageError(`a feed name must be ${FEED_NAME_RULE}`);
-  if (flags.every === undefined) throw new UsageError('board feeds add needs --every, such as --every 10m');
-  if (command.trim() === '') throw new UsageError('board feeds add needs the command after --');
-  const dir = flags.dir === undefined ? deps.cwd : expandHome(flags.dir);
-  if (!isAllowedDir(deps.dirs, dir))
-    throw new UsageError(`${plainLine(dir)} is not a listed directory; run "board dirs add" there first`);
-  const entry = {
-    command,
-    every: flags.every,
-    dir,
-    ...(flags.keyPrefix === undefined ? {} : { keyPrefix: flags.keyPrefix }),
-    ...(flags.agent === undefined ? {} : { agent: flags.agent }),
-    ...(flags.lane === undefined ? {} : { lane: flags.lane }),
-    ...(flags.timeout === undefined ? {} : { timeout: flags.timeout }),
-  };
+  let entry: unknown;
   try {
-    parseFeed(name, entry);
+    entry = JSON.parse(text);
+  } catch {
+    throw new UsageError('the feed entry is not valid JSON');
+  }
+  let feed: FeedConfig;
+  try {
+    feed = parseFeed(name, entry);
   } catch (error) {
     if (error instanceof ConfigError) throw new UsageError(error.message.replace(/^config: /, ''));
     throw error;
   }
+  if (!isAllowedDir(deps.dirs, feed.dir))
+    throw new UsageError(`${plainLine(feed.dir)} is not a listed directory; run "board dirs add" there first`);
   const { raw, mode } = readConfigFile(deps.configFile);
   const existing = raw['feeds'] ?? {};
   if (!isRecord(existing)) throw new UsageError('config.json has a feeds key that is not an object; fix it by hand');
   const replaced = Object.hasOwn(existing, name);
   writeConfigFile(deps.configFile, { ...raw, feeds: { ...existing, [name]: entry } }, mode);
-  deps.print(`${replaced ? 'changed' : 'added'} feed ${name}: every ${flags.every} in ${dir}`);
+  deps.print(
+    `${replaced ? 'changed' : 'added'} feed ${name}: ${feed.integration} · ${feed.action} every ${formatDuration(feed.everyMs)} in ${feed.dir}`,
+  );
 }
 
 export function feedsRemove(deps: FeedsDeps, name: string): void {

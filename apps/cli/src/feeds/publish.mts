@@ -36,7 +36,11 @@ export function machineFeeds(configFile: string, store: FeedStore): MachineFeeds
               at: last.at,
               ok: last.ok,
               ...(last.error === undefined ? {} : { error: last.error }),
-              ...last.counts,
+              listed: last.counts.listed,
+              created: last.counts.created,
+              requeued: last.counts.requeued,
+              closed: last.counts.closed,
+              failed: last.counts.failed,
             },
           }),
     };

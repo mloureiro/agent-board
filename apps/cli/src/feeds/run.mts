@@ -1,56 +1,54 @@
+import { isSafeWorkdir } from '@agent-board/shared';
 import type { Backend, Task } from '@agent-board/shared';
 import { BackendError } from '../backend/backend.mts';
 import { expandHome } from '../config/config.mts';
 import type { DirEntry } from '../config/config.mts';
 import { isAllowedDir } from '../config/dirs.mts';
 import type { CommandResult, CommandSpec } from '../dispatch/waits.mts';
-import { parseScheduleArgs, schedule } from '../commands/schedule.mts';
+import { KEY_MAX, parseScheduleArgs, scheduleKeyed } from '../commands/schedule.mts';
 import { errorText } from '../output/text.mts';
+import type { Resolved } from '../plugins/resolve.mts';
+import { withoutControls } from '../watch/fence.mts';
 import { MIN_EVERY_MS } from './config.mts';
 import type { FeedConfig } from './config.mts';
-import { parseItems } from './items.mts';
+import { list } from './integration.mts';
+import { parseItems, undeclaredField } from './items.mts';
 import type { FeedItem } from './items.mts';
-import { HISTORY_LIMIT, zeroCounts } from './store.mts';
-import type { FeedControl, FeedRecord, FeedRun, FeedStore } from './store.mts';
+import { HISTORY_LIMIT, LAST_TASKS_LIMIT, zeroCounts } from './store.mts';
+import type { FeedControl, FeedRecord, FeedRun, FeedStore, FeedTaskOutcome } from './store.mts';
+import { render } from './template.mts';
+import { validateFeed } from './validate.mts';
 
 export interface FeedRunDeps {
   backend: Backend;
   machine: string;
   dirs: readonly DirEntry[] | undefined;
+  repos: Readonly<Record<string, string>>;
   store: FeedStore;
   run: (spec: CommandSpec) => Promise<CommandResult>;
+  resolve: (ref: string) => Resolved;
   link: (taskId: string) => string;
   now: () => Date;
   log: (line: string) => void;
   signal?: AbortSignal;
 }
 
-// `runCommand` keeps this much of stdout; a listing that filled it may have lost its first lines.
-const STDOUT_LIMIT = 200_000;
 const ERROR_MAX = 300;
 
-const lastLine = (text: string): string => (text.trim().split('\n').at(-1) ?? '').slice(0, ERROR_MAX);
-
-async function listing(deps: FeedRunDeps, feed: FeedConfig): Promise<FeedItem[] | string> {
-  const result = await deps.run({
-    command: feed.command,
-    cwd: feed.dir,
-    timeLimitMs: feed.timeoutMs,
-    ...(deps.signal === undefined ? {} : { signal: deps.signal }),
-  });
-  if (result.timedOut) return `the command took longer than ${Math.round(feed.timeoutMs / 1000)}s`;
-  if (result.exitCode !== 0)
-    return `the command exited ${result.exitCode ?? 'by a signal'}${result.stderr.trim() === '' ? '' : `: ${lastLine(result.stderr)}`}`;
-  if (result.stdout.length >= STDOUT_LIMIT) return 'the command printed more than 200 KB';
-  const parsed = parseItems(result.stdout);
-  return parsed.ok ? parsed.items : parsed.error;
-}
+const tidy = (text: string): string => withoutControls(text).replaceAll('\n', ' ').slice(0, ERROR_MAX);
 
 const isWaitingFresh = (task: Task | undefined): boolean => task?.status === 'todo' && task.next === 'fresh';
 
+function workdirOf(feed: FeedConfig, item: FeedItem, repos: Readonly<Record<string, string>>): string {
+  if (item.dir !== undefined) return expandHome(item.dir);
+  if (item.repo !== undefined && Object.hasOwn(repos, item.repo)) return repos[item.repo] ?? feed.dir;
+  return feed.dir;
+}
+
 /**
- * One run of a feed: schedules a task per listed item, then moves to Done the Todo task of every item it scheduled before
- * that is no longer listed. A listing that failed closes nothing. Returns undefined when another process is running it.
+ * One run of a feed: validates it, schedules a task per listed item, then moves to Done the Todo task of every item it
+ * scheduled before that is no longer listed. A feed that does not validate, or a listing that failed, schedules and closes
+ * nothing. Returns undefined when another process is running it.
  */
 export async function runFeed(deps: FeedRunDeps, feed: FeedConfig): Promise<FeedRun | undefined> {
   const { store, backend, log } = deps;
@@ -59,16 +57,25 @@ export async function runFeed(deps: FeedRunDeps, feed: FeedConfig): Promise<Feed
   const before = store.readRecord(feed.name);
   const tasks: Record<string, string> = {};
   const finish = (run: FeedRun, kept: Record<string, string>): FeedRun => {
+    const { tasks: _tasks, ...summary } = run;
     store.writeRecord(feed.name, {
-      last: run,
-      history: [run, ...before.history].slice(0, HISTORY_LIMIT),
+      last: { ...run, tasks: run.tasks ?? [] },
+      history: [summary, ...before.history].slice(0, HISTORY_LIMIT),
       tasks: kept,
     });
     return run;
   };
   try {
     const counts = zeroCounts();
-    const listed = await listing(deps, feed);
+    const validated = await validateFeed(feed, { resolve: deps.resolve, run: deps.run });
+    if (!validated.ok) {
+      log(`FEED ${feed.name} is invalid: ${validated.reason}`);
+      return finish(
+        { startedAt, at: deps.now().toISOString(), ok: false, invalid: true, error: validated.reason, counts },
+        before.tasks,
+      );
+    }
+    const listed = await listing(deps, feed, validated.program);
     if (typeof listed === 'string') {
       log(`FEED ${feed.name} failed: ${listed}`);
       return finish({ startedAt, at: deps.now().toISOString(), ok: false, error: listed, counts }, before.tasks);
@@ -78,50 +85,66 @@ export async function runFeed(deps: FeedRunDeps, feed: FeedConfig): Promise<Feed
       const known = before.tasks[item.key];
       if (known !== undefined) tasks[item.key] = known;
     }
+    const changed: FeedTaskOutcome[] = [];
+    const note = (id: string, outcome: FeedTaskOutcome['outcome']): void => {
+      if (changed.length < LAST_TASKS_LIMIT) changed.push({ id, outcome });
+    };
     let error: string | undefined;
     const fail = (item: FeedItem, why: string): void => {
       counts.failed++;
-      error ??= `${item.key.slice(0, 80)}: ${why}`.slice(0, ERROR_MAX);
-      log(`FEED ${feed.name} ${item.key.slice(0, 80)} failed: ${why}`);
+      error ??= tidy(`${item.key.slice(0, 80)}: ${why}`);
+      log(`FEED ${feed.name} ${tidy(item.key.slice(0, 80))} failed: ${tidy(why)}`);
     };
     for (const item of listed) {
-      const workdir = item.dir === undefined ? feed.dir : expandHome(item.dir);
-      if (!isAllowedDir(deps.dirs, workdir)) {
+      const key = `feed:${feed.name}:${item.key}`;
+      if (key.length > KEY_MAX) {
+        fail(item, `its key is longer than ${KEY_MAX} characters with the feed's prefix`);
+        continue;
+      }
+      const undeclared = undeclaredField(item, validated.fields);
+      if (undeclared !== undefined) {
+        fail(item, `field ${undeclared} was not declared by ${feed.integration} ${feed.action}`);
+        continue;
+      }
+      const prompt = render(feed.prompts.new, {
+        key: item.key,
+        title: item.title,
+        ...(item.version === undefined ? {} : { version: item.version }),
+        ...item.fields,
+      });
+      if (!prompt.ok) {
+        fail(item, `it has no field ${prompt.missing}`);
+        continue;
+      }
+      const workdir = workdirOf(feed, item, deps.repos);
+      if (!isSafeWorkdir(workdir) || !isAllowedDir(deps.dirs, workdir)) {
         fail(item, `${workdir.slice(0, 120)} is not a listed directory on ${deps.machine}`);
         continue;
       }
       try {
         const args = parseScheduleArgs(
           {
-            key: `${feed.keyPrefix}${item.key}`,
+            key,
             title: item.title,
             ...(item.version === undefined ? {} : { version: item.version }),
             ...(feed.agent === undefined ? {} : { agent: feed.agent }),
             ...(feed.lane === undefined ? {} : { lane: feed.lane }),
           },
-          [item.prompt],
+          [prompt.text],
           deps.now(),
         );
-        const scheduled = await schedule(
-          {
-            backend,
-            machine: deps.machine,
-            workdir,
-            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-            print: () => undefined,
-            link: deps.link,
-            check: () => Promise.resolve(undefined),
-            choose: undefined,
-          },
+        if (item.notBefore !== undefined) args.notBefore = new Date(item.notBefore);
+        const scheduled = await scheduleKeyed(
+          { backend, machine: deps.machine, workdir, print: () => undefined, link: deps.link },
           args,
+          key,
         );
-        if (scheduled === undefined) continue;
         tasks[item.key] = scheduled.task.id;
         const outcome = scheduled.keyed;
-        if (outcome?.result === 'created') counts.created++;
-        if (outcome?.result === 'requeued') counts.requeued++;
-        if (outcome !== undefined && outcome.result !== 'exists')
-          log(`FEED ${feed.name} ${outcome.result} ${scheduled.task.id} ${item.key.slice(0, 80)}`);
+        if (outcome === undefined || outcome.result === 'exists') continue;
+        counts[outcome.result]++;
+        note(scheduled.task.id, outcome.result);
+        log(`FEED ${feed.name} ${outcome.result} ${scheduled.task.id} ${tidy(item.key.slice(0, 80))}`);
       } catch (thrown) {
         fail(item, errorText(thrown));
       }
@@ -134,11 +157,12 @@ export async function runFeed(deps: FeedRunDeps, feed: FeedConfig): Promise<Feed
         try {
           await backend.updateTask(id, { status: 'done', expect: 'todo' });
           counts.closed++;
-          log(`FEED ${feed.name} done ${id}: ${key.slice(0, 80)} is no longer listed`);
+          note(id, 'closed');
+          log(`FEED ${feed.name} done ${id}: ${tidy(key.slice(0, 80))} is no longer listed`);
         } catch (thrown) {
           if (thrown instanceof BackendError && thrown.status === 409) continue;
           tasks[key] = id;
-          log(`FEED ${feed.name} cannot move ${id} to done: ${errorText(thrown)}`);
+          log(`FEED ${feed.name} cannot move ${id} to done: ${tidy(errorText(thrown))}`);
         }
       }
     }
@@ -149,12 +173,13 @@ export async function runFeed(deps: FeedRunDeps, feed: FeedConfig): Promise<Feed
         ok: counts.failed === 0,
         ...(error === undefined ? {} : { error }),
         counts,
+        tasks: changed,
       },
       tasks,
     );
   } catch (thrown) {
     // Recorded like a failed listing, so the feed waits for its interval instead of trying again on every scan.
-    const message = errorText(thrown).slice(0, ERROR_MAX);
+    const message = tidy(errorText(thrown));
     log(`FEED ${feed.name} failed: ${message}`);
     return finish(
       { startedAt, at: deps.now().toISOString(), ok: false, error: message, counts: zeroCounts() },
@@ -163,6 +188,13 @@ export async function runFeed(deps: FeedRunDeps, feed: FeedConfig): Promise<Feed
   } finally {
     store.unlock(feed.name);
   }
+}
+
+async function listing(deps: FeedRunDeps, feed: FeedConfig, program: string): Promise<FeedItem[] | string> {
+  const result = await list(program, feed.action, feed.options, feed.dir, deps.run, feed.timeoutMs, deps.signal);
+  if (!result.ok) return tidy(result.reason);
+  const parsed = parseItems(result.stdout);
+  return parsed.ok ? parsed.items : parsed.error;
 }
 
 export function runAsked(control: FeedControl, record: FeedRecord): boolean {

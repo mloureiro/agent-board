@@ -46,8 +46,8 @@ Scheduling:
   schedule <prompt...>       a task from a prompt, run here on this machine
   schedules [action...]      list, edit, pause, resume or delete repeating
                              schedules
-  feeds [action...]          list, add, remove, run or pause the commands that
-                             make this machine's tasks from other tools
+  feeds [action...]          list, add, remove, run or pause the feeds that make
+                             this machine's tasks from other tools
   delay <task>               delay a task in Todo, or make it due at once
 
 Setup:
@@ -993,50 +993,48 @@ Examples:
 ### board feeds
 
 ```
-Usage: board feeds [options] [list | add <name> --every <dur> -- <command> | rm <name> | run <name> | pause <name> | resume <name>]
+Usage: board feeds [options] [list | add <name> <file | -> | rm <name> | run <name> | pause <name> | resume <name>]
 
-A feed is a command this machine runs on a timer, such as a script that asks
-GitHub for the PRs that wait for your review. It prints one JSON object per
-line, one per item that should have a task: `key`, `title` and `prompt`, and
-optionally `version` and `dir`. For each item the machine runs `board schedule
---key` with the feed's key prefix in front of the key, so the board keeps one
-task per item, and a new `version` sends a task that waits in Needs me or is
-Done back to Todo. A task of an earlier run whose item is no longer listed, and
-that still waits in Todo for its first start, is moved to Done.
+A feed asks an integration, a program of an installed plugin marketplace (see
+`board plugins`), for the items that should have a task, on a timer this machine
+runs. Its entry in config.json names the `integration`
+(`<marketplace>:<integration>`), the `action` to run, the `options` that action
+takes, how often it runs (`every`), the listed directory it runs in (`dir`),
+optionally an `agent`, a `lane` and a `timeout`, and the `prompts` its tasks
+start from: `new` for a task that is made, `update` for one whose item changed.
+A prompt takes placeholders such as `{url}` from the fields the item carries.
+For each item the machine makes the task of the key `feed:<name>:<item key>`, so
+the board keeps one task per item. A task of an earlier run whose item is no
+longer listed, and that still waits in Todo for its first start, is moved to
+Done.
 
 The watch unit runs every feed that is due; `board feeds` lists them with their
-last run. `add <name> --every <dur> -- <command>` writes `feeds.<name>` to
-config.json (the command runs with `bash -c` in --dir, default the current
-directory, which must be listed in `dirs`); adding a name again replaces it. `rm
-<name>` removes it; the tasks it made stay. `run <name>` runs it now, here, and
-exits 1 when the run failed. `pause` and `resume` stop and restart its timer.
+last run. `add <name> <file | ->` reads the entry as JSON from a file or from
+stdin and writes `feeds.<name>` to config.json; adding a name again replaces it.
+`rm <name>` removes it; the tasks it made stay. `run <name>` runs it now, here,
+and exits 1 when the run failed. `pause` and `resume` stop and restart its
+timer.
 
-A listing that fails (an exit other than 0, a time limit, a line that is not a
-valid item) schedules nothing and closes nothing. The key prefix defaults to
-`feed:<name>:`.
+Before every run the feed is validated: the plugin must be installed and at the
+commit that was installed, the action must exist, the options must fit what the
+integration describes, the prompts may use only the fields it provides, and its
+own check must pass. A feed that does not validate is reported and never runs. A
+listing that fails (an exit other than 0, a time limit, a line that is not a
+valid item) schedules nothing and closes nothing.
 
 Arguments:
-  action                list, add, rm, run, pause or resume, the feed name, and
-                        for add the command
+  action      list, add, rm, run, pause or resume, the feed name, and for add
+              the file of its entry
 
 Options:
-  --every <duration>    add: how often it runs (at least 1m)
-  --dir <path>          add: where the command runs and the tasks are made
-                        (default: the current directory)
-  --agent <name>        add: the agent of this machine's config.json its tasks
-                        run as
-  --lane <name>         add: the lane its tasks ask for
-  --key-prefix <text>   add: put in front of every key (default: feed:<name>:)
-  --timeout <duration>  add: the longest one run of the command may take
-                        (default 2m, at most 30m)
-  -h, --help            display help for command
+  -h, --help  display help for command
 
 Examples:
   board feeds
-  board feeds add github-reviews --every 10m --agent reviewer -- '~/bin/review-requests acme/app'
-  board feeds run github-reviews
-  board feeds pause github-reviews
-  board feeds rm github-reviews
+  board feeds add gh-reviews ./gh-reviews.json
+  board feeds run gh-reviews
+  board feeds pause gh-reviews
+  board feeds rm gh-reviews
 ```
 
 ### board delay
