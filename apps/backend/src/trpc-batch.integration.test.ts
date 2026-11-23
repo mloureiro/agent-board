@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { buildServer } from './server';
 import { testConfig, useTestDb } from './test/helpers';
 
-const { db } = useTestDb();
+const { db } = await useTestDb();
 
 const open: { close(): Promise<unknown> }[] = [];
 afterEach(() => Promise.all(open.splice(0).map((app) => app.close())));
