@@ -840,6 +840,14 @@ test('a requeue with an update prompt but no session starts fresh and spools not
   assert.ok(backend.writes.includes('note old (system): New version sha2. Queued again.'));
 });
 
+test('a requeue without an update prompt starts fresh even when the task has a session', async () => {
+  const { deps, backend } = keyedSetup({ status: 'done', sessionId: SESSION });
+  const outcome = await scheduleKeyed(deps, parseScheduleArgs(KEYED), PR);
+  assert.deepEqual(outcome.keyed, { result: 'requeued' });
+  assert.equal(backend.tasks[0]?.next, 'fresh');
+  assert.ok(backend.writes.includes('note old (system): New version sha2. Queued again.'));
+});
+
 test('a refused requeue drops the spooled update prompt', async () => {
   const { deps, backend } = keyedSetup({ status: 'done', sessionId: SESSION });
   backend.updateTask = async () => {
