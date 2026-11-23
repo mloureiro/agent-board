@@ -20,6 +20,8 @@ import {
   openNote,
   openSharedAgents,
   openLinkRules,
+  openTitleRules,
+  isTitleRulesVersion,
   isLinkRulesVersion,
   isSharedAgentsVersion,
   openPrs,
@@ -38,6 +40,7 @@ import {
   type MachineCatalog,
   type MachineDir,
   type MachineUsage,
+  type TitleRule,
   type NoteKind,
   type Opener,
   type PrState,
@@ -439,6 +442,28 @@ export async function openBoardLinks(keys: Keys, wire: RouterOutputs['links']['g
   const opened = isLinkRulesVersion(version) ? await openLinkRules(openerFor(keys), version, document) : undefined;
   return {
     version: isLinkRulesVersion(version) ? version : 0,
+    updatedAt: typeof updatedAt === 'string' ? updatedAt : '',
+    rules: opened?.rules ?? null,
+  };
+}
+
+/** The user's title rules: `rules` is null when the document does not open, which leaves every task with its title. */
+export interface BoardTitleRules {
+  version: number;
+  updatedAt: string;
+  rules: TitleRule[] | null;
+}
+
+/** Null when no rule was ever saved; a version or time of the wrong shape leaves the document unopened. */
+export async function openBoardTitleRules(
+  keys: Keys,
+  wire: RouterOutputs['titleRules']['get'],
+): Promise<BoardTitleRules | null> {
+  if (wire === null) return null;
+  const { version, document, updatedAt } = wire;
+  const opened = isTitleRulesVersion(version) ? await openTitleRules(openerFor(keys), version, document) : undefined;
+  return {
+    version: isTitleRulesVersion(version) ? version : 0,
     updatedAt: typeof updatedAt === 'string' ? updatedAt : '',
     rules: opened?.rules ?? null,
   };
