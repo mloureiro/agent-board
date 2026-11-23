@@ -71,6 +71,7 @@ The sign-in variables come in four groups. The backend starts in one of two mode
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `NO_LOGIN_USER` | Switches login off: every request to the UI is this user. Works in production too, and the backend logs a warning at every start. It refuses to start if any of `PUBLIC_URL`, `PASSKEYS`, `SESSION_DAYS`, `SIGNUP_TOKEN`, `ALLOWED_GROUPS`, `OIDC_*` or `SAML_*` is set next to it. |
 | `DEV_AUTH_USER` | An older name for `NO_LOGIN_USER`, for local development only: the backend refuses to start with it when `NODE_ENV=production`. `NO_LOGIN_USER` wins when both are set.                                                                                                             |
+| `ALLOWED_HOSTS` | Comma-separated `Host` header values the backend answers, as `host` or `host:port`. Any other request gets 421, except `/healthz`. Unset or empty means no check.                                                                                                                   |
 
 **Login, whatever the method**
 
@@ -236,7 +237,7 @@ A name that is in use is refused, so a sign-up cannot take over a board that alr
 NO_LOGIN_USER=me
 ```
 
-Every request to the UI is that user, with no cookie and no sign-in page, in production as well as in development, and the backend logs one warning line at start that says so. The machine API still needs a token. The backend refuses to start with `NO_LOGIN_USER` next to any setting that only login uses (`PUBLIC_URL`, `PASSKEYS`, `SESSION_DAYS`, `SIGNUP_TOKEN`, `ALLOWED_GROUPS`, `OIDC_*`, `SAML_*`). `DEV_AUTH_USER` is the same setting under its older name and is refused when `NODE_ENV=production`. This is meant for a board on your own machine or behind something else that decides who reaches it. **Anyone who can reach the backend's port is that user.** Do not expose it to a network you do not trust. Removing the variable and setting `PUBLIC_URL` turns login on, and the users keep their boards as long as the names match.
+Every request to the UI is that user, with no cookie and no sign-in page, in production as well as in development, and the backend logs one warning line at start that says so. The machine API still needs a token. The backend refuses to start with `NO_LOGIN_USER` next to any setting that only login uses (`PUBLIC_URL`, `PASSKEYS`, `SESSION_DAYS`, `SIGNUP_TOKEN`, `ALLOWED_GROUPS`, `OIDC_*`, `SAML_*`). `DEV_AUTH_USER` is the same setting under its older name and is refused when `NODE_ENV=production`. This is meant for a board on your own machine or behind something else that decides who reaches it. **Anyone who can reach the backend's port is that user.** A board on your own machine should set `ALLOWED_HOSTS` to the address the browser uses, because a web page can reach a loopback port through DNS rebinding. Do not expose it to a network you do not trust. Removing the variable and setting `PUBLIC_URL` turns login on, and the users keep their boards as long as the names match.
 
 ## Moving from the auth proxy to the login page
 

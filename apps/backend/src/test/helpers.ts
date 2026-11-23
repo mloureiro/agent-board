@@ -18,6 +18,7 @@ export const testConfig: Config = {
   appDatabaseUrl: testAppDatabaseUrl(),
   backfillOwner: null,
   auth: { login: false, user: 'jascha' },
+  allowedHosts: [],
   cliVersion: null,
   revision: null,
 };

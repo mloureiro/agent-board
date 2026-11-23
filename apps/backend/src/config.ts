@@ -69,6 +69,8 @@ export interface Config {
   /** Owner for rows that predate tenancy; read only by the migration that adds owners. */
   backfillOwner: string | null;
   auth: AuthConfig;
+  /** Host header values (host or host:port, lower-case) the backend answers; empty means no check. */
+  allowedHosts: string[];
   /** The newest CLI release, x.y.z, which the machine API advertises; null when this build does not know it. */
   cliVersion: string | null;
   /** The git commit this build came from, for the settings page; null when the build was not given one. */
@@ -245,6 +247,16 @@ function parseLogin(env: Env, nodeEnv: string): LoginConfig {
   };
 }
 
+function parseAllowedHosts(env: Env): string[] {
+  const hosts = (optionalEnv(env, 'ALLOWED_HOSTS') ?? '')
+    .split(',')
+    .map((host) => host.trim().toLowerCase())
+    .filter(Boolean);
+  if (hosts.some((host) => /[/@\s]|:\/\//.test(host)))
+    throw new Error('ALLOWED_HOSTS entries must be host or host:port');
+  return hosts;
+}
+
 export function loadConfig(env: Env = process.env): Config {
   const nodeEnv = env.NODE_ENV ?? 'development';
   return {
@@ -255,6 +267,7 @@ export function loadConfig(env: Env = process.env): Config {
     appDatabaseUrl: requireEnv(env, 'APP_DATABASE_URL'),
     backfillOwner: env.BACKFILL_OWNER?.trim().toLowerCase() || null,
     auth: parseNoLogin(env, nodeEnv) ?? parseLogin(env, nodeEnv),
+    allowedHosts: parseAllowedHosts(env),
     cliVersion: parseCliVersion(env.CLI_VERSION),
     revision: parseRevision(env.GIT_SHA),
   };

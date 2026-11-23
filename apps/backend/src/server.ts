@@ -71,6 +71,14 @@ export async function buildServer(config: Config, root: Db, options: ServerOptio
 
   app.get('/healthz', async () => ({ ok: true }));
 
+  // Defends a no-login board on a loopback port against DNS rebinding. It reads the raw Host header: with trustProxy,
+  // req.host honours X-Forwarded-Host, which a page can set itself.
+  app.addHook('onRequest', async (req, reply) => {
+    if (config.allowedHosts.length === 0 || req.url.split('?')[0] === '/healthz') return;
+    const host = req.headers.host?.toLowerCase();
+    if (!host || !config.allowedHosts.includes(host)) return reply.status(421).send({ error: 'unknown host' });
+  });
+
   // First, so that it also covers the public sign-in mutations. tRPC's Fastify adapter takes multipart bodies, which a plain
   // HTML form on a sibling subdomain can send with the session cookie: SameSite does not stop a same-site request. Only
   // the JSON the board's own client sends gets through; a cross-origin JSON POST needs a CORS preflight, which this server never grants. The check goes by the matched route,

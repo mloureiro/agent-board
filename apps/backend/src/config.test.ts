@@ -207,3 +207,25 @@ describe('HOST', () => {
     expect(load({ ...noLogin, HOST: '   ' }).host).toBe('0.0.0.0');
   });
 });
+
+const loadNoLogin = (env: Record<string, string>) => load({ NO_LOGIN_USER: 'me', ...env });
+
+describe('ALLOWED_HOSTS', () => {
+  it('is empty when unset or blank', () => {
+    expect(loadNoLogin({}).allowedHosts).toEqual([]);
+    expect(loadNoLogin({ ALLOWED_HOSTS: ' , ' }).allowedHosts).toEqual([]);
+  });
+
+  it('is a trimmed, lower-cased list without empty entries', () => {
+    expect(loadNoLogin({ ALLOWED_HOSTS: ' 127.0.0.1:4785, LocalHost:4785,,' }).allowedHosts).toEqual([
+      '127.0.0.1:4785',
+      'localhost:4785',
+    ]);
+  });
+
+  it.each(['http://localhost', 'localhost/path', 'user@localhost', 'two words'])('refuses %s', (entry) => {
+    expect(() => loadNoLogin({ ALLOWED_HOSTS: `localhost,${entry}` })).toThrow(
+      'ALLOWED_HOSTS entries must be host or host:port',
+    );
+  });
+});
