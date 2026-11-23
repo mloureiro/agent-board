@@ -6,6 +6,7 @@ import { UsageError } from '../cli.mts';
 import { fakeBackend } from '../__tests__/helpers/fakes.mts';
 import { tempDir } from '../__tests__/helpers/watch.mts';
 import { createFeedStore } from '../feeds/store.mts';
+import { createFeedUpdates } from '../feeds/updates.mts';
 import { feedsAdd, feedsList, feedsRemove, feedsSetPaused } from './feeds.mts';
 import type { FeedsDeps } from './feeds.mts';
 
@@ -37,6 +38,7 @@ function setup(isAlive: (pid: number) => boolean = () => false) {
       dirs: undefined,
       repos: {},
       store,
+      updates: createFeedUpdates(join(stateDir, 'updates')),
       resolve: () => ({ problem: 'unused' }),
       run: async () => ({ exitCode: 0, timedOut: false, output: '', stdout: '', stderr: '' }),
       link: (id) => id,

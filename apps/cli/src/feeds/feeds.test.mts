@@ -11,6 +11,7 @@ import type { FeedConfig } from './config.mts';
 import { isFeedDue, runAsked, runFeed } from './run.mts';
 import type { FeedRunDeps } from './run.mts';
 import { createFeedStore } from './store.mts';
+import { createFeedUpdates } from './updates.mts';
 import type { FeedControl, FeedRecord } from './store.mts';
 
 const DIR = '/work/app';
@@ -43,6 +44,7 @@ function setup(output: Partial<CommandResult>, tasks = [task({ id: 'Old1' })]) {
     dirs: undefined,
     repos: {},
     store,
+    updates: createFeedUpdates(join(tempDir(), 'updates')),
     resolve: () => ({ program: '/plugins/run', commit: 'c' }),
     run: async (spec) => {
       const verb = spec.command.split(' ')[1];

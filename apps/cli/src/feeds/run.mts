@@ -17,6 +17,7 @@ import type { FeedItem } from './items.mts';
 import { HISTORY_LIMIT, LAST_TASKS_LIMIT, zeroCounts } from './store.mts';
 import type { FeedControl, FeedRecord, FeedRun, FeedStore, FeedTaskOutcome } from './store.mts';
 import { render } from './template.mts';
+import type { FeedUpdates } from './updates.mts';
 import { validateFeed } from './validate.mts';
 
 export interface FeedRunDeps {
@@ -25,6 +26,7 @@ export interface FeedRunDeps {
   dirs: readonly DirEntry[] | undefined;
   repos: Readonly<Record<string, string>>;
   store: FeedStore;
+  updates: FeedUpdates;
   run: (spec: CommandSpec) => Promise<CommandResult>;
   resolve: (ref: string) => Resolved;
   link: (taskId: string) => string;
@@ -106,14 +108,20 @@ export async function runFeed(deps: FeedRunDeps, feed: FeedConfig): Promise<Feed
         fail(item, `field ${undeclared} was not declared by ${feed.integration} ${feed.action}`);
         continue;
       }
-      const prompt = render(feed.prompts.new, {
+      const values = {
         key: item.key,
         title: item.title,
         ...(item.version === undefined ? {} : { version: item.version }),
         ...item.fields,
-      });
+      };
+      const prompt = render(feed.prompts.new, values);
       if (!prompt.ok) {
         fail(item, `it has no field ${prompt.missing}`);
+        continue;
+      }
+      const update = render(feed.prompts.update, values);
+      if (!update.ok) {
+        fail(item, `it has no field ${update.missing}`);
         continue;
       }
       const workdir = workdirOf(feed, item, deps.repos);
@@ -138,6 +146,13 @@ export async function runFeed(deps: FeedRunDeps, feed: FeedConfig): Promise<Feed
           { backend, machine: deps.machine, workdir, print: () => undefined, link: deps.link },
           args,
           key,
+          {
+            prompt: update.text,
+            spool: {
+              put: (taskId, text) => deps.updates.put(taskId, text, feed.name),
+              drop: deps.updates.drop,
+            },
+          },
         );
         tasks[item.key] = scheduled.task.id;
         const outcome = scheduled.keyed;
@@ -194,7 +209,7 @@ async function listing(deps: FeedRunDeps, feed: FeedConfig, program: string): Pr
   const result = await list(program, feed.action, feed.options, feed.dir, deps.run, feed.timeoutMs, deps.signal);
   if (!result.ok) return tidy(result.reason);
   const parsed = parseItems(result.stdout);
-  return parsed.ok ? parsed.items : parsed.error;
+  return parsed.ok ? parsed.items : tidy(parsed.error);
 }
 
 export function runAsked(control: FeedControl, record: FeedRecord): boolean {

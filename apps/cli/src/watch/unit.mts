@@ -19,6 +19,7 @@ import { publishWatches, PUBLISH_EVERY_MS, REFRESH_MS } from './publish.mts';
 import { forgetWakeTries, isRunLive, tryWake } from './wake.mts';
 import { getPaths } from '../config/config.mts';
 import { createFeedStore } from '../feeds/store.mts';
+import { createFeedUpdates } from '../feeds/updates.mts';
 import { dueFeedJobs } from '../feeds/scan.mts';
 import { resolveIntegration } from '../plugins/resolve.mts';
 import { runGit } from '../config/checkout-repo.mts';
@@ -281,6 +282,7 @@ export async function watchUnitMain(): Promise<void> {
             backend,
             machine: context.config.machine,
             store: feedStore,
+            updates: createFeedUpdates(),
             run: (spec) => runCommand(spec),
             resolve: (ref) => resolveIntegration(ref, { paths: getPaths(), git: runGit }),
             link: context.taskLink,

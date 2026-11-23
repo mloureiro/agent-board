@@ -7,6 +7,7 @@ import { getPaths, loadConfig } from '../config/config.mts';
 import { runCommand } from '../dispatch/waits.mts';
 import { plainLine } from '../output/terminal.mts';
 import { createFeedStore } from '../feeds/store.mts';
+import { createFeedUpdates } from '../feeds/updates.mts';
 import { resolveIntegration } from '../plugins/resolve.mts';
 import { createWatchStore } from '../watch/store.mts';
 import { isUnitRunning } from '../watch/tick.mts';
@@ -71,6 +72,7 @@ export function registerFeedsCommand(shared: ProgramShared): void {
           dirs: config.dirs,
           repos: config.repos,
           store,
+          updates: createFeedUpdates(join(paths.stateDir, 'feeds', 'updates')),
           run: (spec) => runCommand(spec),
           resolve: (ref) => resolveIntegration(ref, { paths, git: runGit }),
           link: context.taskLink,
