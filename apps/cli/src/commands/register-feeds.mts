@@ -30,8 +30,8 @@ export function registerFeedsCommand(shared: ProgramShared): void {
     .description(
       paragraphs(
         'A feed asks an integration, a program of an installed plugin marketplace (see `board plugins`), for the items that should have a task, on a timer this machine runs. Its entry in config.json names the `integration` (`<marketplace>:<integration>`), the `action` to run, the `options` that action takes, how often it runs (`every`), the listed directory it runs in (`dir`), optionally an `agent`, a `lane` and a `timeout`, and the `prompts` its tasks start from: `new` for a task that is made, `update` for one whose item changed. A prompt takes placeholders such as `{url}` from the fields the item carries. For each item the machine makes the task of the key `feed:<name>:<item key>`, so the board keeps one task per item. A task of an earlier run whose item is no longer listed, and that still waits in Todo for its first start, is moved to Done.',
-        'The watch unit runs every feed that is due; `board feeds` lists them with their last run. `add <name> <file | ->` reads the entry as JSON from a file or from stdin and writes `feeds.<name>` to config.json; adding a name again replaces it. `rm <name>` removes it; the tasks it made stay. `run <name>` runs it now, here, and exits 1 when the run failed. `pause` and `resume` stop and restart its timer.',
-        'Before every run the feed is validated: the plugin must be installed and at the commit that was installed, the action must exist, the options must fit what the integration describes, the prompts may use only the fields it provides, and its own check must pass. A feed that does not validate is reported and never runs. A listing that fails (an exit other than 0, a time limit, a line that is not a valid item) schedules nothing and closes nothing.',
+        'The watch unit runs every feed that is due; `board feeds` lists them with their last run. `add <name> <file | ->` reads the entry as JSON from a file or from stdin and validates it as a run would (the plugin, the action, the options, the prompts and the check of the integration) and only then writes `feeds.<name>` to config.json; adding a name again replaces it. It then runs the `doctor` of the integration and warns when a prerequisite is missing, such as a login; the feed stays added. `rm <name>` removes it; the tasks it made stay. `run <name>` runs it now, here, and exits 1 when the run failed. `pause` and `resume` stop and restart its timer.',
+        'Before every run the feed is validated: the plugin must be installed and at the commit that was installed, the action must exist, the options must fit what the integration describes, the prompts may use only the fields it provides, and its own check must pass. A feed that does not validate is reported and never runs. A listing that fails (an exit other than 0, a time limit, a line that is not a valid item) schedules nothing and closes nothing. Each item carries a `key`, a `title` and a `version`, and the fields its action declares; the full contract, with the entry format, is in docs/plugins.md.',
       ),
     )
     .usage('[options] [list | add <name> <file | -> | rm <name> | run <name> | pause <name> | resume <name>]')
@@ -40,6 +40,7 @@ export function registerFeedsCommand(shared: ProgramShared): void {
       'after',
       examples(
         'board feeds',
+        'board plugins install <repository URL>',
         'board feeds add gh-reviews ./gh-reviews.json',
         'board feeds run gh-reviews',
         'board feeds pause gh-reviews',
@@ -83,7 +84,7 @@ export function registerFeedsCommand(shared: ProgramShared): void {
       const feed = name ?? '';
       if (action === 'list') feedsList(deps);
       else if (action === 'add')
-        feedsAdd(
+        await feedsAdd(
           deps,
           feed,
           rest[0] === '-' ? await (options.readStdin ?? readStdin)() : readFileSync(rest[0] ?? '', 'utf8'),

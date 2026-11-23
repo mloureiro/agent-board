@@ -66,6 +66,24 @@ export function describe(program: string, dir: string, run: Run): Promise<Outcom
   return call(run, program, ['describe'], { label: 'describe', cwd: dir, timeLimitMs: PROTOCOL_TIMEOUT_MS });
 }
 
+export type DoctorOutcome = { ok: true; summary?: string } | { ok: false; reason: string };
+
+/** Runs `doctor`: the integration's own prerequisites. `path`, when given, replaces PATH, so the answer is the one the units would get. */
+export async function doctor(program: string, dir: string, run: Run, path?: string): Promise<DoctorOutcome> {
+  const outcome = await call(run, program, ['doctor'], {
+    label: 'doctor',
+    cwd: dir,
+    timeLimitMs: PROTOCOL_TIMEOUT_MS,
+    ...(path === undefined ? {} : { path }),
+  });
+  if (!outcome.ok) return outcome;
+  const summary = cut(
+    withoutControls(outcome.stdout.split('\n').find((text) => text.trim() !== '') ?? '').trim(),
+    REASON_MAX,
+  );
+  return summary === '' ? { ok: true } : { ok: true, summary };
+}
+
 /** Runs `check <action>` with the options on stdin: offline, and exit 0 when they are valid. */
 export async function check(
   program: string,

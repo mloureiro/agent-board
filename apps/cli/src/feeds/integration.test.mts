@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { CommandResult, CommandSpec } from '../dispatch/waits.mts';
-import { check, describe, firstLine, list, parseDescription } from './integration.mts';
+import { check, describe, doctor, firstLine, list, parseDescription } from './integration.mts';
 
 const reply = (partial: Partial<CommandResult>): CommandResult => ({
   exitCode: 0,
@@ -116,4 +116,25 @@ test('sixteen fields are accepted', () => {
   const fields = Array.from({ length: 16 }, (_, n) => `f${n}`);
   const parsed = parseDescription(described({ actions: { go: { fields } } }), 'acme:github');
   assert.deepEqual(typeof parsed === 'string' ? parsed : parsed.actions['go']?.fields, fields);
+});
+
+test('doctor runs with no stdin and the given PATH, and its summary is one clean line of at most 200 characters', async () => {
+  const calls = recorder({ stdout: `\n  gh \u001b[31mis ready\u001b[0m ${'x'.repeat(300)}\nsecond line\n` });
+  const answer = await doctor('/p/run', '/work', calls.run, '/units/bin');
+  assert.equal(calls.specs[0]?.command, "'/p/run' doctor");
+  assert.equal(calls.specs[0]?.stdin, undefined);
+  assert.equal(calls.specs[0]?.path, '/units/bin');
+  assert.equal(calls.specs[0]?.timeLimitMs, 30_000);
+  assert.ok(answer.ok);
+  const summary = answer.ok ? (answer.summary ?? '') : '';
+  assert.equal(Array.from(summary).length, 200);
+  assert.ok(!summary.includes('\u001b') && !summary.includes('second'));
+  assert.deepEqual(await doctor('/p/run', '/work', recorder().run), { ok: true });
+});
+
+test('doctor fails with the first line of stderr as the reason, and with the time limit', async () => {
+  const failed = await doctor('/p/run', '/work', recorder({ exitCode: 2, stderr: '\ngh is not logged in\nmore' }).run);
+  assert.deepEqual(failed, { ok: false, reason: 'doctor exited 2: gh is not logged in' });
+  const slow = await doctor('/p/run', '/work', recorder({ timedOut: true, exitCode: null }).run);
+  assert.deepEqual(slow, { ok: false, reason: 'doctor took longer than 30s' });
 });

@@ -7,9 +7,11 @@ import { isAllowedDir } from '../config/dirs.mts';
 import { plainLine } from '../output/terminal.mts';
 import { isFeedName, parseFeed, parseFeeds, FEED_NAME_RULE } from '../feeds/config.mts';
 import type { FeedConfig } from '../feeds/config.mts';
+import { doctor } from '../feeds/integration.mts';
 import { runAsked, runFeed } from '../feeds/run.mts';
 import type { FeedRunDeps } from '../feeds/run.mts';
 import type { FeedRun } from '../feeds/store.mts';
+import { validateFeed } from '../feeds/validate.mts';
 
 export interface FeedsDeps {
   configFile: string;
@@ -52,7 +54,7 @@ function find(deps: FeedsDeps, name: string): FeedConfig {
 
 export function feedsList(deps: FeedsDeps): void {
   const { feeds, feedErrors } = loaded(deps);
-  const store = deps.runDeps().store;
+  const { store, link } = deps.runDeps();
   if (feeds.length === 0 && Object.keys(feedErrors).length === 0) {
     deps.print('no feeds; add one with "board feeds add"');
     return;
@@ -60,12 +62,13 @@ export function feedsList(deps: FeedsDeps): void {
   for (const feed of feeds) {
     const control = store.readControl(feed.name);
     const record = store.readRecord(feed.name);
-    const status = control.paused
-      ? 'paused'
-      : runAsked(control, record)
-        ? 'runs next'
-        : `every ${formatDuration(feed.everyMs)}`;
-    deps.print(`${feed.name}  ${status}  ${feed.integration} · ${feed.action}  ${describeRun(record.last)}`);
+    const status = control.paused ? 'paused' : runAsked(control, record) ? 'runs next' : 'active';
+    const where = `in ${plainLine(feed.dir)}${feed.agent === undefined ? '' : `  agent ${feed.agent}`}${feed.lane === undefined ? '' : `  lane ${feed.lane}`}`;
+    deps.print(
+      `${feed.name}  ${status}  ${feed.integration} · ${feed.action}  every ${formatDuration(feed.everyMs)}  ${where}`,
+    );
+    deps.print(`  ${describeRun(record.last)}`);
+    for (const { id, outcome } of record.last?.tasks ?? []) deps.print(`    ${outcome} ${link(id)}`);
   }
   for (const [name, error] of Object.entries(feedErrors)) deps.print(`${plainLine(name)}  not read: ${error}`);
   if (!deps.unitRunning)
@@ -74,7 +77,7 @@ export function feedsList(deps: FeedsDeps): void {
     );
 }
 
-export function feedsAdd(deps: FeedsDeps, name: string, text: string): void {
+export async function feedsAdd(deps: FeedsDeps, name: string, text: string): Promise<void> {
   if (!isFeedName(name)) throw new UsageError(`a feed name must be ${FEED_NAME_RULE}`);
   let entry: unknown;
   try {
@@ -94,11 +97,16 @@ export function feedsAdd(deps: FeedsDeps, name: string, text: string): void {
   const { raw, mode } = readConfigFile(deps.configFile);
   const existing = raw['feeds'] ?? {};
   if (!isRecord(existing)) throw new UsageError('config.json has a feeds key that is not an object; fix it by hand');
+  const { resolve, run } = deps.runDeps();
+  const validated = await validateFeed(feed, { resolve, run });
+  if (!validated.ok) throw new UsageError(`feed ${name} is not valid: ${validated.reason}`);
   const replaced = Object.hasOwn(existing, name);
   writeConfigFile(deps.configFile, { ...raw, feeds: { ...existing, [name]: entry } }, mode);
   deps.print(
     `${replaced ? 'changed' : 'added'} feed ${name}: ${feed.integration} · ${feed.action} every ${formatDuration(feed.everyMs)} in ${feed.dir}`,
   );
+  const prerequisites = await doctor(validated.program, feed.dir, run);
+  if (!prerequisites.ok) deps.print(`warning: the feed is added; ${feed.integration} ${prerequisites.reason}`);
 }
 
 export function feedsRemove(deps: FeedsDeps, name: string): void {
