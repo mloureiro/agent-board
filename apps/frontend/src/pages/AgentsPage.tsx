@@ -4,8 +4,14 @@ import { useQuery } from '@tanstack/react-query';
 import { QueryStatus } from '../components/QueryStatus';
 import { ago, stamp } from '../lib/time';
 import { POLL_MS, useTRPC } from '../lib/trpc';
-import { agentOnMachine, machineAgents, shortHash, type AgentOnMachine, type MachineAgents } from '../lib/sharedAgents';
-import type { SharedAgentView } from '@agent-board/shared/ui';
+import {
+  agentOnMachine,
+  machineAgents,
+  shortHash,
+  type AgentOnMachine,
+  type MachineAgents,
+  type SharedAgentView,
+} from '../lib/sharedAgents';
 
 /** The warnings `board agents push` prints before it asks, in the same words. */
 function flagLines(agent: SharedAgentView): string[] {
