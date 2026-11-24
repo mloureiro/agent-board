@@ -20,6 +20,7 @@ import { challengeOf, followableUrl, keepVerifier, newVerifier, type RedirectMet
 import { rememberReturnPath } from './returnPath';
 import { failureMessage } from './failure';
 import { BrowserHandoff } from './BrowserHandoff';
+import { HANDOFF_PATH } from './handoffPath';
 import { useAttempt } from './useAttempt';
 import { useAuthConfig } from './useAuthConfig';
 import { useCompleteSignIn } from './useCompleteSignIn';
@@ -116,6 +117,7 @@ export function LoginPage({ failure }: Props) {
   const [signingUp, setSigningUp] = useState(false);
   const [viaBrowser, setViaBrowser] = useState(false);
   const supported = browserSupportsWebAuthn();
+  const onHandoffPage = pathname.startsWith(HANDOFF_PATH);
 
   useEffect(() => rememberReturnPath(`${pathname}${search}${hash}`), [pathname, search, hash]);
 
@@ -202,14 +204,16 @@ export function LoginPage({ failure }: Props) {
                   {offer.saml.label}
                 </Button>
               )}
-              <Button
-                variant="default"
-                leftSection={<IconExternalLink size={16} />}
-                disabled={busy}
-                onClick={() => setViaBrowser(true)}
-              >
-                Sign in with your browser
-              </Button>
+              {!onHandoffPage && (
+                <Button
+                  variant="default"
+                  leftSection={<IconExternalLink size={16} />}
+                  disabled={busy}
+                  onClick={() => setViaBrowser(true)}
+                >
+                  Sign in with your browser
+                </Button>
+              )}
             </Stack>
           )}
           {offer?.signup && !viaBrowser && (

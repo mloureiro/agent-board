@@ -131,6 +131,17 @@ describe('signing in with the browser', () => {
     expect(screen.queryByRole('button', { name: 'Sign in with your browser' })).not.toBeInTheDocument();
   });
 
+  it('is not offered on the approval page a hand-off links to, which keeps the other methods', async () => {
+    renderAt(<LoginPage />, '/handoff/f9');
+    expect(await button('Sign in with a passkey')).toBeEnabled();
+    expect(screen.getAllByRole('button').map((each) => each.textContent)).toEqual([
+      'Sign in with a passkey',
+      'Sign in with Authelia',
+      'Sign in with Acme SSO',
+      'Create an account',
+    ]);
+  });
+
   it('swaps the methods for the code, and cancelling brings them back and stops checking', async () => {
     mutations.handoffStart.mockResolvedValue({ flow: 'f9', code: 'K7Q-4MD' });
     mutations.handoffFinish.mockResolvedValue({ status: 'pending' });
