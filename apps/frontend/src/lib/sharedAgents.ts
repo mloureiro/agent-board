@@ -3,6 +3,8 @@
 import { INVALID_VALUE } from '@agent-board/shared';
 import { shownName, type OpenedCatalog, type SharedAgentView } from '@agent-board/shared/ui';
 
+export type { SharedAgentView };
+
 /** The first 12 hex digits of a hash, as `board agents` prints it. */
 export const shortHash = (hash: string): string => hash.slice(0, 12);
 
