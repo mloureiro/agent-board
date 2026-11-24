@@ -216,7 +216,7 @@ A name that is in use is refused, so a sign-up cannot take over a board that alr
 
 ### Signing in from another browser
 
-A window that cannot run the sign-in method itself, such as a desktop app's webview that has no passkey support, can borrow a sign-in from the system browser. The login page offers **Sign in with your browser** on every board with login on.
+A window that cannot run the sign-in method itself, such as a desktop app's webview that has no passkey support, can borrow a sign-in from the system browser. The login page offers **Sign in with your browser** on every board with login on, except on the `/handoff/<id>` approval page itself.
 
 1. The window starts a hand-off and shows a code such as `K7QM-2XPD` with a link to `/handoff/<id>`.
 2. The user opens the link in a browser, signs in there by any method the board offers and checks that the code on the page matches the window's.
