@@ -229,14 +229,32 @@ The listener checks the API range each time it connects. When the server no long
 
 `board self-update`, the dispatcher's `autoUpdate` and `install.sh` download `cli-v*` releases from `mloureiro/agent-board`. The CLI alone changes, from 0.35.0 on.
 
-A CLI at 0.34.0 or older still lists and downloads the releases of `codeplant-de/agent-board`. It never sees a fork-only release, and an upstream release newer than its own would replace it with upstream's binary. Each such machine needs one manual install from the fork, after which `board self-update` works again:
+A CLI at 0.34.0 or older still lists and downloads the releases of `codeplant-de/agent-board`. It never sees a fork-only release, and an upstream release newer than its own would replace it with upstream's binary. Each such machine needs one manual install from the fork, described under [Switching an upstream install to the fork](#switching-an-upstream-install-to-the-fork), after which `board self-update` works again.
+
+### Switching an upstream install to the fork
+
+An installation that follows `codeplant-de/agent-board` moves onto the fork once, outside `board`: the upstream CLI cannot change where it updates from. One command does it for a release binary, with no tag to look up:
 
 ```sh
-gh release download <tag> -R mloureiro/agent-board --pattern install.sh -O - | sh
+gh release download --repo mloureiro/agent-board --pattern install.sh -O - | sh && board restart
+```
+
+- `gh release download` without a tag takes the release marked Latest, and `--pattern install.sh` fetches the installer attached to it. `sh` runs it, and the fork's `install.sh` replaces the installed `board` in place.
+- `board restart` runs the newly installed binary and restarts the listener and the watch unit. They keep the old code until then.
+
+If the upstream install used `BOARD_INSTALL_DIR`, set it the same way for the fork's `install.sh`, for example `gh release download --repo mloureiro/agent-board --pattern install.sh -O - | BOARD_INSTALL_DIR=~/bin sh`. Otherwise the fork's binary lands in `~/.local/bin` and the units keep running the upstream binary.
+
+A checkout install changes its remote instead:
+
+```sh
+git remote set-url origin https://github.com/mloureiro/agent-board.git
+git pull
+pnpm install
+apps/cli/install.sh
 board restart
 ```
 
-`<tag>` is the newest `cli-v*` release that `gh release list -R mloureiro/agent-board` shows. A checkout install is updated with `git pull` and does not need this.
+From then on `board self-update` takes releases from the fork. `board --version` ends with `updates from mloureiro/agent-board` for a release binary.
 
 ### `board --version` names its updater (CLI 0.36.0)
 
