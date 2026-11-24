@@ -5,7 +5,8 @@
   "description": "The backend contract and the question schema, shared by the CLI, the server and the UI. No dependencies: the CLI runs it straight from source.",
   "type": "module",
   "exports": {
-    ".": "./src/index.mts"
+    ".": "./src/index.mts",
+    "./ui": "./src/ui/index.mts"
   },
   "scripts": {
     "test": "node --test \"src/**/*.test.mts\"",

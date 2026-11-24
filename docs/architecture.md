@@ -117,6 +117,15 @@ The server deploys on every merge to `main`. The CLI updates only through a `cli
 
 **A break** raises `API_VERSION`, then `MIN_CLIENT` to it. It ships with a CLI version bump, an Upgrading note in [setup.md](setup.md#upgrading), and a CLI release, which CI makes after the merge and before the images. CI fails a pull request, and a push to `main`, that raises `MIN_CLIENT` without a CLI version above the newest `cli-v*` tag. It also runs the newest release against the pull request's server.
 
+### UI API
+
+The tRPC surface at `/trpc` is a declared, versioned API a custom UI can build on, described in [ui-api.md](ui-api.md). Its numbers (`UI_API_VERSION`, `MIN_UI_CLIENT`, `MIN_UI_SERVER`) and its procedure list live in `packages/shared/src/ui/`, apart from the machine API's.
+
+- **Additive** means a new procedure, a new optional input field or a new output field. It adds a feature name to `UI_SERVER_FEATURES` and bumps nothing. A new procedure also needs its row in `UI_PROCEDURES`, and a test fails without it.
+- **Breaking** means an input or output an older UI cannot tolerate. It raises `UI_API_VERSION`, then `MIN_UI_CLIENT` to it.
+- **The header is opt-in.** A client declares its version in `x-board-ui-api`. The server refuses one below `MIN_UI_CLIENT` with 412 before any write. A request without the header is never refused, so the bundled frontend, which sends none, is unaffected.
+- **Raising `MIN_UI_CLIENT` needs a client release first,** because every UI that declares an older version stops working. It never touches `MIN_CLIENT`, which belongs to the machine API.
+
 ## Design decisions
 
 | Decision                                                                                                                                                                                                | Why                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Rejected                                                                                                                                                       |
@@ -179,7 +188,7 @@ Break one of these only with a decision recorded here.
 4. **The prompt reaches `claude` on stdin**, never as an argument.
 5. **Every machine API command is atomic** under concurrent callers (several machines, workers, the browser). Claims return 409 to the losers.
 6. **A resume runs only on the machine that holds the session,** and only a session that machine started for the task.
-7. **Contract changes follow [Versioning](#versioning).**
+7. **Contract changes to the machine API and to the UI API follow [Versioning](#versioning).**
 8. **CLI code runs on Node and Bun.** Use `node:` APIs only, never `Bun.*`.
 9. **Keep `docs/` true.** A behaviour change updates the doc that describes it. The command reference is generated, and a test checks it.
 
@@ -190,7 +199,8 @@ Break one of these only with a decision recorded here.
 | Wire types, statuses, `API_VERSION` etc.          | `packages/shared/src/contract.mts`                                                                                                                                                          |
 | Sealing bindings, crypto                          | `packages/shared/src/sealing.mts`, `crypto.mts`, `keys.mts`                                                                                                                                 |
 | Machine API                                       | `apps/backend/src/machine-api.ts`                                                                                                                                                           |
-| UI API                                            | `apps/backend/src/trpc/router.ts`                                                                                                                                                           |
+| UI API                                            | `apps/backend/src/trpc/router.ts`, `trpc/ui.ts`                                                                                                                                             |
+| UI API versions and procedure list                | `packages/shared/src/ui/`                                                                                                                                                                   |
 | Sign-in, sessions, passkeys, OIDC, SAML           | `apps/backend/src/services/auth/`, `trpc/auth.ts`, `saml-acs.ts`, `config.ts`                                                                                                               |
 | Task logic, schedules, retention                  | `apps/backend/src/services/`                                                                                                                                                                |
 | Schema, RLS scope, migrations                     | `apps/backend/src/db/`, `apps/backend/drizzle/`                                                                                                                                             |

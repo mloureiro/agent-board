@@ -1,3 +1,6 @@
+import { ContractError } from '@agent-board/shared';
+import { MIN_UI_CLIENT, parseUiApiHeader, UI_API_HEADER } from '@agent-board/shared/ui';
+import { TRPCError } from '@trpc/server';
 import { fastifyTRPCPlugin, type FastifyTRPCPluginOptions } from '@trpc/server/adapters/fastify';
 import Fastify from 'fastify';
 import type { Config } from './config';
@@ -21,6 +24,15 @@ declare module 'fastify' {
   }
 }
 
+function uiClientApiOf(header: string | string[] | undefined): number | null {
+  try {
+    return parseUiApiHeader(header);
+  } catch (error) {
+    if (error instanceof ContractError) throw new TRPCError({ code: 'BAD_REQUEST', message: error.message });
+    throw error;
+  }
+}
+
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 const STATUS: Record<AppErrorCode, number> = {
@@ -39,6 +51,8 @@ export interface ServerOptions extends Partial<MachineApiOptions> {
   changes?: Changes;
   /** Lets OIDC talk to an http issuer, for a test's fake one. Never read from the environment. */
   allowInsecureOidc?: boolean;
+  /** The lowest UI API version the server accepts, for a test that needs a client below it. Never read from the environment. */
+  minUiClient?: number;
 }
 
 export async function buildServer(config: Config, root: Db, options: ServerOptions = {}) {
@@ -115,6 +129,8 @@ export async function buildServer(config: Config, root: Db, options: ServerOptio
     trpcOptions: {
       router: appRouter,
       createContext: ({ req, res }) => ({
+        uiClientApi: uiClientApiOf(req.headers[UI_API_HEADER]),
+        minUiClient: options.minUiClient ?? MIN_UI_CLIENT,
         root,
         config,
         changes,
