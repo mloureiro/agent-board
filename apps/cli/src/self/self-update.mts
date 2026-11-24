@@ -60,6 +60,8 @@ export interface SelfUpdateDeps {
   restartListener: () => Promise<string | undefined>;
   print: (line: string) => void;
   migration?: UpdateMigration;
+  // Lifts the hold a rollback put on auto-update; given only to an update a person asked for.
+  clearHold?: () => void;
 }
 
 export interface SelfUpdateFlags {
@@ -197,6 +199,23 @@ export function sweepStaleUpdateDirs(now: Date = new Date(), root: string = tmpd
   }
 }
 
+const STAGED_NAME = /^\.board-update-[0-9a-f]{16}$/;
+
+// A killed update leaves its staged binary (about 90 MB) beside the running one: remove those over an hour old.
+export function sweepStaleStagedBinaries(dir: string, now: Date = new Date()): void {
+  try {
+    for (const name of readdirSync(dir)) {
+      if (!STAGED_NAME.test(name)) continue;
+      const path = join(dir, name);
+      const info = lstatSync(path);
+      const mine = process.getuid === undefined || info.uid === process.getuid();
+      if (info.isFile() && mine && now.getTime() - info.mtimeMs > STALE_DIR_MS) rmSync(path, { force: true });
+    }
+  } catch {
+    // Housekeeping only.
+  }
+}
+
 export function checksumOf(sums: string, name: string): string | undefined {
   for (const line of sums.split('\n')) {
     const match = /^([0-9a-f]{64}) [ *](.+)$/.exec(line.trim());
@@ -241,7 +260,6 @@ async function updateWithMigration(
     }
   }
   takeLock(stateDir, { adoptParent: false });
-  let handedToTick = false;
   try {
     const now = state.now();
     const backup = createBackup({
@@ -279,10 +297,9 @@ async function updateWithMigration(
     }
     const restarted = await deps.restartListener();
     if (restarted !== undefined) deps.print(restarted);
-    handedToTick = true;
     return 'updated';
   } finally {
-    if (!handedToTick) releaseLock(stateDir);
+    releaseLock(stateDir);
   }
 }
 
@@ -293,6 +310,7 @@ export async function selfUpdate(deps: SelfUpdateDeps, flags: SelfUpdateFlags): 
       'this board runs from a checkout: update it with "git pull" and "pnpm install", then run apps/cli/install.sh',
     );
   const asset = assetName(deps.platform, deps.arch);
+  if (!flags.check) deps.clearHold?.();
   try {
     await deps.gh(['auth', 'status']);
   } catch (error) {
@@ -322,6 +340,7 @@ export async function selfUpdate(deps: SelfUpdateDeps, flags: SelfUpdateFlags): 
   }
 
   sweepStaleUpdateDirs();
+  sweepStaleStagedBinaries(dirname(deps.execPath));
   const dir = mkdtempSync(join(tmpdir(), UPDATE_DIR_PREFIX));
   try {
     await deps.gh([

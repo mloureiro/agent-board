@@ -1182,7 +1182,9 @@ const migrationResults = async (
   const results = await runChecks(
     machine(GOOD, { migration: () => ({ journal: undefined, waitingSteps: 0, looseBackups: [], ...state }) }),
   );
-  return results.filter((result) => result.name === 'migration' || result.name === 'backups');
+  return results.filter(
+    (result) => result.name === 'migration' || result.name === 'backups' || result.name === 'auto-update',
+  );
 };
 
 test('doctor says nothing is pending when no journal and no step wait', async () => {
@@ -1220,6 +1222,22 @@ test('doctor warns when a marker is behind this binary with steps pending', asyn
   const [result] = await migrationResults({ waitingSteps: 2 });
   assert.equal(result?.level, 'warn');
   assert.match(result?.message ?? '', /2 migration step\(s\) that have not run/);
+});
+
+test('doctor fails on a marker that cannot be read, naming the file', async () => {
+  const [result] = await migrationResults({
+    markerProblem: '/state/migration/applied.json is not valid JSON; delete it to start from the baseline',
+  });
+  assert.equal(result?.level, 'fail');
+  assert.match(result?.message ?? '', /\/state\/migration\/applied\.json is not valid JSON/);
+});
+
+test('doctor says which releases auto-update holds after a rollback', async () => {
+  const results = await migrationResults({ heldThrough: '0.40.0' });
+  const held = results.find((result) => result.name === 'auto-update');
+  assert.equal(held?.level, 'warn');
+  assert.match(held?.message ?? '', /up to 0\.40\.0/);
+  assert.match(held?.hint ?? '', /board self-update/);
 });
 
 test('doctor warns about backups others can read', async () => {

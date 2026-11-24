@@ -1606,6 +1606,12 @@ steps then run through the new binary, one line each, and the listener and watch
 unit restart. From a terminal it refuses while workers run. A step that fails or
 needs you stops the migration: fix it, then run `board self-update --resume`.
 
+--rollback restores the config files, the unit files and the binary from the
+newest backup, after a failed migration or a finished one. It first asks the
+board whether it still serves the old CLI and refuses, changing nothing, when it
+does not or cannot be reached. Auto-update then holds that release and older
+ones until you run `board self-update`. Server data is not rolled back.
+
 It needs `gh`, logged in. A checkout is updated with `git pull` and `pnpm
 install` instead, and says so. Not available inside a board run.
 
@@ -1617,12 +1623,15 @@ workers run.
 Options:
   --check     only report whether a newer release exists
   --resume    continue a stopped migration
+  --rollback  restore the local state and the binary from before the last
+              migration
   -h, --help  display help for command
 
 Examples:
   board self-update --check
   board self-update
   board self-update --resume
+  board self-update --rollback
 ```
 
 ### board completion

@@ -20,6 +20,7 @@ import {
   newestRelease,
   realGh,
   realListenerRestart,
+  sweepStaleStagedBinaries,
   sweepStaleUpdateDirs,
   selfUpdate,
 } from './self-update.mts';
@@ -379,5 +380,42 @@ test('download directories left by a killed update are removed once they are ove
     assert.deepEqual(readdirSync(root).sort(), ['board-update-fresh', 'something-else']);
   } finally {
     rmSync(root, { recursive: true });
+  }
+});
+
+test('staged binaries left by a killed update are removed once they are over an hour old, and nothing else is', () => {
+  const root = mkdtempSync(join(tmpdir(), 'board-sweep-test-'));
+  try {
+    const old = join(root, '.board-update-0123456789abcdef');
+    const fresh = join(root, '.board-update-fedcba9876543210');
+    const planted = join(root, '.board-update-123');
+    const binary = join(root, 'board');
+    for (const path of [old, fresh, planted, binary]) writeFileSync(path, 'x');
+    const longAgo = new Date(Date.now() - 2 * 3_600_000);
+    for (const path of [old, planted, binary]) utimesSync(path, longAgo, longAgo);
+    sweepStaleStagedBinaries(root);
+    assert.deepEqual(readdirSync(root).sort(), ['.board-update-123', '.board-update-fedcba9876543210', 'board']);
+  } finally {
+    rmSync(root, { recursive: true });
+  }
+});
+
+test('an update starts by sweeping stale staged binaries and lifting the hold, and --check does neither', async () => {
+  const { deps, dir, clean } = fixture([{ tag: 'cli-v0.4.0', assets: { [ASSET]: 'new' } }]);
+  try {
+    const stale = join(dir, '.board-update-0123456789abcdef');
+    writeFileSync(stale, 'x');
+    const longAgo = new Date(Date.now() - 2 * 3_600_000);
+    utimesSync(stale, longAgo, longAgo);
+    let lifted = 0;
+    const withHold = { ...deps, clearHold: () => (lifted += 1) };
+    await selfUpdate(withHold, { check: true });
+    assert.equal(lifted, 0);
+    assert.deepEqual(readdirSync(dir).sort(), ['.board-update-0123456789abcdef', 'board']);
+    await selfUpdate(withHold, {});
+    assert.equal(lifted, 1);
+    assert.deepEqual(readdirSync(dir), ['board']);
+  } finally {
+    clean();
   }
 });

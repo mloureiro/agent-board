@@ -32,3 +32,23 @@ test('the state file survives a missing, broken or unwritable place', () => {
     rmSync(dir, { recursive: true });
   }
 });
+
+test('the hold survives other writes, is set by version, and is cleared on its own', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'board-state-test-'));
+  try {
+    const path = join(dir, 'update.json');
+    const state = createUpdateState(path);
+    state.holdThrough('0.40.0');
+    state.deferUpdateUntil(NOW);
+    state.markHintShown(NOW);
+    state.clearDeferral();
+    assert.equal(createUpdateState(path).heldThrough(), '0.40.0');
+    state.clearHold();
+    assert.equal(createUpdateState(path).heldThrough(), undefined);
+    assert.deepEqual(createUpdateState(path).hintShownAt(), NOW);
+    writeFileSync(path, '{"heldThrough":"latest"}');
+    assert.equal(createUpdateState(path).heldThrough(), undefined);
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});

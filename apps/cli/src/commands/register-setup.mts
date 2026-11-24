@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { homedir, hostname } from 'node:os';
 import { Argument, Option } from 'commander';
+import { parseVersion } from '@agent-board/shared';
 import { ReportedFailure, UsageError } from '../cli.mts';
 import { verifyContract } from '../backend/contract-check.mts';
 import { completionModel, renderCompletion, SHELLS } from './completion.mts';
@@ -11,10 +12,14 @@ import type { CheckResult, DoctorDeps } from '../setup/doctor.mts';
 import { clackPrompts, init } from '../setup/init.mts';
 import type { InitFlags } from '../setup/init.mts';
 import { EXEC_PATH, isCompiledBinary } from '../self/self.mts';
+import { createUpdateState, updateStateFile } from '../self/update-state.mts';
 import { resumeMigration } from '../migrate/resume.mts';
 import { readMigrationState } from '../migrate/state.mts';
 import { realPlanOf } from '../migrate/plan-output.mts';
 import { resumeInstalledBinary } from '../migrate/hand-off.mts';
+import { rollback } from '../migrate/rollback.mts';
+import { callServer } from '../backend/backend.mts';
+import { isAgentLoaded } from '../setup/launchd.mts';
 import { realGh, realListenerRestart, selfUpdate } from '../self/self-update.mts';
 import type { SelfUpdateFlags } from '../self/self-update.mts';
 import { releaseOf } from '../migrate/deps.mts';
@@ -75,6 +80,7 @@ export function registerSetupCommands(shared: ProgramShared): void {
       migration: () => readMigrationState(realMigrationDeps(shared)),
     };
   };
+  const updateStateOf = () => options.updateState ?? createUpdateState(updateStateFile(getPaths(env).stateDir));
   const reportChecks = (results: CheckResult[], json: boolean): void => {
     if (json) writeJson(results);
     else for (const result of results) out(formatResult(result));
@@ -265,15 +271,52 @@ export function registerSetupCommands(shared: ProgramShared): void {
       paragraphs(
         'Download the newest cli-v* release of mloureiro/agent-board with `gh`, check it against SHA256SUMS and replace this binary with it, then restart the listener if it runs (`systemctl --user try-restart`, or `launchctl kickstart -k` on macOS when launchd has the agent loaded). Running workers keep the old file until they end. --check only reports whether a newer release exists.',
         'When the release declares migration steps, the update first warns that a migration is needed and asks (a terminal only; without one it goes on). Everything is backed up first: the old binary, the config files and the unit files, in the state directory under backups, of which the 3 newest are kept. The steps then run through the new binary, one line each, and the listener and watch unit restart. From a terminal it refuses while workers run. A step that fails or needs you stops the migration: fix it, then run `board self-update --resume`.',
+        '--rollback restores the config files, the unit files and the binary from the newest backup, after a failed migration or a finished one. It first asks the board whether it still serves the old CLI and refuses, changing nothing, when it does not or cannot be reached. Auto-update then holds that release and older ones until you run `board self-update`. Server data is not rolled back.',
         'It needs `gh`, logged in. A checkout is updated with `git pull` and `pnpm install` instead, and says so. Not available inside a board run.',
         '--resume continues a migration that stopped: it runs the steps the journal still lists, then restarts the listener. It also works on a checkout, and says `nothing to resume` when nothing is pending. From a terminal it refuses while workers run.',
       ),
     )
     .option('--check', 'only report whether a newer release exists')
     .option('--resume', 'continue a stopped migration')
-    .addHelpText('after', examples('board self-update --check', 'board self-update', 'board self-update --resume'))
-    .action(async (flags: SelfUpdateFlags & { resume?: boolean }) => {
+    .option('--rollback', 'restore the local state and the binary from before the last migration')
+    .addHelpText(
+      'after',
+      examples(
+        'board self-update --check',
+        'board self-update',
+        'board self-update --resume',
+        'board self-update --rollback',
+      ),
+    )
+    .action(async (flags: SelfUpdateFlags & { resume?: boolean; rollback?: boolean }) => {
       notInRun('board self-update is not available inside a board run');
+      if (flags.rollback) {
+        if (flags.check) throw new UsageError('--rollback and --check cannot be used together');
+        if (flags.resume) throw new UsageError('--rollback and --resume cannot be used together');
+        const deps = realMigrationDeps(shared);
+        const uid = process.getuid?.() ?? 0;
+        await rollback({
+          paths: deps.paths,
+          platform: deps.platform,
+          env: deps.env,
+          home: deps.home,
+          compiled: isCompiledBinary(),
+          execPath: EXEC_PATH,
+          uid,
+          now: deps.now,
+          print: out,
+          interactive: options.interactive ?? (process.stdin.isTTY === true && process.stdout.isTTY === true),
+          confirm: deps.confirm,
+          serverRange:
+            options.serverRange ??
+            (async (url, token) => parseVersion(await callServer({ url, token }, 'version', {}, undefined, 15_000))),
+          agentLoaded: options.agentLoaded ?? ((name) => isAgentLoaded(uid, name)),
+          run: deps.run,
+          restart: deps.restart,
+          updateState: updateStateOf(),
+        });
+        return;
+      }
       if (flags.resume) {
         if (flags.check) throw new UsageError('--resume and --check cannot be used together');
         const platform = options.platform ?? process.platform;
@@ -298,6 +341,7 @@ export function registerSetupCommands(shared: ProgramShared): void {
           gh: options.gh ?? realGh(env),
           restartListener: options.restartListener ?? realListenerRestart({ block: true, platform }),
           print: out,
+          clearHold: () => updateStateOf().clearHold(),
           migration: {
             planOf: options.planOf ?? realPlanOf(env),
             state: migrationDeps,

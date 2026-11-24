@@ -254,6 +254,23 @@ A step that fails stops the migration and prints `migration stopped at <id> (<ti
 
 Fix the cause or do the step, then run `board self-update --resume`. It continues with the steps the journal (`migration/journal.json`) still lists, so finished steps do not run again. `board doctor` reports a journal that is pending or stopped, with the reason and the hint, and a machine whose marker is behind this binary with steps waiting.
 
+#### Rolling back
+
+`board self-update --rollback` puts the machine back as it was before the newest backup was made. It works after a migration that stopped, and after one that finished, because the backup stays. It cannot be combined with `--check` or `--resume`.
+
+1. It takes the migration lock and refuses while another process holds it.
+2. It reads the newest backup. When that backup was rolled back already it says `nothing to roll back` and changes nothing; it never goes on to an older one.
+3. It checks every file of the backup against the checksums in its manifest.
+4. A backup without a binary (kind `steps`, made by a tick for a binary that updated some other way) is refused, and the message names the backup directory so its files can be copied back by hand. Restoring the config alone would make the next tick run the same steps again.
+5. It reads the board's URL and token from the backup and asks the board for its API range. When the board now serves clients only from a newer API than the old CLI speaks, it refuses and prints both numbers, and when the board cannot be reached within 15 s it refuses too. Both refusals say `nothing was changed`.
+6. From a terminal it lists what it restores and asks (default no). Without a terminal it goes on.
+7. It restores the config files, the unit files and the binary, each written beside its place and renamed over it. A file that is a symlink at its place is refused and named, and the backup is only restored to the binary path and the config and unit directories it was made for. On Linux it runs `systemctl --user daemon-reload` when a unit changed. On macOS an agent that is loaded and whose plist changed is booted out and bootstrapped again.
+8. It sets the migration marker back to the old version, deletes the journal of a migration that stopped, marks the backup as rolled back, restarts the listener and the watch unit, and prints what it restored.
+
+After a rollback auto-update holds the release it rolled back from, and every older one: the dispatcher logs `UPDATE-HELD <version> was rolled back; run "board self-update" to take it` and does not update. A plain `board self-update` lifts the hold before it starts, and `board doctor` reports a held version. The hold is the `heldThrough` field of `update.json`.
+
+A rollback restores the files of this machine only. Whatever the board server stored while the new version ran stays, and a migration step that changed server data has nothing to undo it.
+
 #### The dispatcher
 
 `autoUpdate` updates the same way, without asking. Because the dispatcher runs inside the listener, the update replaces the binary, writes the journal and ends the tick; the next tick runs the steps. While a migration is pending, stopped or running, no tick claims a task, so no worker runs the old code against the new files. Each tick logs one of:
@@ -268,7 +285,7 @@ Fix the cause or do the step, then run `board self-update --resume`. It continue
 | `MIGRATION-BLOCKED <id>: <instruction>` | A step waits for you. Do it, then run `board self-update --resume`; a step with a check goes on by itself once the check passes.                                                          |
 | `MIGRATION-FAILED <id>: <reason>`       | A step failed. A tick does not retry it; run `board self-update --resume`.                                                                                                                |
 
-A dry run of the dispatcher logs `DRY migration <n> step(s)` and changes nothing.
+A dry run of the dispatcher logs `DRY migration <n> step(s)` and changes nothing. `board doctor` also fails on a `migration/applied.json` it cannot read, naming the file, because every tick fails on it.
 
 A machine updated by a CLI older than 0.38.0, by `install.sh` or by a `git pull` never saw the warning. Its first tick on the new binary finds the steps its marker is missing, backs up without a binary (kind `steps`), and runs them.
 
@@ -306,6 +323,10 @@ From then on `board self-update` takes releases from the fork. `board --version`
 ### `board --version` names its updater (CLI 0.36.0)
 
 `board --version` ends with where the CLI updates from: `updates from mloureiro/agent-board` for a release binary, `updates with git pull` for a checkout. The CLI alone changes. A script that matches the whole line needs the new ending; one that matches `(api <n>` still works.
+
+### `board self-update --rollback` (CLI 0.39.0)
+
+The CLI alone changes. `board self-update --rollback` restores the config, the units and the binary from the newest backup and holds auto-update at the release it left, as described under [Rolling back](#rolling-back). Nothing changes on a machine until the command runs. A tick that finds a leftover `.board-update-*` file beside the binary from a killed update removes it when it is over an hour old, and a tick's update no longer leaves the migration lock behind. `board doctor` fails on a `migration/applied.json` it cannot read, where it used to say nothing was pending.
 
 ### Updates run migration steps (CLI 0.38.0)
 
@@ -658,6 +679,8 @@ When it does not work:
 - If the advertised release is not published yet, it tries again after 5 minutes.
 - In that time a too-old dispatcher skips its ticks with one `UPDATE-SKIPPED` line each and exit code 0.
 - A checkout never updates itself. It logs `UPDATE-NEEDED` with the `git pull` hint on each tick, and a too-old checkout's tick still fails.
+
+After a [rollback](#rolling-back) the dispatcher does not install the release it rolled back from, or an older one. It logs `UPDATE-HELD <version> was rolled back; run "board self-update" to take it`, the tick goes on, and a too-old CLI's tick still fails so the machine does not look healthy. Run `board self-update` to lift the hold.
 
 The dispatcher records the attempt in `update.json` before it starts, so a tick that its time limit kills does not start the download over on every tick. Each `gh` call is limited to 90 s.
 

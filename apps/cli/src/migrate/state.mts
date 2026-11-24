@@ -6,14 +6,19 @@ import { readJournal } from './journal.mts';
 import type { Journal } from './journal.mts';
 import type { MigrationDeps } from './deps.mts';
 import { currentPlan } from './pending.mts';
+import { createUpdateState, updateStateFile } from '../self/update-state.mts';
 
 export interface MigrationState {
   // The journal of an unfinished migration, or why it cannot be read.
   journal: { present: Journal } | { unreadable: string } | undefined;
   // Steps this binary brings that no journal covers yet: the marker is behind and the next tick or `--resume` starts them.
   waitingSteps: number;
+  // Why the marker of applied migrations cannot be read: no tick can plan anything until it is fixed.
+  markerProblem?: string;
   // Backup paths that are readable by anyone but the owner.
   looseBackups: string[];
+  // The release a rollback holds auto-update at.
+  heldThrough?: string;
 }
 
 const MAX_LISTED = 5;
@@ -46,11 +51,12 @@ export function readMigrationState(deps: MigrationDeps): MigrationState {
     journal = { unreadable: errorText(error) };
   }
   let waitingSteps = 0;
+  let markerProblem: string | undefined;
   if (journal === undefined) {
     try {
       waitingSteps = currentPlan(deps).steps.length;
-    } catch {
-      waitingSteps = 0;
+    } catch (error) {
+      markerProblem = errorText(error);
     }
   }
   const looseBackups: string[] = [];
@@ -60,5 +66,12 @@ export function readMigrationState(deps: MigrationDeps): MigrationState {
     if ((rootInfo.mode & 0o077) !== 0) looseBackups.push(root);
     looseEntries(root, looseBackups);
   }
-  return { journal, waitingSteps, looseBackups };
+  const heldThrough = createUpdateState(updateStateFile(stateDir)).heldThrough();
+  return {
+    journal,
+    waitingSteps,
+    ...(markerProblem === undefined ? {} : { markerProblem }),
+    looseBackups,
+    ...(heldThrough === undefined ? {} : { heldThrough }),
+  };
 }

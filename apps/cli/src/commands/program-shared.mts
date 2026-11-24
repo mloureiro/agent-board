@@ -2,6 +2,7 @@ import type { EventEmitter } from 'node:events';
 import type { Command } from 'commander';
 import type { ContextOptions, LinkingContext } from '../cli.mts';
 import type { Plan } from '../migrate/plan-output.mts';
+import type { RollbackDeps } from '../migrate/rollback.mts';
 import type { MigrationStep } from '../migrate/steps.mts';
 import type { SelfUpdateDeps } from '../self/self-update.mts';
 import type { UpdateState } from '../self/update-state.mts';
@@ -47,6 +48,8 @@ export interface ProgramOptions {
   // What `board self-update` asks of the downloaded binary, and how it hands over to the new one after a migration was recorded.
   planOf?: (staged: string) => Promise<Plan>;
   handOff?: () => Promise<number>;
+  // The API range of the board at a URL, for `board self-update --rollback`.
+  serverRange?: RollbackDeps['serverRange'];
   // The migration steps `board self-update --resume` and `board internal migration-plan` use instead of the built-in registry.
   migrationSteps?: readonly MigrationStep[];
   // The command line being run, set by runBoard.

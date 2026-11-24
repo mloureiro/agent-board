@@ -4,6 +4,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { isRecord } from '@agent-board/shared';
+import { VERSION_PATTERN } from '../migrate/layout.mts';
 
 export interface UpdateState {
   // When the update hint was last shown.
@@ -13,9 +14,13 @@ export interface UpdateState {
   retryAfter(): Date | undefined;
   deferUpdateUntil(at: Date): void;
   clearDeferral(): void;
+  // The newest release a rollback left behind: auto-update does not install it, or an older one, until an explicit update.
+  heldThrough(): string | undefined;
+  holdThrough(version: string): void;
+  clearHold(): void;
 }
 
-type Fields = { hintShownAt?: string; retryAfter?: string };
+type Fields = { hintShownAt?: string; retryAfter?: string; heldThrough?: string };
 
 const date = (value: unknown): Date | undefined => {
   const parsed = typeof value === 'string' ? new Date(value) : undefined;
@@ -34,6 +39,9 @@ export function createUpdateState(path: string): UpdateState {
       return {
         ...(date(raw['hintShownAt']) ? { hintShownAt: String(raw['hintShownAt']) } : {}),
         ...(date(raw['retryAfter']) ? { retryAfter: String(raw['retryAfter']) } : {}),
+        ...(typeof raw['heldThrough'] === 'string' && VERSION_PATTERN.test(raw['heldThrough'])
+          ? { heldThrough: raw['heldThrough'] }
+          : {}),
       };
     } catch {
       return {};
@@ -54,6 +62,12 @@ export function createUpdateState(path: string): UpdateState {
     deferUpdateUntil: (at) => write({ ...read(), retryAfter: at.toISOString() }),
     clearDeferral() {
       const { retryAfter: _deferred, ...rest } = read();
+      write(rest);
+    },
+    heldThrough: () => read().heldThrough,
+    holdThrough: (version) => write({ ...read(), heldThrough: version }),
+    clearHold() {
+      const { heldThrough: _held, ...rest } = read();
       write(rest);
     },
   };

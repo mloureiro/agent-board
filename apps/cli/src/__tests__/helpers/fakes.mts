@@ -945,11 +945,12 @@ export const NO_PR_STATES = { prStates: async () => ({ states: new Map(), unread
 
 // What the CLI remembers about updates, in memory: when the hint was last shown and until when no self-update is tried.
 export function fakeUpdateState(
-  initial: { shown?: Date; deferred?: Date } = {},
-): UpdateState & { shown: Date | undefined; deferred: Date | undefined } {
+  initial: { shown?: Date; deferred?: Date; held?: string } = {},
+): UpdateState & { shown: Date | undefined; deferred: Date | undefined; held: string | undefined } {
   const state = {
     shown: initial.shown,
     deferred: initial.deferred,
+    held: initial.held,
     hintShownAt: () => state.shown,
     markHintShown: (at: Date) => {
       state.shown = at;
@@ -960,6 +961,13 @@ export function fakeUpdateState(
     },
     clearDeferral: () => {
       state.deferred = undefined;
+    },
+    heldThrough: () => state.held,
+    holdThrough: (version: string) => {
+      state.held = version;
+    },
+    clearHold: () => {
+      state.held = undefined;
     },
   };
   return state;

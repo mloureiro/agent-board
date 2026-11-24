@@ -195,7 +195,7 @@ test('a hand-over that fails makes the command fail with its exit code', async (
   }
 });
 
-test('a tick restarts the listener without blocking, hands nothing over and leaves the journal for its next run', async () => {
+test('a tick restarts the listener without blocking, hands nothing over, leaves the journal for its next run and frees the lock', async () => {
   const f = setup({ migration: { interactive: false, context: 'tick' } });
   try {
     assert.equal(await selfUpdate(f.deps, {}), 'updated');
@@ -203,7 +203,7 @@ test('a tick restarts the listener without blocking, hands nothing over and leav
     assert.equal(f.calls.restarts, 1);
     assert.equal(binary(f.execPath), 'new binary');
     assert.equal(readJournal(f.stateDir)?.steps.length, 2);
-    assert.equal((JSON.parse(readFileSync(lockPath(f.stateDir), 'utf8')) as { pid: number }).pid, process.pid);
+    assert.equal(existsSync(lockPath(f.stateDir)), false);
   } finally {
     f.clean();
   }
