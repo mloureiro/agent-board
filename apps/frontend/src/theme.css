@@ -181,7 +181,7 @@ html {
 }
 .unreachable-callout {
   position: fixed;
-  z-index: 1000;
+  z-index: 200;
   top: calc(var(--app-shell-header-offset, 0rem) + var(--mantine-spacing-xs));
   left: var(--app-shell-padding, var(--mantine-spacing-xs));
   width: max-content;
