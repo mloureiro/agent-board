@@ -12,7 +12,7 @@ import { forgetAppliedVersion } from '../config/board-agents.mts';
 import { boardAgentsDirOf, readBoardAgentsState } from '../config/config.mts';
 import { errorText } from '../output/text.mts';
 import { SystemError } from '../setup/system.mts';
-import { createBackup } from './backup.mts';
+import { createBackup, pruneBackups } from './backup.mts';
 import type { MigrationDeps } from './deps.mts';
 import { readJournal } from './journal.mts';
 import { stageFile } from './layout.mts';
@@ -224,6 +224,7 @@ export async function moveServer(deps: ServerMoveDeps, rawUrl: string): Promise<
         `the check against ${target} after the move failed (${errorText(error)}); this machine points at it now; "board self-update --server ${source.url}" points it back, and the backup is at ${backupDir}`,
       );
     }
+    pruneBackups(stateDir, 3, []);
     deps.print(`${source.url} is unchanged; the feeds, the worker and its units now talk to ${target}`);
     deps.print(`to go back to ${source.url}: board self-update --server ${source.url}`);
     return 'moved';

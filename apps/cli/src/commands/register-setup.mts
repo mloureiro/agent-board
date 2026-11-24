@@ -294,11 +294,14 @@ export function registerSetupCommands(shared: ProgramShared): void {
     )
     .action(async (flags: SelfUpdateFlags & { resume?: boolean; rollback?: boolean; server?: string }) => {
       notInRun('board self-update is not available inside a board run');
+      const interactive = options.interactive ?? (process.stdin.isTTY === true && process.stdout.isTTY === true);
+      const platform = options.platform ?? process.platform;
+      const activeWorkers = async (): Promise<number> =>
+        (await createWorkerSystem({ dryRun: false, print: out, platform }).activeWorkers()).length;
       if (flags.server !== undefined) {
         for (const other of ['check', 'resume', 'rollback'] as const)
           if (flags[other]) throw new UsageError(`--server and --${other} cannot be used together`);
         const deps = realMigrationDeps(shared);
-        const platform = options.platform ?? process.platform;
         await moveServer(
           {
             paths: deps.paths,
@@ -311,9 +314,8 @@ export function registerSetupCommands(shared: ProgramShared): void {
             print: out,
             confirm: deps.confirm,
             restart: deps.restart,
-            interactive: options.interactive ?? (process.stdin.isTTY === true && process.stdout.isTTY === true),
-            activeWorkers: async () =>
-              (await createWorkerSystem({ dryRun: false, print: out, platform }).activeWorkers()).length,
+            interactive,
+            activeWorkers,
             verify: options.verifyServer ?? ((config) => verifyContract(config, undefined, 15_000)),
             listMachines: async (config) =>
               parseListMachines(await callServer(config, 'list-machines', {}, undefined, 15_000)).machines,
@@ -335,9 +337,10 @@ export function registerSetupCommands(shared: ProgramShared): void {
           compiled: isCompiledBinary(),
           execPath: EXEC_PATH,
           uid,
+          version: deps.version,
           now: deps.now,
           print: out,
-          interactive: options.interactive ?? (process.stdin.isTTY === true && process.stdout.isTTY === true),
+          interactive,
           confirm: deps.confirm,
           serverRange:
             options.serverRange ??
@@ -351,17 +354,14 @@ export function registerSetupCommands(shared: ProgramShared): void {
       }
       if (flags.resume) {
         if (flags.check) throw new UsageError('--resume and --check cannot be used together');
-        const platform = options.platform ?? process.platform;
         const result = await resumeMigration(realMigrationDeps(shared), {
-          interactive: options.interactive ?? (process.stdin.isTTY === true && process.stdout.isTTY === true),
-          activeWorkers: async () =>
-            (await createWorkerSystem({ dryRun: false, print: out, platform }).activeWorkers()).length,
+          interactive,
+          activeWorkers,
         });
         if (result === 'nothing') out('nothing to resume');
         if (result === 'stopped') throw new ReportedFailure('migration stopped');
         return;
       }
-      const platform = options.platform ?? process.platform;
       const migrationDeps = realMigrationDeps(shared);
       await selfUpdate(
         {
@@ -377,10 +377,9 @@ export function registerSetupCommands(shared: ProgramShared): void {
           migration: {
             planOf: options.planOf ?? realPlanOf(env),
             state: migrationDeps,
-            interactive: options.interactive ?? (process.stdin.isTTY === true && process.stdout.isTTY === true),
+            interactive,
             confirm: migrationDeps.confirm,
-            activeWorkers: async () =>
-              (await createWorkerSystem({ dryRun: false, print: out, platform }).activeWorkers()).length,
+            activeWorkers,
             context: 'command',
             handOff: options.handOff ?? (() => resumeInstalledBinary(EXEC_PATH)),
           },

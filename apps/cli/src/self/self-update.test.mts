@@ -419,3 +419,21 @@ test('an update starts by sweeping stale staged binaries and lifting the hold, a
     clean();
   }
 });
+
+test('a gh that is not logged in keeps the hold, and a binary that is already the newest lifts it', async () => {
+  const f = fixture([{ tag: 'cli-v0.4.0', assets: { [ASSET]: 'new' } }]);
+  const same = fixture([{ tag: 'cli-v0.3.0' }]);
+  try {
+    let lifted = 0;
+    f.gh.loggedOut();
+    await assert.rejects(selfUpdate({ ...f.deps, clearHold: () => (lifted += 1) }, {}), /gh is not logged in/);
+    assert.equal(lifted, 0);
+    assert.equal(await selfUpdate({ ...same.deps, clearHold: () => (lifted += 1) }, {}), 'unchanged');
+    assert.equal(lifted, 1);
+    assert.equal(await selfUpdate({ ...same.deps, clearHold: () => (lifted += 1) }, { check: true }), 'unchanged');
+    assert.equal(lifted, 1);
+  } finally {
+    f.clean();
+    same.clean();
+  }
+});

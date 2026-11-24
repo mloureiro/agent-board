@@ -141,6 +141,23 @@ test('declining the warning changes nothing', async () => {
   }
 });
 
+test('declining the warning keeps the hold, and accepting lifts it once the binary is replaced', async () => {
+  const declined = setup();
+  const accepted = setup();
+  try {
+    let lifted = 0;
+    declined.state.answers.push(false);
+    assert.equal(await selfUpdate({ ...declined.deps, clearHold: () => (lifted += 1) }, {}), 'unchanged');
+    assert.equal(lifted, 0);
+    accepted.state.answers.push(true);
+    assert.equal(await selfUpdate({ ...accepted.deps, clearHold: () => (lifted += 1) }, {}), 'updated');
+    assert.equal(lifted, 1);
+  } finally {
+    declined.clean();
+    accepted.clean();
+  }
+});
+
 test('accepting backs up the old binary and config, records the journal, replaces the binary and hands over once', async () => {
   const f = setup();
   try {

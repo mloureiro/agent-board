@@ -19,9 +19,10 @@ import { UsageError } from '../cli.mts';
 import { BackendError } from '../backend/backend.mts';
 import type { ServerIdentity } from '../backend/contract-check.mts';
 import { readBoardAgentsState } from '../config/config.mts';
-import { listBackups } from './backup.mts';
+import { createBackup, listBackups } from './backup.mts';
 import { writeJournal } from './journal.mts';
 import { lockPath } from './lock.mts';
+import { unitFilesOf } from './units.mts';
 import { moveServer } from './server-move.mts';
 import type { ServerMoveDeps } from './server-move.mts';
 
@@ -404,5 +405,31 @@ test('shared agents applied at a version the target has not reached are forgotte
   } finally {
     rmSync(lower.f.dir, { recursive: true });
     rmSync(higher.f.dir, { recursive: true });
+  }
+});
+
+test('a move leaves the three newest backups', async () => {
+  const s = await scenario();
+  try {
+    const units = unitFilesOf(s.moveDeps.platform, s.moveDeps.env, s.moveDeps.home);
+    for (const day of ['01', '02', '03'])
+      createBackup({
+        stateDir: s.stateDir,
+        kind: 'server',
+        from: '0.40.0',
+        to: '0.40.0',
+        cliApi: 9,
+        configDir: s.configDir,
+        unitFiles: units,
+        platform: s.moveDeps.platform,
+        now: new Date(`2020-11-${day}T10:00:00Z`),
+      });
+    assert.equal(await moveServer(s.moveDeps, TARGET), 'moved');
+    const kept = s.backups();
+    assert.equal(kept.length, 3);
+    assert.ok(kept.some((entry) => entry.manifest.createdAt > '2021'));
+    assert.ok(!kept.some((entry) => entry.manifest.createdAt.startsWith('2020-11-01')));
+  } finally {
+    rmSync(s.f.dir, { recursive: true });
   }
 });

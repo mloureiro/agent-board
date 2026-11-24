@@ -1,6 +1,6 @@
 import { lstatSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import { isRecord } from '@agent-board/shared';
+import { compareVersions, isRecord } from '@agent-board/shared';
 import type { Paths } from '../config/config.mts';
 import { parseEnv } from '../config/env-file.mts';
 import { webUrlOf } from '../backend/web-config.mts';
@@ -27,6 +27,8 @@ export interface RollbackDeps {
   // Where the running binary lives: the only place a backup's binary is restored to.
   execPath: string;
   uid: number;
+  // The version of the running binary, which a step-less update may have moved past the backup's `to`.
+  version: string;
   now: () => Date;
   print: (line: string) => void;
   // Whether a person is at a terminal and can be asked.
@@ -198,7 +200,7 @@ export async function rollback(deps: RollbackDeps): Promise<'rolled-back' | 'dec
     deps.print(
       `checked the backup ${entry.dir} (every file matches its checksum) and ${url} (it still serves CLI ${manifest.from})`,
     );
-    deps.print(`rolling back board ${manifest.to} -> ${manifest.from}:`);
+    deps.print(`rolling back board ${deps.version} -> ${manifest.from}:`);
     deps.print(`  binary ${deps.execPath}`);
     for (const restore of changed) deps.print(`  ${restore.dest}`);
     if (deps.interactive && !(await deps.confirm('Do you want to roll back? (Server data is not rolled back.)'))) {
@@ -241,11 +243,12 @@ export async function rollback(deps: RollbackDeps): Promise<'rolled-back' | 'dec
     await reloadMacAgents(deps, macAgents);
 
     markRolledBack(entry.dir, manifest, deps.now());
-    deps.updateState.holdThrough(manifest.to);
+    const held = compareVersions(deps.version, manifest.to) > 0 ? deps.version : manifest.to;
+    deps.updateState.holdThrough(held);
     const restarted = await deps.restart();
     if (restarted !== undefined) deps.print(restarted);
     deps.print(
-      `rolled back to board ${manifest.from}; auto-update holds release ${manifest.to} and older until you run "board self-update"`,
+      `rolled back to board ${manifest.from}; auto-update holds release ${held} and older until you run "board self-update"`,
     );
     return 'rolled-back';
   } finally {
