@@ -11,7 +11,7 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
-import { IconKey, IconLogin } from '@tabler/icons-react';
+import { IconExternalLink, IconKey, IconLogin } from '@tabler/icons-react';
 import { browserSupportsWebAuthn } from '@simplewebauthn/browser';
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
@@ -19,6 +19,7 @@ import { useRawTRPCClient } from '../lib/trpc';
 import { challengeOf, followableUrl, keepVerifier, newVerifier, type RedirectMethod } from './redirectFlow';
 import { rememberReturnPath } from './returnPath';
 import { failureMessage } from './failure';
+import { BrowserHandoff } from './BrowserHandoff';
 import { useAttempt } from './useAttempt';
 import { useAuthConfig } from './useAuthConfig';
 import { useCompleteSignIn } from './useCompleteSignIn';
@@ -113,6 +114,7 @@ export function LoginPage({ failure }: Props) {
   const { pathname, search, hash } = useLocation();
   const { busy, error, note, run } = useAttempt();
   const [signingUp, setSigningUp] = useState(false);
+  const [viaBrowser, setViaBrowser] = useState(false);
   const supported = browserSupportsWebAuthn();
 
   useEffect(() => rememberReturnPath(`${pathname}${search}${hash}`), [pathname, search, hash]);
@@ -171,7 +173,8 @@ export function LoginPage({ failure }: Props) {
               {note}
             </Text>
           )}
-          {offer && (
+          {offer && viaBrowser && <BrowserHandoff onCancel={() => setViaBrowser(false)} />}
+          {offer && !viaBrowser && (
             <Stack gap="xs">
               {offer.passkeys && (
                 <>
@@ -199,9 +202,17 @@ export function LoginPage({ failure }: Props) {
                   {offer.saml.label}
                 </Button>
               )}
+              <Button
+                variant="default"
+                leftSection={<IconExternalLink size={16} />}
+                disabled={busy}
+                onClick={() => setViaBrowser(true)}
+              >
+                Sign in with your browser
+              </Button>
             </Stack>
           )}
-          {offer?.signup && (
+          {offer?.signup && !viaBrowser && (
             <>
               {signingUp ? (
                 <SignupForm supported={supported} />
