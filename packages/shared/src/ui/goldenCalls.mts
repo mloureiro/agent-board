@@ -1,6 +1,5 @@
-import type { Keys } from '@agent-board/shared';
-import { Blob as NodeBlob } from 'node:buffer';
-import { importBoard, type ImportBatch } from './boardImport';
+import type { Keys } from '../index.mts';
+import { importBoard, type ImportBatch } from './boardImport.mts';
 import {
   openBoardAgents,
   openBoardLinks,
@@ -16,7 +15,7 @@ import {
   openRuns,
   openSchedule,
   openTaskDetail,
-} from './opening';
+} from './responses.mts';
 import {
   sealAnswer,
   sealApply,
@@ -29,7 +28,7 @@ import {
   sealScheduleUpdate,
   sealStart,
   sealTitleRulesInput,
-} from './sealing';
+} from './requests.mts';
 
 // The fixtures are JSON, so a case's arguments arrive untyped; each entry names the function it calls and nothing else.
 const call =
@@ -43,13 +42,13 @@ async function importFile(keys: Keys, [lines]: unknown[]): Promise<ImportBatch[]
   const batches: ImportBatch[] = [];
   const text = (lines as string[]).map((line) => `${line}\n`).join('');
   await importBoard({
-    file: new NodeBlob([text]) as unknown as { size: number; stream(): ReadableStream<Uint8Array> },
+    file: new Blob([text]),
     keys,
     importBatch: async (batch) => {
       batches.push(batch);
       return { inserted: batch.rows.length, existing: 0, invalid: 0, orphaned: 0 };
     },
-    storage: { getItem: () => null, setItem: () => undefined, removeItem: () => undefined },
+    restorePrefs: () => undefined,
   });
   return batches;
 }
@@ -86,7 +85,7 @@ export const openers: Record<string, Call> = {
   openRuns: (_keys, [wire]) => Promise.resolve(openRuns(wire as Parameters<typeof openRuns>[0])),
 };
 
-export const FIXTURES = new URL('../../../../packages/shared/src/__tests__/fixtures/ui-golden/', import.meta.url);
+export const FIXTURES = new URL('../__tests__/fixtures/ui-golden/', import.meta.url);
 
 export const REDACTED = '<sealed>';
 

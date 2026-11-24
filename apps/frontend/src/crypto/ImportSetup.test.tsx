@@ -13,7 +13,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Blob as NodeBlob } from 'node:buffer';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { openAs, sealerFor } from '../lib/contexts';
+import { openAs, sealerFor } from '@agent-board/shared/ui';
 import { createKeySetup } from './unlocker';
 import { SetupScreen } from './SetupScreen';
 

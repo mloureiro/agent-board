@@ -1,4 +1,4 @@
-import type { ThreadNote } from './opening';
+import type { ThreadNote } from '@agent-board/shared/ui';
 
 /**
  * The answer shown with a question: the one the server filed under it, and only when the questions inside the answer are the

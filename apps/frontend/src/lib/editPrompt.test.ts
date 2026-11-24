@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { canEditPrompt } from './editPrompt';
-import type { BoardTask } from './opening';
+import type { BoardTask } from '@agent-board/shared/ui';
 
 const task = (overrides: Partial<BoardTask> = {}): Parameters<typeof canEditPrompt>[0] => ({
   createdBy: 'user',

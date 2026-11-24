@@ -1,7 +1,7 @@
 import type { CatalogSkill, MachineCatalog } from '@agent-board/shared';
 import { describe, expect, it } from 'vitest';
 import { acceptSkill, lanesFor, matchSkills, modelsFor, skillCompletion, skillsFor } from './catalog';
-import type { OpenedCatalog } from './opening';
+import type { OpenedCatalog } from '@agent-board/shared/ui';
 
 const skill = (name: string, description?: string): CatalogSkill => ({
   name,

@@ -5,3 +5,8 @@ export * from './kdf.mts';
 export * from './passphrase.mts';
 export * from './recoveryKey.mts';
 export * from './keySlots.mts';
+export * from './shapes.mts';
+export * from './requests.mts';
+export * from './sharedAgents.mts';
+export * from './responses.mts';
+export * from './boardImport.mts';

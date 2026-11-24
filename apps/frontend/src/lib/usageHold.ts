@@ -1,6 +1,6 @@
 import type { MachineUsageWindow, Priority } from '@agent-board/shared';
 import { clock } from './time';
-import type { Machine } from './opening';
+import type { Machine } from '@agent-board/shared/ui';
 
 /** The dispatcher ticks at least every 2 minutes; a machine not seen for longer says nothing about the board's tasks any more. */
 export const HOLD_FRESH_MS = 10 * 60_000;

@@ -1,6 +1,7 @@
 import type { Keys } from '@agent-board/shared';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { importBoard, type ExportSource, type ImportProgress, type ImportTotals } from '../lib/boardImport';
+import { importBoard, type ExportSource, type ImportProgress, type ImportTotals } from '@agent-board/shared/ui';
+import { restoreBoardPrefs } from '../lib/boardPrefs';
 import { errorMessage, useRawTRPCClient } from '../lib/trpc';
 
 export type ImportRun =
@@ -38,6 +39,7 @@ export function useImportRun(): ImportRunner {
           signal: own.signal,
           importBatch: (batch, signal) => client.account.import.mutate(batch, { signal }),
           onProgress: (progress) => setRun({ status: 'running', progress }),
+          restorePrefs: (prefs) => restoreBoardPrefs(prefs),
         });
         setRun({ status: 'done', totals });
         return totals;

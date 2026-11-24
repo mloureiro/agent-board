@@ -19,6 +19,9 @@ export type Envelope = string;
 /** An ISO 8601 timestamp, as JSON delivers a date. */
 export type IsoDate = string;
 
+/** A timestamp a client sends: an ISO string, or a Date, which JSON turns into one. */
+export type IsoDateInput = IsoDate | Date;
+
 export interface UiNoteInput {
   body: Envelope;
   preview?: Envelope | null;
@@ -353,7 +356,7 @@ export interface UiTranscriptEvent {
 
 export interface UiRepeatEnd {
   times?: number;
-  until?: IsoDate;
+  until?: IsoDateInput;
   maxConcurrent?: number;
 }
 
@@ -361,9 +364,9 @@ export type UiCreateWhen =
   | 'now'
   | 'backlog'
   | 'hold'
-  | { at: IsoDate }
-  | (UiRepeatEnd & { every: number; at?: IsoDate })
-  | (UiRepeatEnd & { cron: string; timezone: string; moreCrons?: string[]; at?: IsoDate })
+  | { at: IsoDateInput }
+  | (UiRepeatEnd & { every: number; at?: IsoDateInput })
+  | (UiRepeatEnd & { cron: string; timezone: string; moreCrons?: string[]; at?: IsoDateInput })
   | (UiRepeatEnd & { after: { scheduleId: string; delayMs?: number } });
 
 export type UiScheduleRepeat =
@@ -413,9 +416,9 @@ export interface UiScheduleUpdate {
   labels?: Envelope | null;
   autoDone: boolean;
   repeat: UiScheduleRepeat;
-  at?: IsoDate;
+  at?: IsoDateInput;
   runsLeft: number | null;
-  until: IsoDate | null;
+  until: IsoDateInput | null;
   maxConcurrent: number | null;
 }
 
@@ -474,7 +477,7 @@ export interface UiInputs {
   'tasks.rerun': { id: string };
   'tasks.send': { id: string; message: UiNoteInput };
   'tasks.setClosed': { id: string; closed: boolean };
-  'tasks.setNotBefore': { id: string; notBefore: IsoDate | null };
+  'tasks.setNotBefore': { id: string; notBefore: IsoDateInput | null };
   'tasks.setPriority': { id: string; priority: Priority };
   'tasks.stop': { id: string; message?: UiNoteInput };
   'tasks.stopWatch': { id: string; watchId: string };

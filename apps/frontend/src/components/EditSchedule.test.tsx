@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Machine } from '../lib/opening';
+import type { Machine } from '@agent-board/shared/ui';
 import type { Schedule } from '../lib/trpc';
 import { createMemoryDraftStorage, draftKeys } from '../test/draftStorage';
 import { DraftsProvider } from './DraftsProvider';

@@ -27,7 +27,7 @@ import {
   openSchedule,
   openSchedules,
   openTaskDetail,
-} from './opening';
+} from '@agent-board/shared/ui';
 import type { useRawTRPC } from './rawTrpc';
 import {
   sealAnswer,
@@ -48,10 +48,10 @@ import {
   type EditTarget,
   type NewTask,
   type ScheduleUpdate,
-  type PolishTarget,
+  type PolishApplyTarget,
   type Proposal,
-} from './sealing';
-import { parseMe } from './shapes';
+} from '@agent-board/shared/ui';
+import { parseMe } from '@agent-board/shared/ui';
 
 export type RawTRPC = ReturnType<typeof useRawTRPC>;
 export type RawClient = TRPCClient<AppRouter>;
@@ -96,7 +96,7 @@ export interface ApplyVariables {
   // The task that made the polish note: marked done once it is applied.
   polishId: string;
   // The task the polished prompt is for, as the page shows it; what it says now is kept in a note.
-  target: PolishTarget;
+  target: PolishApplyTarget;
   rewrite: Pick<Polish, 'title' | 'prompt'>;
 }
 

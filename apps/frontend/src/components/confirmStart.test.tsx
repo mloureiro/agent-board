@@ -4,7 +4,7 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { createDraftStore } from '../lib/drafts';
-import type { Proposal } from '../lib/sealing';
+import type { Proposal } from '@agent-board/shared/ui';
 import { createMemoryDraftStorage } from '../test/draftStorage';
 import { confirmStart } from './confirmStart';
 

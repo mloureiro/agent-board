@@ -29,7 +29,7 @@ import {
   type Status,
   type TaskCreator,
   type WireNoteAuthor,
-} from '@agent-board/shared';
+} from '../index.mts';
 
 /** The author of a note whose author the board did not name properly. */
 export const UNKNOWN_AUTHOR = 'unknown';
@@ -52,7 +52,7 @@ function guarded<T>(value: unknown, is: (candidate: unknown) => candidate is T, 
   return is(value) ? { value, invalid: false } : { value: neutral, invalid: true };
 }
 
-const checked = <T>(ok: boolean, value: T, neutral: T): Checked<T> => ({ value: ok ? value : neutral, invalid: !ok });
+const checked = <T,>(ok: boolean, value: T, neutral: T): Checked<T> => ({ value: ok ? value : neutral, invalid: !ok });
 
 export function safeId(value: unknown, what: string): string {
   if (typeof value !== 'string' || !isSafeTaskId(value)) throw new ContractError(`The board sent an invalid ${what}.`);

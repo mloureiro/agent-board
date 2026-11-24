@@ -4,8 +4,10 @@ import {
   defaultTitle,
   isAgentName,
   newTaskId,
+  open,
   previousText,
   QuestionError,
+  seal,
   sealAnswers,
   sealFields,
   sealIcon,
@@ -18,25 +20,26 @@ import {
   sealWorkdir,
   textBeforeEdit,
   type Answer,
+  type Binding,
   type Effort,
   type Keys,
   type LinkRule,
   type Priority,
   type Question,
   type RowRef,
+  type Sealer,
   type Status,
   type TitleRule,
   type Polish,
   type TaskCreator,
   type UnreadableField,
-} from '@agent-board/shared';
-import { sealerFor } from './contexts';
-import type { RouterInputs } from './wire';
+} from '../index.mts';
+import type { UiInputs } from './wire.mts';
 
 export class InputError extends Error {}
 
-type CreateInput = RouterInputs['tasks']['create'];
-type NoteInput = RouterInputs['tasks']['reply']['message'];
+type CreateInput = UiInputs['tasks.create'];
+type NoteInput = UiInputs['tasks.reply']['message'];
 
 export interface NewTask {
   title?: string;
@@ -125,7 +128,7 @@ export async function sealReply(keys: Keys, taskId: string, message: string): Pr
 export async function sealAnswer(
   keys: Keys,
   options: { id: string; questionNoteId: string; questions: Question[]; answers: Answer[]; message: string },
-): Promise<RouterInputs['tasks']['answer']> {
+): Promise<UiInputs['tasks.answer']> {
   const { id, questionNoteId, questions, message } = options;
   const text = message.trim();
   return {
@@ -178,7 +181,7 @@ export async function sealStart(keys: Keys, proposal: Proposal): Promise<string>
 }
 
 /** What applying a polished prompt needs of the task it is for, as the page shows it. */
-export interface PolishTarget {
+export interface PolishApplyTarget {
   id: string;
   title: string;
   input: string;
@@ -196,8 +199,8 @@ export interface PolishTarget {
  */
 export async function sealApply(
   keys: Keys,
-  options: { polishId: string; target: PolishTarget; rewrite: Pick<Polish, 'title' | 'prompt'> },
-): Promise<RouterInputs['tasks']['applyPolish']> {
+  options: { polishId: string; target: PolishApplyTarget; rewrite: Pick<Polish, 'title' | 'prompt'> },
+): Promise<UiInputs['tasks.applyPolish']> {
   const { polishId, target, rewrite } = options;
   if (target.createdBy !== 'user') throw new InputError('Only a task you created takes a polished prompt.');
   // The watches are only shown, so a list that does not open leaves the task readable.
@@ -249,7 +252,7 @@ export interface Configuration {
 export async function sealConfigure(
   keys: Keys,
   options: { task: ConfigureTarget } & Configuration,
-): Promise<RouterInputs['tasks']['configure']> {
+): Promise<UiInputs['tasks.configure']> {
   const { task, model, effort, lane, autoDone, icon, labels, place } = options;
   const title = options.title?.trim();
   if (title === '') throw new InputError('Write a title first.');
@@ -336,7 +339,7 @@ export function forkProblem(task: ForkSource): string | undefined {
 export async function sealFork(
   keys: Keys,
   options: { parent: ForkSource; title: string; input: string },
-): Promise<RouterInputs['tasks']['fork']> {
+): Promise<UiInputs['tasks.fork']> {
   const { parent } = options;
   const problem = forkProblem(parent);
   if (problem !== undefined || parent.workdir === null) throw new InputError(problem ?? 'This task has no directory.');
@@ -393,7 +396,7 @@ function editedFields(title: string, input: string): { title: string; input: str
 export async function sealEdit(
   keys: Keys,
   options: { target: EditTarget; title: string; input: string },
-): Promise<RouterInputs['tasks']['edit']> {
+): Promise<UiInputs['tasks.edit']> {
   const { target } = options;
   if (target.createdBy !== 'user') throw new InputError('Only a task you created has a prompt you can edit.');
   if (target.scheduleId !== null)
@@ -420,7 +423,7 @@ export async function sealEdit(
   };
 }
 
-type ScheduleUpdateInput = RouterInputs['schedules']['update'];
+type ScheduleUpdateInput = UiInputs['schedules.update'];
 
 /** The schedule's settings as the Edit schedule form holds them: everything the board stores clear is as `schedules.update` takes it. */
 export type ScheduleUpdate = Omit<ScheduleUpdateInput, 'title' | 'input' | 'agent' | 'icon' | 'labels' | 'place'> & {
@@ -455,7 +458,7 @@ export async function sealScheduleUpdate(keys: Keys, update: ScheduleUpdate): Pr
   };
 }
 
-export type TitleRulesInput = RouterInputs['titleRules']['set'];
+export type TitleRulesInput = UiInputs['titleRules.set'];
 
 /** The next version of the title rules, sealed under its own version, for a save over `expectedVersion` (0: none saved yet). */
 export async function sealTitleRulesInput(
@@ -468,7 +471,7 @@ export async function sealTitleRulesInput(
   return { document, version, expectedVersion };
 }
 
-export type LinkRulesInput = RouterInputs['links']['set'];
+export type LinkRulesInput = UiInputs['links.set'];
 
 /** The next version of the link rules, sealed under its own version, for a save over `expectedVersion` (0: none saved yet). */
 export async function sealLinks(keys: Keys, rules: LinkRule[], expectedVersion: number): Promise<LinkRulesInput> {
@@ -476,3 +479,13 @@ export async function sealLinks(keys: Keys, rules: LinkRule[], expectedVersion: 
   const document = await checked(() => sealLinkRules(sealerFor(keys), { version, rules }));
   return { document, version, expectedVersion };
 }
+
+// Which (field, context) pair a value is sealed under is decided by the shared sealing rules, which the CLI uses too; this
+// only puts the unlocked keys behind it.
+export const sealerFor =
+  (keys: Keys): Sealer =>
+  (binding, plaintext) =>
+    seal(keys, binding.field, binding.context, plaintext);
+
+export const openAs = (keys: Keys, { field, context }: Binding, envelope: string): Promise<string> =>
+  open(keys, field, context, envelope);

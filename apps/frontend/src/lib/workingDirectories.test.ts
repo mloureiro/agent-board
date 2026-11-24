@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Machine } from './opening';
+import type { Machine } from '@agent-board/shared/ui';
 import { isCurrentPlace, unlistedMachine } from './workingDirectories';
 
 const laptop = (dirs: string[] | null): Machine =>

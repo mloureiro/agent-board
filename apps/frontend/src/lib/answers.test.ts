@@ -1,7 +1,7 @@
 import type { Question } from '@agent-board/shared';
 import { describe, expect, it } from 'vitest';
 import { answerTo, openQuestionOf } from './answers';
-import type { ThreadNote } from './opening';
+import type { ThreadNote } from '@agent-board/shared/ui';
 
 const ask = (header: string): Question[] => [
   {

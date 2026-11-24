@@ -6,10 +6,9 @@ import {
   type ExportHeader,
   type ExportTable,
   type Keys,
-} from '@agent-board/shared';
-import { restoreBoardPrefs } from './boardPrefs';
-import { sealerFor } from './contexts';
-import { openerFor } from './opening';
+} from '../index.mts';
+import { sealerFor } from './requests.mts';
+import { openerFor } from './responses.mts';
 
 /** What an import reads of a file: a `File` is one. */
 export interface ExportSource {
@@ -89,8 +88,8 @@ export interface ImportOptions {
   importBatch: (batch: ImportBatch, signal: AbortSignal | undefined) => Promise<BatchResult>;
   signal?: AbortSignal;
   onProgress?: (progress: ImportProgress) => void;
-  /** Where the preferences of the file go; the browser's localStorage when absent. */
-  storage?: Parameters<typeof restoreBoardPrefs>[1];
+  /** Puts the preferences of the file where the UI keeps its own, after the last batch. */
+  restorePrefs: (prefs: ExportHeader['prefs']) => void;
 }
 
 const tableRank = (table: ExportTable): number => EXPORT_TABLES.indexOf(table);
@@ -107,7 +106,7 @@ const taskIdOfRun = (row: Record<string, unknown>): [string, string] | undefined
  * sending the file again skips them.
  */
 export async function importBoard(options: ImportOptions): Promise<ImportTotals> {
-  const { file, keys, importBatch, signal, onProgress, storage } = options;
+  const { file, keys, importBatch, signal, onProgress, restorePrefs } = options;
   const totals: ImportTotals = { inserted: 0, existing: 0, invalid: 0, orphaned: 0, unreadable: 0 };
   const taskOfRun = new Map<string, string>();
   let header: ExportHeader | undefined;
@@ -170,7 +169,7 @@ export async function importBoard(options: ImportOptions): Promise<ImportTotals>
   if (header === undefined) throw new ImportFileError('This file is empty.');
   await flush();
   signal?.throwIfAborted();
-  restoreBoardPrefs(header.prefs, storage);
+  restorePrefs(header.prefs);
   onProgress?.({ bytesRead: file.size, size: file.size });
   return totals;
 }

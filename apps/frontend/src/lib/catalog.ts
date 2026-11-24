@@ -1,5 +1,5 @@
 import type { CatalogModel, CatalogSkill, MachineCatalog } from '@agent-board/shared';
-import type { OpenedCatalog } from './opening';
+import type { OpenedCatalog } from '@agent-board/shared/ui';
 import { isWithin } from './workingDirectories';
 
 /** How many matches the completion list shows. */
