@@ -18,11 +18,12 @@ import { print } from '../cli.mts';
 import { selfCommand } from '../self/self.mts';
 import { errorText } from '../output/text.mts';
 import { groupExists, signalGroup } from '../worker/process.mts';
-import { createRunFiles, lockDir } from '../worker/runtime.mts';
-import { TICK_GRACE_S, TICK_LIMIT_S, lockFileName } from './tick.mts';
+import { createRunFiles } from '../worker/runtime.mts';
+import { DISPATCH_UNIT, tickArgv } from '../setup/worker-units.mts';
+import { TICK_GRACE_S, TICK_LIMIT_S } from './tick.mts';
 
 // Exit code of `flock -E 75`: the timer's tick holds the lock.
-const LOCKED = 75;
+const LOCKED = DISPATCH_UNIT.lockHeldExitCode;
 // What `timeout` answered when it stopped a command, and what runLimited answers in its place: TERM, and after the grace period KILL.
 const TIMED_OUT = 124;
 const KILLED = 137;
@@ -217,9 +218,7 @@ export function tickCommand(
   dispatch: string[],
   platform: string = process.platform,
 ): string[] {
-  const lock = `${lockDir(env, platform)}/${lockFileName('dispatch')}`;
-  if (platform === 'darwin') return ['/usr/bin/lockf', '-s', '-t', '0', lock, ...dispatch];
-  return ['flock', '-n', '-E', String(LOCKED), lock, ...dispatch];
+  return tickArgv(env, dispatch, platform);
 }
 
 export interface TickLimits {

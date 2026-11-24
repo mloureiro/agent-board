@@ -543,6 +543,23 @@ test('internal shutdown refuses a grace that is not a positive number of seconds
     );
 });
 
+test('internal units prints the schema-1 units without reading the config or the credentials', async () => {
+  const dir = tempDir();
+  writeFileSync(join(dir, 'config.json'), '{ not json');
+  writeFileSync(join(dir, 'env'), '\u0000\u0001 garbage');
+  const { err, go, out } = setup();
+  await go(['internal', 'units'], { env: { AGENT_BOARD_CONFIG_DIR: dir, HOME: '/Users/me' }, platform: 'darwin' });
+  assert.equal(out.length, 1);
+  assert.ok(out[0]?.endsWith('\n'));
+  const parsed = JSON.parse(out[0] ?? '') as { schema: number; units: { name: string }[] };
+  assert.equal(parsed.schema, 1);
+  assert.deepEqual(
+    parsed.units.map((unit) => unit.name),
+    ['dispatch', 'listen', 'watch'],
+  );
+  assert.deepEqual(err, []);
+});
+
 test('wait --in parks a running task until then, and stores no check', async () => {
   const { backend, go, printed, watches } = setup();
   Object.assign(backend.tasks[0]!, { status: 'running', machine: CONFIG.machine });

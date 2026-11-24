@@ -28,12 +28,12 @@ import {
 } from './launchd.mts';
 import type { LaunchdSetupDeps } from './launchd.mts';
 import { SystemError } from './system.mts';
-import { LISTEN_STOP_TIMEOUT_S, TICK_LIMIT_S, lockFileName } from '../dispatch/tick.mts';
+import { DISPATCH_UNIT, LISTEN_UNIT, WATCH_UNIT, lockArgv, workerPath } from './worker-units.mts';
 
 const exec = promisify(execFile);
 
 // The PATH of the units: what the worker finds `claude`, `gh` and `systemd-run` on, whatever the shell's PATH is. %h is the home directory.
-export const UNIT_PATH = '%h/.local/bin:/usr/local/bin:/usr/bin:/bin';
+export const UNIT_PATH = workerPath('linux', '%h');
 
 // Every unit name must be in TOOL_UNIT_NAMES, which keeps it from being a task id and so a worker unit's name.
 type ToolUnitName = (typeof TOOL_UNIT_NAMES)[number];
@@ -55,17 +55,12 @@ export const WATCH_SERVICE = `agent-board-${WATCH_NAME}.service`;
 // The services that keep running code until they are restarted.
 export const LONG_RUNNING_SERVICES = [LISTEN_SERVICE, WATCH_SERVICE];
 
-// Exit 75 is `flock -E 75`: another tick holds the lock, which is not a failure.
-const UNITS: Record<
-  UnitName,
-  { description: string; timerDescription: string; timeout: number; boot: string; every: string; accuracy: string }
-> = {
+const systemdInterval = (seconds: number): string => (seconds % 60 === 0 ? `${seconds / 60}min` : `${seconds}s`);
+
+const UNITS: Record<UnitName, { description: string; timerDescription: string; accuracy: string }> = {
   dispatch: {
     description: 'agent-board dispatcher: one tick',
     timerDescription: 'agent-board dispatcher every 2 minutes',
-    timeout: TICK_LIMIT_S,
-    boot: '2min',
-    every: '2min',
     accuracy: '10s',
   },
 };
@@ -107,13 +102,9 @@ export interface RenderInput {
 export function renderUnits({ flock, command }: RenderInput): UnitFile[] {
   const timed = UNIT_NAMES.flatMap((name) => {
     const unit = UNITS[name];
-    // %t is the runtime directory, where bin/dispatch keeps the same lock file.
+    // %t is the runtime directory, where bin/dispatch keeps the same lock file; it must not pass through quoteExecArg, which would escape it to %%t.
     const execStart = [
-      quoteExecArg(flock),
-      '-n',
-      '-E',
-      '75',
-      `%t/${lockFileName(name)}`,
+      ...lockArgv('linux', quoteExecArg(flock), `%t/${DISPATCH_UNIT.lockFile}`),
       ...command(name).map(quoteExecArg),
     ].join(' ');
     return [
@@ -129,7 +120,7 @@ Environment=PATH=${UNIT_PATH}
 # The lock keeps one run at a time, whoever starts it; exit 75 means another run holds it, which is not a failure.
 ExecStart=${execStart}
 SuccessExitStatus=75
-TimeoutStartSec=${unit.timeout}
+TimeoutStartSec=${DISPATCH_UNIT.limitSeconds}
 `,
       },
       {
@@ -138,8 +129,8 @@ TimeoutStartSec=${unit.timeout}
 Description=${unit.timerDescription}
 
 [Timer]
-OnBootSec=${unit.boot}
-OnUnitActiveSec=${unit.every}
+OnBootSec=${systemdInterval(DISPATCH_UNIT.everySeconds)}
+OnUnitActiveSec=${systemdInterval(DISPATCH_UNIT.everySeconds)}
 AccuracySec=${unit.accuracy}
 
 [Install]
@@ -161,11 +152,11 @@ Type=simple
 Environment=PATH=${UNIT_PATH}
 ExecStart=${command('listen').map(quoteExecArg).join(' ')}
 Restart=always
-RestartSec=10
+RestartSec=${LISTEN_UNIT.restartDelaySeconds}
 # Stopping signals the listener only; it waits for a running tick, which systemd then no longer cuts off midway.
 KillMode=mixed
 # Long enough for a tick to reach its limit and grace; systemd's 90 s default would kill one midway.
-TimeoutStopSec=${LISTEN_STOP_TIMEOUT_S}
+TimeoutStopSec=${LISTEN_UNIT.stopTimeoutSeconds}
 
 [Install]
 WantedBy=default.target
@@ -184,7 +175,7 @@ Type=simple
 Environment=PATH=${UNIT_PATH}
 ExecStart=${command('watch').map(quoteExecArg).join(' ')}
 Restart=always
-RestartSec=5
+RestartSec=${WATCH_UNIT.restartDelaySeconds}
 
 [Install]
 WantedBy=default.target

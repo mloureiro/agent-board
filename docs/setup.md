@@ -147,6 +147,10 @@ launchctl kickstart -k gui/$(id -u)/de.codeplant.agent-board.listen   # restart 
 launchctl print gui/$(id -u)/de.codeplant.agent-board.listen     # state, last exit code, the program it runs
 ```
 
+#### For packagers
+
+`board internal units` prints, as JSON on stdout, what `board setup` writes for the platform it runs on: the dispatch tick (program, arguments, interval, limit, grace and the exit code that means another tick holds the lock), the listener and the watch unit with their restart delays, the `PATH` of a unit and the names of the variables setup passes on. It reads only the environment, never the config or the credentials. The `schema` field is `1`; a consumer must refuse a schema or a unit it does not know. An app that runs the worker itself reads this instead of restating the tick and the lock.
+
 #### Logs
 
 launchd writes each agent's output to `~/.local/state/agent-board/logs/launchd.<agent>.log`, next to the task logs. `AGENT_BOARD_STATE_DIR` or `XDG_STATE_HOME` moves them. They are not rotated. `board logs [dispatch|listen|watch] [-f]` runs `tail` on them; `--since` is not available there.

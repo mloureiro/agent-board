@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { shellQuote } from '../output/text.mts';
 import { SystemError } from './system.mts';
-import { LISTEN_STOP_TIMEOUT_S, lockFileName } from '../dispatch/tick.mts';
+import { DISPATCH_UNIT, LISTEN_UNIT, WATCH_UNIT, lockArgv, workerPath } from './worker-units.mts';
 
 const exec = promisify(execFile);
 
@@ -20,9 +20,8 @@ export type AgentName = (typeof AGENT_NAMES)[number];
 export const agentLabel = (name: AgentName): string => `${AGENT_LABEL_PREFIX}.${name}`;
 export const agentFile = (name: AgentName): string => `${agentLabel(name)}.plist`;
 
-// launchd gives a job /usr/bin:/bin:/usr/sbin:/sbin; a plist expands nothing, so the home directory is written out.
 export function agentPath(home: string): string {
-  return `${home}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin`;
+  return workerPath('darwin', home);
 }
 
 // The variables of the shell that ran setup which move the CLI's files; a job would not see them otherwise.
@@ -111,21 +110,21 @@ export function renderAgents({ home, lockf, lockDir, logDir, command, env = {} }
   // lockf -s -t 0 exits 75 when the lock is held, like `flock -E 75`: another tick holds it, which is not a failure.
   const dispatch = render(
     'dispatch',
-    [lockf, '-s', '-t', '0', `${lockDir}/${lockFileName('dispatch')}`, ...command('dispatch')],
-    [key('StartInterval', '<integer>120</integer>'), key('RunAtLoad', '<true/>')],
+    [...lockArgv('darwin', lockf, `${lockDir}/${DISPATCH_UNIT.lockFile}`), ...command('dispatch')],
+    [key('StartInterval', `<integer>${DISPATCH_UNIT.everySeconds}</integer>`), key('RunAtLoad', '<true/>')],
   );
   // The listener exits when the board no longer serves this CLI, until it is updated: launchd restarts it every 10 s.
   // ExitTimeOut: a stop waits for the tick that runs, which may take its limit and grace.
   const listen = render('listen', command('listen'), [
     key('KeepAlive', '<true/>'),
     key('RunAtLoad', '<true/>'),
-    key('ThrottleInterval', '<integer>10</integer>'),
-    key('ExitTimeOut', `<integer>${LISTEN_STOP_TIMEOUT_S}</integer>`),
+    key('ThrottleInterval', `<integer>${LISTEN_UNIT.restartDelaySeconds}</integer>`),
+    key('ExitTimeOut', `<integer>${LISTEN_UNIT.stopTimeoutSeconds}</integer>`),
   ]);
   const watch = render('watch', command('watch'), [
     key('KeepAlive', '<true/>'),
     key('RunAtLoad', '<true/>'),
-    key('ThrottleInterval', '<integer>5</integer>'),
+    key('ThrottleInterval', `<integer>${WATCH_UNIT.restartDelaySeconds}</integer>`),
   ]);
   return [dispatch, listen, watch];
 }

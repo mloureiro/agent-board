@@ -158,3 +158,89 @@ test('plutil accepts the rendered files (macOS only)', { skip: process.platform 
     rmSync(dir, { recursive: true });
   }
 });
+
+const GOLDEN_HEAD = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+`;
+
+const goldenTail = (name: string): string => `\t<key>AbandonProcessGroup</key>
+\t<true/>
+\t<key>EnvironmentVariables</key>
+\t<dict>
+\t\t<key>PATH</key>
+\t\t<string>/Users/me/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+\t\t<key>AGENT_BOARD_STATE_DIR</key>
+\t\t<string>/s</string>
+\t</dict>
+\t<key>StandardOutPath</key>
+\t<string>/Users/me/.local/state/agent-board/logs/launchd.${name}.log</string>
+\t<key>StandardErrorPath</key>
+\t<string>/Users/me/.local/state/agent-board/logs/launchd.${name}.log</string>
+</dict>
+</plist>
+`;
+
+test('the three agents are rendered key for key, with a passed variable after PATH', () => {
+  const [d, l, w] = renderAgents({ ...input, env: { AGENT_BOARD_STATE_DIR: '/s' } });
+  assert.equal(
+    d?.text,
+    `${GOLDEN_HEAD}\t<key>Label</key>
+\t<string>de.codeplant.agent-board.dispatch</string>
+\t<key>ProgramArguments</key>
+\t<array>
+\t\t<string>/usr/bin/lockf</string>
+\t\t<string>-s</string>
+\t\t<string>-t</string>
+\t\t<string>0</string>
+\t\t<string>/Users/me/.local/state/agent-board/run/agent-board-dispatch.lock</string>
+\t\t<string>/Users/me/.local/bin/board</string>
+\t\t<string>internal</string>
+\t\t<string>dispatch</string>
+\t</array>
+\t<key>StartInterval</key>
+\t<integer>120</integer>
+\t<key>RunAtLoad</key>
+\t<true/>
+${goldenTail('dispatch')}`,
+  );
+  assert.equal(
+    l?.text,
+    `${GOLDEN_HEAD}\t<key>Label</key>
+\t<string>de.codeplant.agent-board.listen</string>
+\t<key>ProgramArguments</key>
+\t<array>
+\t\t<string>/Users/me/.local/bin/board</string>
+\t\t<string>internal</string>
+\t\t<string>listen</string>
+\t</array>
+\t<key>KeepAlive</key>
+\t<true/>
+\t<key>RunAtLoad</key>
+\t<true/>
+\t<key>ThrottleInterval</key>
+\t<integer>10</integer>
+\t<key>ExitTimeOut</key>
+\t<integer>130</integer>
+${goldenTail('listen')}`,
+  );
+  assert.equal(
+    w?.text,
+    `${GOLDEN_HEAD}\t<key>Label</key>
+\t<string>de.codeplant.agent-board.watch</string>
+\t<key>ProgramArguments</key>
+\t<array>
+\t\t<string>/Users/me/.local/bin/board</string>
+\t\t<string>internal</string>
+\t\t<string>watch</string>
+\t</array>
+\t<key>KeepAlive</key>
+\t<true/>
+\t<key>RunAtLoad</key>
+\t<true/>
+\t<key>ThrottleInterval</key>
+\t<integer>5</integer>
+${goldenTail('watch')}`,
+  );
+});
