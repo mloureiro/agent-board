@@ -14,7 +14,7 @@ import userEvent from '@testing-library/user-event';
 import { Blob as NodeBlob } from 'node:buffer';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { openAs, sealerFor } from '../lib/contexts';
-import { createKeySetup } from './keySlots';
+import { createKeySetup } from './unlocker';
 import { SetupScreen } from './SetupScreen';
 
 const setupKey = vi.hoisted(() => vi.fn(async (_: unknown) => null));

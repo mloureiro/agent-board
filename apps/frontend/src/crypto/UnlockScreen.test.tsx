@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createKeySetup, unlockKeys } from './keySlots';
+import { createKeySetup, unlockKeys } from './unlocker';
 import { UnlockScreen } from './UnlockScreen';
 
 const replaceSlots = vi.hoisted(() => vi.fn(async (_: unknown) => null));

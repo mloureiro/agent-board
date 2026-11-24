@@ -2,7 +2,7 @@
   "name": "@agent-board/shared",
   "version": "0.1.0",
   "private": true,
-  "description": "The backend contract and the question schema, shared by the CLI, the server and the UI. No dependencies: the CLI runs it straight from source.",
+  "description": "The backend contract and the question schema, shared by the CLI, the server and the UI. No runtime dependencies: the CLI runs it straight from source, and each UI injects its own Argon2id.",
   "type": "module",
   "exports": {
     ".": "./src/index.mts",
@@ -14,6 +14,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
+    "hash-wasm": "^4.13.0",
     "typescript": "^6.0.3"
   }
 }

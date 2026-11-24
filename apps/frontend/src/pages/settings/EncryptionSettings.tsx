@@ -2,11 +2,10 @@ import { Button, Code, Group, Paper, PasswordInput, Stack, Text, Title } from '@
 import { notifications } from '@mantine/notifications';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { KeyError } from '../../crypto/kdf';
-import { replacePassphrase } from '../../crypto/keySlots';
+import { KeyError, PASSPHRASE_ADVICE } from '@agent-board/shared/ui';
+import { replacePassphrase } from '../../crypto/unlocker';
 import { useKeys } from '../../crypto/KeyContext';
 import { NewPassphraseFields, useNewPassphrase } from '../../crypto/NewPassphraseFields';
-import { PASSPHRASE_ADVICE } from '../../crypto/passphrase';
 import { useSubmit } from '../../crypto/useSubmit';
 import { useTRPC } from '../../lib/trpc';
 import { asHeld } from './asHeld';

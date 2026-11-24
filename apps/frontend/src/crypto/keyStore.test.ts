@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createKeySetup } from './keySlots';
+import { createKeySetup } from './unlocker';
 import { createMemoryKeyStore } from '../test/memoryKeyStore';
 import { inspectStoredKeys } from './keyStore';
 

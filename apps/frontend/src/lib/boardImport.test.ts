@@ -14,7 +14,7 @@ import { Blob as NodeBlob } from 'node:buffer';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildExport } from './boardExport';
 import { importBoard, MAX_BATCH_ROWS, readExportHeader, type BatchResult, type ImportBatch } from './boardImport';
-import { createKeySetup, unlockKeys } from '../crypto/keySlots';
+import { createKeySetup, unlockKeys } from '../crypto/unlocker';
 import { openAs, sealerFor } from './contexts';
 
 let oldKeys: Keys;

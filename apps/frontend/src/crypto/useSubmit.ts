@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { errorMessage } from '../lib/trpc';
-import { KeyError } from './kdf';
-
+import { KeyError } from '@agent-board/shared/ui';
 /**
  * A KeyError keeps its own message: errorMessage's `instanceof Error` misses it where the Error global is another realm's,
  * as under jsdom.

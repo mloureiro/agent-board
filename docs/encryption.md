@@ -344,6 +344,8 @@ Each machine sends the board three sealed documents: its directory list, its cat
 
 **Settings.** Settings › Machines and Settings › Encryption show and re-wrap a key only when it is the one the browser is using, whatever the board reports.
 
+**Where the unlock lives.** The Argon2id derivation, the key slots, the recovery key and the passphrase rules are in `packages/shared/src/ui/` (`kdf.mts`, `keySlots.mts`, `recoveryKey.mts`, `passphrase.mts`), imported from `@agent-board/shared/ui`. Shared holds no Argon2id implementation, so it keeps no runtime dependency: each UI passes one to `createUnlocker`. The frontend passes `hash-wasm`'s (`apps/frontend/src/crypto/unlocker.ts`). Only the key store, which uses IndexedDB, stays in each UI.
+
 **Passphrases.** A passphrase is trimmed and NFKC-normalised in one place before it is checked and hashed, so setup, unlock and change treat it alike.
 
 **Clear values on screen.** Everything the browser shows from the board in the clear goes through the same shape checks as the CLI's wire parsers:

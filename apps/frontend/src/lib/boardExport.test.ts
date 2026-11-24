@@ -6,7 +6,7 @@ import {
   type KeySetup,
 } from '@agent-board/shared';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { createKeySetup } from '../crypto/keySlots';
+import { createKeySetup } from '../crypto/unlocker';
 import { buildExport, exportFileName, exportRowCount, tablesOfExport, type FetchExportPage } from './boardExport';
 
 const FAST = { m: 8192, t: 1, p: 1 };

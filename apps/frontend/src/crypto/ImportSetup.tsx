@@ -6,7 +6,8 @@ import { ExportFileSummary } from '../components/ExportFileSummary';
 import { ImportRunView } from '../components/ImportRunView';
 import { useImportRun } from '../components/useImportRun';
 import { useRawTRPCClient } from '../lib/trpc';
-import { unlockKeys, type Secret } from './keySlots';
+import { type Secret } from '@agent-board/shared/ui';
+import { unlockKeys } from './unlocker';
 import { useSubmit } from './useSubmit';
 
 interface Props {
