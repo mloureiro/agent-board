@@ -400,7 +400,7 @@ test('staged binaries left by a killed update are removed once they are over an 
   }
 });
 
-test('an update starts by sweeping stale staged binaries and lifting the hold, and --check does neither', async () => {
+test('an update sweeps stale staged binaries and lifts the hold once the binary is replaced, and --check does neither', async () => {
   const { deps, dir, clean } = fixture([{ tag: 'cli-v0.4.0', assets: { [ASSET]: 'new' } }]);
   try {
     const stale = join(dir, '.board-update-0123456789abcdef');
