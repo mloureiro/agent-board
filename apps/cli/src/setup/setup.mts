@@ -55,7 +55,6 @@ export const WATCH_SERVICE = `agent-board-${WATCH_NAME}.service`;
 // The services that keep running code until they are restarted.
 export const LONG_RUNNING_SERVICES = [LISTEN_SERVICE, WATCH_SERVICE];
 
-// Exit 75 is `flock -E 75`: another tick holds the lock, which is not a failure.
 const systemdInterval = (seconds: number): string => (seconds % 60 === 0 ? `${seconds / 60}min` : `${seconds}s`);
 
 const UNITS: Record<UnitName, { description: string; timerDescription: string; accuracy: string }> = {
@@ -103,9 +102,8 @@ export interface RenderInput {
 export function renderUnits({ flock, command }: RenderInput): UnitFile[] {
   const timed = UNIT_NAMES.flatMap((name) => {
     const unit = UNITS[name];
-    // %t is the runtime directory, where bin/dispatch keeps the same lock file.
+    // %t is the runtime directory, where bin/dispatch keeps the same lock file; it must not pass through quoteExecArg, which would escape it to %%t.
     const execStart = [
-      // %t is systemd's specifier, so the lock path is the one argument not quoted.
       ...lockArgv('linux', quoteExecArg(flock), `%t/${DISPATCH_UNIT.lockFile}`),
       ...command(name).map(quoteExecArg),
     ].join(' ');
