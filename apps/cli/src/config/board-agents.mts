@@ -68,6 +68,12 @@ function writeState(dir: string, state: BoardAgentsState): void {
   }
 }
 
+/** Forgets the version applied last, so the next look applies whatever version the board names; the agents on disk stay. */
+export function forgetAppliedVersion(configFile: string): void {
+  const dir = boardAgentsDirOf(configFile);
+  writeState(dir, { ...readBoardAgentsState(dir), version: null });
+}
+
 /** The files of agents/ that define `name`. */
 function localFiles(configFile: string, name: string): string[] {
   const dir = agentsDirOf(configFile);

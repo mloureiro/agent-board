@@ -1612,6 +1612,17 @@ board whether it still serves the old CLI and refuses, changing nothing, when it
 does not or cannot be reached. Auto-update then holds that release and older
 ones until you run `board self-update`. Server data is not rolled back.
 
+--server <url> moves this machine to another board: in the browser, export your
+data on the board you use now (Settings › Account › Your data) and import it on
+the target, then run this on each machine, in a terminal. It checks the target
+before changing anything: it accepts this machine's token, belongs to the same
+user and holds the same data key, and says which check failed. It warns while
+the board you leave still lists other machines seen in the last 15 minutes,
+asks, backs up the config and the units, repoints web.json, restarts the
+listener and the watch unit and checks the target again. The board you leave is
+not changed. It downloads no release, and works on a checkout. `board
+self-update --server <old url>` points the machine back.
+
 It needs `gh`, logged in. A checkout is updated with `git pull` and `pnpm
 install` instead, and says so. Not available inside a board run.
 
@@ -1621,17 +1632,20 @@ lists, then restarts the listener. It also works on a checkout, and says
 workers run.
 
 Options:
-  --check     only report whether a newer release exists
-  --resume    continue a stopped migration
-  --rollback  restore the local state and the binary from before the last
-              migration
-  -h, --help  display help for command
+  --check         only report whether a newer release exists
+  --resume        continue a stopped migration
+  --rollback      restore the local state and the binary from before the last
+                  migration
+  --server <url>  point this machine at another board, after you imported your
+                  export there
+  -h, --help      display help for command
 
 Examples:
   board self-update --check
   board self-update
   board self-update --resume
   board self-update --rollback
+  board self-update --server https://board.example.com
 ```
 
 ### board completion
