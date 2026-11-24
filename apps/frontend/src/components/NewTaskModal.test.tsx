@@ -6,7 +6,7 @@ import { MemoryRouter, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MachineCatalog, MachineDir } from '@agent-board/shared';
 import { LAST_DIRECTORY_KEY } from '../lib/lastDirectory';
-import type { Machine } from '../lib/opening';
+import type { Machine } from '@agent-board/shared/ui';
 import { NewTaskModal } from './NewTaskModal';
 
 const create = vi.hoisted(() => vi.fn(async (_: unknown) => ({ id: 'new1' })));

@@ -1,4 +1,4 @@
-import type { ThreadNote } from './opening';
+import type { ThreadNote } from '@agent-board/shared/ui';
 
 /**
  * The reply the agent drafted on its latest comment, while it is still the thread's last word: a note of the user after it

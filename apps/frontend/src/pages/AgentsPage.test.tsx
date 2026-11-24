@@ -4,8 +4,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { sealerFor } from '../lib/contexts';
-import { openBoardAgents, type OpenedCatalog } from '../lib/opening';
+import { sealerFor } from '@agent-board/shared/ui';
+import { openBoardAgents, type OpenedCatalog } from '@agent-board/shared/ui';
 import { AgentsPage } from './AgentsPage';
 
 const wire = vi.hoisted(() => ({ current: null as unknown }));

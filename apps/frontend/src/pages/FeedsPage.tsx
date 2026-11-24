@@ -12,7 +12,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { QueryStatus } from '../components/QueryStatus';
 import { feedStatus } from '../lib/feedStatus';
-import type { OpenedFeeds } from '../lib/opening';
+import type { OpenedFeeds } from '@agent-board/shared/ui';
 import { ago, stamp } from '../lib/time';
 import { errorMessage, POLL_MS, useTRPC } from '../lib/trpc';
 import { useNow } from '../lib/useNow';

@@ -44,7 +44,7 @@ import { ThreadItem } from '../components/ThreadItem';
 import { TranscriptDrawer } from '../components/TranscriptDrawer';
 import { openQuestionOf } from '../lib/answers';
 import { skillsFor } from '../lib/catalog';
-import { canFork } from '../lib/sealing';
+import { canFork } from '@agent-board/shared/ui';
 import { STATUS_COLOR, STATUS_LABEL } from '../lib/status';
 import { ago, stamp } from '../lib/time';
 import { errorMessage, POLL_MS, useTRPC } from '../lib/trpc';

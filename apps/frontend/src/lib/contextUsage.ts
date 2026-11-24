@@ -1,4 +1,4 @@
-import type { ContextReading } from './opening';
+import type { ContextReading } from '@agent-board/shared/ui';
 
 const trimZeros = (value: string): string => value.replace(/\.?0+$/, '');
 

@@ -14,9 +14,10 @@ import {
   watchesBinding,
   transcriptBinding,
   UNREADABLE_TEXT,
-} from '@agent-board/shared';
-import type { PrState, TaskWatch } from '@agent-board/shared';
-import { describe, expect, it } from 'vitest';
+} from '../index.mts';
+import type { PrState, TaskWatch } from '../index.mts';
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
 import {
   openBoardTask,
   openCatalogs,
@@ -25,9 +26,9 @@ import {
   openFeeds,
   openListedTasks,
   openMachines,
-} from './opening';
-import { sealerFor } from './contexts';
-import type { RouterOutputs } from './wire';
+} from './responses.mts';
+import { sealerFor } from './requests.mts';
+import type { UiOutputs } from './wire.mts';
 
 const keys = await deriveKeys(
   Uint8Array.from({ length: 32 }, (_, i) => i),
@@ -40,7 +41,7 @@ const OTHER_PR_URL = 'https://github.com/acme/app/pull/18';
 const wireTask = async (
   prs: { id: string; pr: string; state: PrState | null }[],
   promptPrState: PrState | null = null,
-): Promise<RouterOutputs['tasks']['get']['task']> => {
+): Promise<UiOutputs['tasks.get']['task']> => {
   const sealer = sealerFor(keys);
   return {
     id: 'task0001',
@@ -73,7 +74,7 @@ const wireTask = async (
     borrowed: false,
     createdAt: new Date(),
     updatedAt: new Date(),
-  } as unknown as RouterOutputs['tasks']['get']['task'];
+  } as unknown as UiOutputs['tasks.get']['task'];
 };
 
 describe('the PRs of a task, as the browser opens it', () => {
@@ -87,14 +88,14 @@ describe('the PRs of a task, as the browser opens it', () => {
         { id: 'b', pr: await sealedPr(OTHER_PR_URL), state: null },
       ]),
     );
-    expect(task.prs).toEqual([
+    assert.deepEqual(task.prs, [
       { id: 'a', url: PR_URL, state: 'merged' },
       { id: 'b', url: OTHER_PR_URL, state: null },
     ]);
   });
 
   it('are none when the board has none', async () => {
-    expect((await openBoardTask(keys, await wireTask([]))).prs).toEqual([]);
+    assert.deepEqual((await openBoardTask(keys, await wireTask([]))).prs, []);
   });
 
   it('leave out one sealed for another task, another purpose, or not a PR URL, or not sealed', async () => {
@@ -107,7 +108,7 @@ describe('the PRs of a task, as the browser opens it', () => {
       await seal(keys, 'pr', prBinding('task0001').context, 'javascript:alert(1)'),
       PR_URL,
     ])
-      expect((await openBoardTask(keys, await wireTask([{ id: 'a', pr: value, state: null }]))).prs).toEqual([]);
+      assert.deepEqual((await openBoardTask(keys, await wireTask([{ id: 'a', pr: value, state: null }]))).prs, []);
   });
 
   it('keep the good ones next to a refused one', async () => {
@@ -118,12 +119,12 @@ describe('the PRs of a task, as the browser opens it', () => {
         { id: 'b', pr: await sealedPr(OTHER_PR_URL), state: 'open' },
       ]),
     );
-    expect(task.prs).toEqual([{ id: 'b', url: OTHER_PR_URL, state: 'open' }]);
+    assert.deepEqual(task.prs, [{ id: 'b', url: OTHER_PR_URL, state: 'open' }]);
   });
 
   it('come with the state of the prompt’s PR', async () => {
     const task = await openBoardTask(keys, await wireTask([], 'closed'));
-    expect(task.promptPrState).toBe('closed');
+    assert.equal(task.promptPrState, 'closed');
   });
 });
 
@@ -137,28 +138,28 @@ describe('the watches of a task, as the browser opens it', () => {
     deadline: '2026-11-17T14:20:00.000Z',
   };
   const open = async (watches: string | null | undefined, watchStops?: string[]) =>
-    openBoardTask(keys, { ...(await wireTask([])), watches, watchStops } as RouterOutputs['tasks']['get']['task']);
+    openBoardTask(keys, { ...(await wireTask([])), watches, watchStops } as UiOutputs['tasks.get']['task']);
 
   it('are the list the agent of the task sealed, with the stops waiting for the machine', async () => {
     const task = await open(await sealWatches(sealerFor(keys), 'task0001', [watch], 3), ['fedcba9876543210']);
-    expect(task.watches).toEqual([watch]);
-    expect(task.watchEvents).toBe(3);
-    expect(task.watchStops).toEqual(['fedcba9876543210']);
-    expect(task.unreadable).toEqual([]);
+    assert.deepEqual(task.watches, [watch]);
+    assert.equal(task.watchEvents, 3);
+    assert.deepEqual(task.watchStops, ['fedcba9876543210']);
+    assert.deepEqual(task.unreadable, []);
   });
 
   it('are none, and no stops, when the board sent neither key', async () => {
     const task = await open(undefined);
-    expect(task.watches).toBeNull();
-    expect(task.watchEvents).toBe(0);
-    expect(task.watchStops).toEqual([]);
-    expect(task.unreadable).toEqual([]);
+    assert.equal(task.watches, null);
+    assert.equal(task.watchEvents, 0);
+    assert.deepEqual(task.watchStops, []);
+    assert.deepEqual(task.unreadable, []);
   });
 
   it('keeps only well-formed stop ids, and none when the board sent no list', async () => {
     const task = await open(null, ['fedcba9876543210', 'junk', 7, '0123456789ABCDEF'] as unknown as string[]);
-    expect(task.watchStops).toEqual(['fedcba9876543210']);
-    expect((await open(null, 'fedcba9876543210' as unknown as string[])).watchStops).toEqual([]);
+    assert.deepEqual(task.watchStops, ['fedcba9876543210']);
+    assert.deepEqual((await open(null, 'fedcba9876543210' as unknown as string[])).watchStops, []);
   });
 
   it('are none and unreadable when sealed for another task, not sealed, or not a list', async () => {
@@ -168,8 +169,8 @@ describe('the watches of a task, as the browser opens it', () => {
       await seal(keys, 'watches', watchesBinding('task0001').context, 'not json'),
     ]) {
       const task = await open(value);
-      expect(task.watches).toBeNull();
-      expect(task.unreadable).toContain('watches');
+      assert.equal(task.watches, null);
+      assert.ok(task.unreadable.includes('watches'));
     }
   });
 });
@@ -188,28 +189,28 @@ describe('the agent of a task, as the browser opens it', () => {
 
   it('is the name the task was sealed with, and the prompt opens under it', async () => {
     const task = await openBoardTask(keys, await sealedFor('reviewer'));
-    expect([task.agent, task.input, task.unreadable]).toEqual(['reviewer', 'Fix the bug', []]);
+    assert.deepEqual([task.agent, task.input, task.unreadable], ['reviewer', 'Fix the bug', []]);
   });
 
   it('is none for a task without one', async () => {
     const task = await openBoardTask(keys, await sealedFor(null));
-    expect([task.agent, task.unreadable]).toEqual([null, []]);
+    assert.deepEqual([task.agent, task.unreadable], [null, []]);
   });
 
   it('makes the task unreadable when the board dropped it, so the page never shows a prompt that would run unrestricted', async () => {
     const { agent: _dropped, ...stripped } = await sealedFor('reviewer');
     const task = await openBoardTask(keys, stripped);
-    expect([task.agent, task.input, task.unreadable]).toEqual([null, '', ['input']]);
+    assert.deepEqual([task.agent, task.input, task.unreadable], [null, '', ['input']]);
   });
 
   it('is unreadable when it was sealed for another task or is not a name', async () => {
     const sealer = sealerFor(keys);
     const elsewhere = await sealer(agentBinding({ ...row, id: 'other001' }), 'reviewer');
-    expect((await openBoardTask(keys, { ...(await sealedFor('reviewer')), agent: elsewhere })).unreadable).toContain(
-      'agent',
+    assert.ok(
+      (await openBoardTask(keys, { ...(await sealedFor('reviewer')), agent: elsewhere })).unreadable.includes('agent'),
     );
     const notAName = await sealer(agentBinding(row), '../etc');
-    expect((await openBoardTask(keys, { ...(await sealedFor('reviewer')), agent: notAName })).agent).toBeNull();
+    assert.equal((await openBoardTask(keys, { ...(await sealedFor('reviewer')), agent: notAName })).agent, null);
   });
 });
 
@@ -217,12 +218,16 @@ describe('the directory lists of machines, as the browser opens them', () => {
   const sealFor = (machine: string, text: string) => sealerFor(keys)(machineDirsBinding(machine), text);
   const list = (paths: string[]) => JSON.stringify({ dirs: paths.map((path) => ({ path })) });
   const wire = (name: string, dirs: string | null, revokedAt: Date | null = null) =>
-    ({ name, dirs, revokedAt, lastSeenAt: null }) as unknown as RouterOutputs['machines']['list'][number];
-  const openOne = async (...machines: RouterOutputs['machines']['list']) => (await openMachines(keys, machines))[0];
+    ({ name, dirs, revokedAt, lastSeenAt: null }) as unknown as UiOutputs['machines.list'][number];
+  const openOne = async (...machines: UiOutputs['machines.list']) => (await openMachines(keys, machines))[0];
 
   it('opens a good list under the machine own name', async () => {
     const machine = await openOne(wire('laptop', await sealFor('laptop', list(['/a', '/b c']))));
-    expect(machine).toMatchObject({ shown: 'laptop', dirs: [{ path: '/a' }, { path: '/b c' }], dirsUnreadable: false });
+    assert.partialDeepStrictEqual(machine, {
+      shown: 'laptop',
+      dirs: [{ path: '/a' }, { path: '/b c' }],
+      dirsUnreadable: false,
+    });
   });
 
   it('carries a label with its directory and drops one that is not a safe label, keeping the list', async () => {
@@ -235,47 +240,51 @@ describe('the directory lists of machines, as the browser opens them', () => {
       ],
     });
     const machine = await openOne(wire('laptop', await sealFor('laptop', text)));
-    expect(machine).toMatchObject({
+    assert.partialDeepStrictEqual(machine, {
       dirs: [{ path: '/a', label: 'Board' }, { path: '/b' }, { path: '/c' }, { path: '/d' }],
       dirsUnreadable: false,
     });
   });
 
   it('has no list when the machine sent none', async () => {
-    expect(await openOne(wire('laptop', null))).toMatchObject({ dirs: null, dirsUnreadable: false });
+    assert.partialDeepStrictEqual(await openOne(wire('laptop', null)), { dirs: null, dirsUnreadable: false });
   });
 
   it('is unreadable when it was sealed for another machine name', async () => {
     const machine = await openOne(wire('laptop', await sealFor('desktop', list(['/a']))));
-    expect(machine).toMatchObject({ dirs: null, dirsUnreadable: true });
+    assert.partialDeepStrictEqual(machine, { dirs: null, dirsUnreadable: true });
   });
 
-  it.each([
+  for (const [what, text] of [
     ['not JSON', 'nope'],
     ['not an object with dirs', JSON.stringify(['/a'])],
     ['an entry without a path', JSON.stringify({ dirs: [{}] })],
     ['a relative path', list(['relative'])],
     ['a path with a control character', list(['/a\nb'])],
-  ])('is unreadable when the list is %s', async (_, text) => {
-    expect(await openOne(wire('laptop', await sealFor('laptop', text)))).toMatchObject({
-      dirs: null,
-      dirsUnreadable: true,
+  ] as [string, string][])
+    it(`is unreadable when the list is ${what}`, async () => {
+      assert.partialDeepStrictEqual(await openOne(wire('laptop', await sealFor('laptop', text))), {
+        dirs: null,
+        dirsUnreadable: true,
+      });
     });
-  });
 
   it('is unreadable when it is not an envelope', async () => {
-    expect(await openOne(wire('laptop', list(['/a'])))).toMatchObject({ dirs: null, dirsUnreadable: true });
+    assert.partialDeepStrictEqual(await openOne(wire('laptop', list(['/a']))), { dirs: null, dirsUnreadable: true });
   });
 
   it('offers nothing for a revoked machine', async () => {
     const sealed = await sealFor('laptop', list(['/a']));
-    expect(await openOne(wire('laptop', sealed, new Date()))).toMatchObject({ dirs: null, dirsUnreadable: false });
+    assert.partialDeepStrictEqual(await openOne(wire('laptop', sealed, new Date())), {
+      dirs: null,
+      dirsUnreadable: false,
+    });
   });
 
   it('offers nothing for a machine whose name does not pass the shape check', async () => {
     const name = 'bad name\n';
     const machine = await openOne(wire(name, await sealFor(name, list(['/a']))));
-    expect(machine).toMatchObject({ shown: '(invalid)', name, dirs: null, dirsUnreadable: false });
+    assert.partialDeepStrictEqual(machine, { shown: '(invalid)', name, dirs: null, dirsUnreadable: false });
   });
 });
 
@@ -289,41 +298,44 @@ describe('the usage status of machines, as the browser opens them', () => {
   };
   const sealFor = (machine: string, text: string) => sealerFor(keys)(machineUsageBinding(machine), text);
   const wire = (name: string, sealed: string | null, revokedAt: Date | null = null) =>
-    ({ name, usage: sealed, revokedAt, lastSeenAt: null }) as unknown as RouterOutputs['machines']['list'][number];
-  const openOne = async (...machines: RouterOutputs['machines']['list']) => (await openMachines(keys, machines))[0];
+    ({ name, usage: sealed, revokedAt, lastSeenAt: null }) as unknown as UiOutputs['machines.list'][number];
+  const openOne = async (...machines: UiOutputs['machines.list']) => (await openMachines(keys, machines))[0];
 
   it('opens a good status under the machine own name', async () => {
     const machine = await openOne(wire('laptop', await sealFor('laptop', JSON.stringify(usage))));
-    expect(machine).toMatchObject({ usage, usageUnreadable: false });
+    assert.partialDeepStrictEqual(machine, { usage, usageUnreadable: false });
   });
 
   it('has no status when the machine sent none', async () => {
-    expect(await openOne(wire('laptop', null))).toMatchObject({ usage: null, usageUnreadable: false });
+    assert.partialDeepStrictEqual(await openOne(wire('laptop', null)), { usage: null, usageUnreadable: false });
   });
 
   it('drops an id that is no task id and keeps the rest', async () => {
     const text = JSON.stringify({ ...usage, held: ['taskA', '../x'] });
-    expect((await openOne(wire('laptop', await sealFor('laptop', text))))?.usage?.held).toEqual(['taskA']);
+    assert.deepEqual((await openOne(wire('laptop', await sealFor('laptop', text))))?.usage?.held, ['taskA']);
   });
 
   it('is unreadable when sealed for another machine, not JSON or not a status', async () => {
-    expect(await openOne(wire('laptop', await sealFor('desktop', JSON.stringify(usage))))).toMatchObject({
+    assert.partialDeepStrictEqual(await openOne(wire('laptop', await sealFor('desktop', JSON.stringify(usage)))), {
       usage: null,
       usageUnreadable: true,
     });
     for (const text of ['nope', '[]', '{"held":"x"}'])
-      expect(await openOne(wire('laptop', await sealFor('laptop', text)))).toMatchObject({
+      assert.partialDeepStrictEqual(await openOne(wire('laptop', await sealFor('laptop', text))), {
         usage: null,
         usageUnreadable: true,
       });
-    expect(await openOne(wire('laptop', JSON.stringify(usage)))).toMatchObject({ usageUnreadable: true });
+    assert.partialDeepStrictEqual(await openOne(wire('laptop', JSON.stringify(usage))), { usageUnreadable: true });
   });
 
   it('offers nothing for a revoked machine or a name that does not pass the shape check', async () => {
     const sealed = await sealFor('laptop', JSON.stringify(usage));
-    expect(await openOne(wire('laptop', sealed, new Date()))).toMatchObject({ usage: null, usageUnreadable: false });
+    assert.partialDeepStrictEqual(await openOne(wire('laptop', sealed, new Date())), {
+      usage: null,
+      usageUnreadable: false,
+    });
     const name = 'bad name\n';
-    expect(await openOne(wire(name, await sealFor(name, JSON.stringify(usage))))).toMatchObject({
+    assert.partialDeepStrictEqual(await openOne(wire(name, await sealFor(name, JSON.stringify(usage)))), {
       usage: null,
       usageUnreadable: false,
     });
@@ -339,25 +351,25 @@ describe('the catalogues of machines, as the browser opens them', () => {
   };
   const sealFor = (machine: string, text: string) => sealerFor(keys)(machineCatalogBinding(machine), text);
   const wire = (name: string, sealed: string | null) =>
-    ({ name, catalog: sealed, catalogUpdatedAt: null }) as RouterOutputs['machines']['catalogs'][number];
-  const openOne = async (...catalogs: RouterOutputs['machines']['catalogs']) => (await openCatalogs(keys, catalogs))[0];
+    ({ name, catalog: sealed, catalogUpdatedAt: null }) as UiOutputs['machines.catalogs'][number];
+  const openOne = async (...catalogs: UiOutputs['machines.catalogs']) => (await openCatalogs(keys, catalogs))[0];
 
   it('opens a good catalogue under the machine own name', async () => {
     const opened = await openOne(wire('laptop', await sealFor('laptop', JSON.stringify(catalog))));
-    expect(opened).toEqual({ name: 'laptop', catalog });
+    assert.deepEqual(opened, { name: 'laptop', catalog });
   });
 
   it('has no catalogue when it was sealed for another machine, is not an envelope or is not of its shape', async () => {
     const elsewhere = await sealFor('desktop', JSON.stringify(catalog));
-    expect(await openOne(wire('laptop', elsewhere))).toEqual({ name: 'laptop', catalog: null });
-    expect(await openOne(wire('laptop', JSON.stringify(catalog)))).toEqual({ name: 'laptop', catalog: null });
+    assert.deepEqual(await openOne(wire('laptop', elsewhere)), { name: 'laptop', catalog: null });
+    assert.deepEqual(await openOne(wire('laptop', JSON.stringify(catalog))), { name: 'laptop', catalog: null });
     const shapeless = await sealFor('laptop', JSON.stringify({ models: 'x' }));
-    expect(await openOne(wire('laptop', shapeless))).toEqual({ name: 'laptop', catalog: null });
+    assert.deepEqual(await openOne(wire('laptop', shapeless)), { name: 'laptop', catalog: null });
   });
 
   it('offers nothing for a name that does not pass the shape check', async () => {
     const name = 'bad name\n';
-    expect(await openOne(wire(name, await sealFor(name, JSON.stringify(catalog))))).toEqual({ name, catalog: null });
+    assert.deepEqual(await openOne(wire(name, await sealFor(name, JSON.stringify(catalog)))), { name, catalog: null });
   });
 });
 
@@ -380,7 +392,7 @@ describe('the events of a run, as the browser opens them', () => {
       run,
       await wireEvent({ ...base, kind: 'result', text: 'done', isError: false }),
     );
-    expect(event).toEqual({
+    assert.deepEqual(event, {
       ...base,
       kind: 'result',
       text: 'done',
@@ -395,13 +407,13 @@ describe('the events of a run, as the browser opens them', () => {
 
   it('shows an event that does not fit its kind as unreadable instead of passing it on', async () => {
     const event = await openEvent(keys, run, await wireEvent({ ...base, kind: 'result', denials: 'none' }));
-    expect(event).toMatchObject({ seq: 3, kind: 'note', text: UNREADABLE_TEXT });
+    assert.partialDeepStrictEqual(event, { seq: 3, kind: 'note', text: UNREADABLE_TEXT });
   });
 
   it('lists a tool result with its output size and without an output', async () => {
     const data = { ...base, kind: 'tool_result', toolUseId: 'toolu_1', isError: false };
     const event = await openEvent(keys, run, await wireEvent(data, 12));
-    expect(event).toEqual({ ...data, outputSize: 12 });
+    assert.deepEqual(event, { ...data, outputSize: 12 });
   });
 });
 
@@ -427,11 +439,11 @@ describe('the context reading of a task, as the browser opens it', () => {
   });
 
   it('has no reading when the run reported none', async () => {
-    expect(await openContext(keys, taskId, null)).toBeNull();
+    assert.equal(await openContext(keys, taskId, null), null);
   });
 
   it('opens a sealed reading', async () => {
-    expect(await openContext(keys, taskId, await wire(7))).toEqual({
+    assert.deepEqual(await openContext(keys, taskId, await wire(7)), {
       used: 133_600,
       window: 1_000_000,
       threshold: 80,
@@ -441,12 +453,12 @@ describe('the context reading of a task, as the browser opens it', () => {
   });
 
   it('shows a value sealed under another position, or of another shape, as unreadable', async () => {
-    expect(await openContext(keys, taskId, await wire(8))).toBe('unreadable');
-    expect(await openContext(keys, taskId, await wire(7, { ...reading, used: 'lots' }))).toBe('unreadable');
+    assert.equal(await openContext(keys, taskId, await wire(8)), 'unreadable');
+    assert.equal(await openContext(keys, taskId, await wire(7, { ...reading, used: 'lots' })), 'unreadable');
   });
 
   it('shows a value whose own position differs from the one it was served under as unreadable', async () => {
-    expect(await openContext(keys, taskId, await wire(7, { ...reading, seq: 9 }))).toBe('unreadable');
+    assert.equal(await openContext(keys, taskId, await wire(7, { ...reading, seq: 9 })), 'unreadable');
   });
 
   it('opens the readings of a listing, and gives a card nothing for an unreadable one', async () => {
@@ -456,13 +468,13 @@ describe('the context reading of a task, as the browser opens it', () => {
       { ...task, lastNote: null, context: await wire(8) },
       { ...task, lastNote: null, context: null },
     ]);
-    expect(readable?.context).toMatchObject({ used: 133_600, window: 1_000_000 });
-    expect(unreadable?.context).toBeNull();
-    expect(none?.context).toBeNull();
+    assert.partialDeepStrictEqual(readable?.context, { used: 133_600, window: 1_000_000 });
+    assert.equal(unreadable?.context, null);
+    assert.equal(none?.context, null);
   });
 
   it('refuses a run id that is not an id without throwing', async () => {
-    expect(await openContext(keys, taskId, { ...(await wire(7)), runId: 'bad id\n' })).toBe('unreadable');
+    assert.equal(await openContext(keys, taskId, { ...(await wire(7)), runId: 'bad id\n' }), 'unreadable');
   });
 });
 
@@ -475,7 +487,7 @@ describe('the feeds of a machine, as the browser opens them', () => {
     runAsked: false,
     history: [],
   };
-  const row = async (name: string, overrides: Partial<RouterOutputs['feeds']['list'][number]> = {}) => ({
+  const row = async (name: string, overrides: Partial<UiOutputs['feeds.list'][number]> = {}) => ({
     name,
     feeds: await sealMachineFeeds(sealerFor(keys), name, { feeds: [feed] }),
     feedsUpdatedAt: '2026-11-23T12:00:00.000Z',
@@ -487,9 +499,9 @@ describe('the feeds of a machine, as the browser opens them', () => {
   it('opens the feeds and keeps the pending requests that name a known action and a feed id', async () => {
     const requests = ['pause:0123456789abcdef', 'run:short', 'delete:0123456789abcdef', 'run:0123456789abcdef:x'];
     const [opened] = await openFeeds(keys, [await row('laptop', { feedRequests: requests })]);
-    expect(opened?.feeds).toEqual([feed]);
-    expect(opened?.requests).toEqual(['pause:0123456789abcdef']);
-    expect(opened?.lastSeenAt).toBe('2026-11-23T12:01:00.000Z');
+    assert.deepEqual(opened?.feeds, [feed]);
+    assert.deepEqual(opened?.requests, ['pause:0123456789abcdef']);
+    assert.equal(opened?.lastSeenAt, '2026-11-23T12:01:00.000Z');
   });
 
   it('gives no feeds for a document sealed for another machine, and for one that is not a feeds document', async () => {
@@ -500,6 +512,9 @@ describe('the feeds of a machine, as the browser opens them', () => {
       await row('tablet', { feeds: notFeeds }),
       await row('phone', { feeds: 'abe1.notanenvelope' }),
     ]);
-    expect(opened.map((entry) => entry.feeds)).toEqual([null, null, null]);
+    assert.deepEqual(
+      opened.map((entry) => entry.feeds),
+      [null, null, null],
+    );
   });
 });

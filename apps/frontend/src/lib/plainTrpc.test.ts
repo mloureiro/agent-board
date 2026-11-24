@@ -20,9 +20,9 @@ import { createTRPCOptionsProxy } from '@trpc/tanstack-react-query';
 import { observable } from '@trpc/server/observable';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createKeySetup } from '../crypto/unlocker';
-import { openBoardTask } from './opening';
+import { openBoardTask } from '@agent-board/shared/ui';
 import { createPlainTRPC } from './plainTrpc';
-import { openAs, sealerFor } from './contexts';
+import { openAs, sealerFor } from '@agent-board/shared/ui';
 
 const sealAs = (withKeys: Keys, binding: Binding, text: string): Promise<string> => sealerFor(withKeys)(binding, text);
 const taskRow = (

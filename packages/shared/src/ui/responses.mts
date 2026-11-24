@@ -50,8 +50,8 @@ import {
   type TranscriptEvent,
   type TranscriptEventView,
   type UnreadableField,
-} from '@agent-board/shared';
-import { openAs } from './contexts';
+} from '../index.mts';
+import { openAs } from './requests.mts';
 import {
   checkNoteShapes,
   isCount,
@@ -61,17 +61,17 @@ import {
   shownName,
   shownRule,
   type ShownAuthor,
-} from './shapes';
-import { viewSharedAgents, type SharedAgentView } from './sharedAgents';
-import type { RouterOutputs } from './wire';
+} from './shapes.mts';
+import { viewSharedAgents, type SharedAgentView } from './sharedAgents.mts';
+import type { UiOutputs } from './wire.mts';
 
-type WireBoardTask = RouterOutputs['tasks']['get']['task'];
-type WireListedTask = RouterOutputs['tasks']['list'][number];
+type WireBoardTask = UiOutputs['tasks.get']['task'];
+type WireListedTask = UiOutputs['tasks.list'][number];
 type WireLastNote = NonNullable<WireListedTask['lastNote']>;
-type WireThreadNote = RouterOutputs['tasks']['get']['thread'][number];
-type WireSchedule = RouterOutputs['schedules']['list'][number];
-type WireEvent = RouterOutputs['transcript']['events'][number];
-type WireContext = RouterOutputs['transcript']['context'];
+type WireThreadNote = UiOutputs['tasks.get']['thread'][number];
+type WireSchedule = UiOutputs['schedules.list'][number];
+type WireEvent = UiOutputs['transcript.events'][number];
+type WireContext = UiOutputs['transcript.context'];
 
 interface SealedFields {
   title: string;
@@ -140,7 +140,7 @@ export interface TaskDetail {
   parent: BoardTask | null;
 }
 
-export type Schedule = Omit<WireSchedule, keyof SealedFields | 'icon' | 'labels'> &
+export type OpenedSchedule = Omit<WireSchedule, keyof SealedFields | 'icon' | 'labels'> &
   SealedFields & {
     icon: string | null;
     labels: string[];
@@ -149,12 +149,12 @@ export type Schedule = Omit<WireSchedule, keyof SealedFields | 'icon' | 'labels'
     invalid: string[];
   };
 // A count the board sent that is not a whole number is null.
-export type TranscriptRun = Omit<RouterOutputs['transcript']['runs'][number], 'eventCount'> & {
+export type TranscriptRun = Omit<UiOutputs['transcript.runs'][number], 'eventCount'> & {
   eventCount: number | null;
 };
 // `name` is what the board sent, kept to send back (a token with a name that does not pass the shape check can still be revoked);
 // `shown` is what the page may print.
-export type Machine = Omit<RouterOutputs['machines']['list'][number], 'dirs' | 'usage'> & {
+export type Machine = Omit<UiOutputs['machines.list'][number], 'dirs' | 'usage'> & {
   shown: string;
   // The directories the machine listed, with the label it gave each, as the user's own text; null when it has no list to
   // offer: none sent, a revoked machine, or a name that does not pass the shape check.
@@ -303,7 +303,7 @@ export async function openThread(keys: Keys, taskId: string, wire: WireThreadNot
   return Promise.all(wire.map((note) => openThreadNote(keys, taskId, note, (counts.get(note.id) ?? 0) > 1)));
 }
 
-export async function openTaskDetail(keys: Keys, wire: RouterOutputs['tasks']['get']): Promise<TaskDetail> {
+export async function openTaskDetail(keys: Keys, wire: UiOutputs['tasks.get']): Promise<TaskDetail> {
   const [task, thread, followUps, parent] = await Promise.all([
     openBoardTask(keys, wire.task),
     openThread(keys, wire.task.id, wire.thread),
@@ -313,7 +313,7 @@ export async function openTaskDetail(keys: Keys, wire: RouterOutputs['tasks']['g
   return { task, thread, followUps, parent };
 }
 
-export async function openSchedule(keys: Keys, wire: WireSchedule): Promise<Schedule> {
+export async function openSchedule(keys: Keys, wire: WireSchedule): Promise<OpenedSchedule> {
   const id = safeId(wire.id, 'schedule id');
   const [fields, icon, labels] = await Promise.all([
     openFields(openerFor(keys), { kind: 'schedule', id }, wire),
@@ -354,12 +354,12 @@ export async function openSchedule(keys: Keys, wire: WireSchedule): Promise<Sche
   };
 }
 
-export async function openSchedules(keys: Keys, wire: WireSchedule[]): Promise<Schedule[]> {
+export async function openSchedules(keys: Keys, wire: WireSchedule[]): Promise<OpenedSchedule[]> {
   return Promise.all(wire.map((schedule) => openSchedule(keys, schedule)));
 }
 
 /** The runs of a task: ids are what the events are asked for, so a bad one refuses the reply; a machine name or session that is not of its shape shows as neutral. */
-export function openRuns(wire: RouterOutputs['transcript']['runs']): TranscriptRun[] {
+export function openRuns(wire: UiOutputs['transcript.runs']): TranscriptRun[] {
   return wire.map((run) => {
     if (!isSafeNoteId(run.id)) throw new ContractError('The board sent a run id that is not an id.');
     return {
@@ -371,7 +371,7 @@ export function openRuns(wire: RouterOutputs['transcript']['runs']): TranscriptR
   });
 }
 
-export async function openMachines(keys: Keys, wire: RouterOutputs['machines']['list']): Promise<Machine[]> {
+export async function openMachines(keys: Keys, wire: UiOutputs['machines.list']): Promise<Machine[]> {
   return Promise.all(
     wire.map(async ({ dirs: sealed, usage: sealedUsage, ...machine }) => {
       const shown = shownName(machine.name) ?? INVALID_VALUE;
@@ -392,7 +392,7 @@ export async function openMachines(keys: Keys, wire: RouterOutputs['machines']['
   );
 }
 
-export async function openCatalogs(keys: Keys, wire: RouterOutputs['machines']['catalogs']): Promise<OpenedCatalog[]> {
+export async function openCatalogs(keys: Keys, wire: UiOutputs['machines.catalogs']): Promise<OpenedCatalog[]> {
   return Promise.all(
     wire.map(async ({ name, catalog: sealed }) => ({
       name,
@@ -412,10 +412,7 @@ export interface BoardAgents {
 }
 
 /** Null when no agent was ever pushed; a version or time of the wrong shape leaves the document unopened. */
-export async function openBoardAgents(
-  keys: Keys,
-  wire: RouterOutputs['agents']['shared'],
-): Promise<BoardAgents | null> {
+export async function openBoardAgents(keys: Keys, wire: UiOutputs['agents.shared']): Promise<BoardAgents | null> {
   if (wire === null) return null;
   const { version, document, pushedAt } = wire;
   const opened = isSharedAgentsVersion(version)
@@ -436,7 +433,7 @@ export interface BoardLinks {
 }
 
 /** Null when no rule was ever saved; a version or time of the wrong shape leaves the document unopened. */
-export async function openBoardLinks(keys: Keys, wire: RouterOutputs['links']['get']): Promise<BoardLinks | null> {
+export async function openBoardLinks(keys: Keys, wire: UiOutputs['links.get']): Promise<BoardLinks | null> {
   if (wire === null) return null;
   const { version, document, updatedAt } = wire;
   const opened = isLinkRulesVersion(version) ? await openLinkRules(openerFor(keys), version, document) : undefined;
@@ -457,7 +454,7 @@ export interface BoardTitleRules {
 /** Null when no rule was ever saved; a version or time of the wrong shape leaves the document unopened. */
 export async function openBoardTitleRules(
   keys: Keys,
-  wire: RouterOutputs['titleRules']['get'],
+  wire: UiOutputs['titleRules.get'],
 ): Promise<BoardTitleRules | null> {
   if (wire === null) return null;
   const { version, document, updatedAt } = wire;
@@ -521,7 +518,7 @@ export interface OpenedFeeds {
   requests: string[];
 }
 
-export async function openFeeds(keys: Keys, wire: RouterOutputs['feeds']['list']): Promise<OpenedFeeds[]> {
+export async function openFeeds(keys: Keys, wire: UiOutputs['feeds.list']): Promise<OpenedFeeds[]> {
   return Promise.all(
     wire.map(async ({ name, feeds: sealed, feedsUpdatedAt, feedRequests, lastSeenAt }) => {
       const shown = shownName(name) ?? INVALID_VALUE;

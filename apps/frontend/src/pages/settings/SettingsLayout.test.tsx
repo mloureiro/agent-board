@@ -15,8 +15,8 @@ import { EncryptionSettings } from './EncryptionSettings';
 import { MachinesSettings } from './MachinesSettings';
 import { NotificationsSettings } from './NotificationsSettings';
 import { SettingsLayout } from './SettingsLayout';
-import { openAs, sealerFor } from '../../lib/contexts';
-import { openMachines } from '../../lib/opening';
+import { openAs, sealerFor } from '@agent-board/shared/ui';
+import { openMachines } from '@agent-board/shared/ui';
 
 const TITLE = { field: 'title', context: 'task:abc' } as const;
 

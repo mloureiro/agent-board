@@ -1,7 +1,8 @@
-import { deriveKeys, openFields, openIcon, openLabels, type RowRef } from '@agent-board/shared';
-import { describe, expect, it } from 'vitest';
-import { openerFor } from './opening';
-import { InputError, sealConfigure, sealNewTask } from './sealing';
+import { deriveKeys, openFields, openIcon, openLabels, type RowRef } from '../index.mts';
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
+import { openerFor } from './responses.mts';
+import { InputError, sealConfigure, sealNewTask } from './requests.mts';
 
 const keys = await deriveKeys(
   Uint8Array.from({ length: 32 }, (_, i) => i),
@@ -21,50 +22,51 @@ describe('sealConfigure', () => {
   it('seals the directory of a plain task so that the page opens it', async () => {
     const task = { id: 'task0001', createdBy: 'user', scheduleId: null } as const;
     const sealed = await sealConfigure(keys, { task, place });
-    expect(sealed).toMatchObject({ id: 'task0001', place: { machine: 'deskwork' } });
-    expect(await opened({ kind: 'task', forkOf: null, ...task }, sealed.place?.workdir)).toBe('/home/me/code');
-    expect(await opened({ kind: 'task', forkOf: null, ...task, id: 'task0002' }, sealed.place?.workdir)).toBeNull();
+    assert.partialDeepStrictEqual(sealed, { id: 'task0001', place: { machine: 'deskwork' } });
+    assert.equal(await opened({ kind: 'task', forkOf: null, ...task }, sealed.place?.workdir), '/home/me/code');
+    assert.equal(await opened({ kind: 'task', forkOf: null, ...task, id: 'task0002' }, sealed.place?.workdir), null);
   });
 
   it('seals the directory of an agent’s proposal the same way', async () => {
     const task = { id: 'task0001', createdBy: 'agent', scheduleId: null } as const;
     const sealed = await sealConfigure(keys, { task, place });
-    expect(await opened({ kind: 'task', forkOf: null, ...task }, sealed.place?.workdir)).toBe('/home/me/code');
+    assert.equal(await opened({ kind: 'task', forkOf: null, ...task }, sealed.place?.workdir), '/home/me/code');
   });
 
   it('seals the directory of a schedule’s occurrence for both its task and its schedule', async () => {
     const task = { id: 'task0001', createdBy: 'user', scheduleId: 'sched001' } as const;
     const sealed = await sealConfigure(keys, { task, place });
-    expect(await opened({ kind: 'task', forkOf: null, ...task }, sealed.place?.workdir)).toBe('/home/me/code');
-    expect(
+    assert.equal(await opened({ kind: 'task', forkOf: null, ...task }, sealed.place?.workdir), '/home/me/code');
+    assert.equal(
       await opened({ kind: 'task', forkOf: null, ...task, scheduleId: 'sched002' }, sealed.place?.workdir),
-    ).toBeNull();
-    expect(await opened({ kind: 'task', forkOf: null, ...task, scheduleId: null }, sealed.place?.workdir)).toBeNull();
+      null,
+    );
+    assert.equal(await opened({ kind: 'task', forkOf: null, ...task, scheduleId: null }, sealed.place?.workdir), null);
   });
 
   it('seals a trimmed title for the row so that the page opens it, and refuses an empty one', async () => {
     const task = { id: 'task0001', createdBy: 'agent', scheduleId: null } as const;
     const sealed = await sealConfigure(keys, { task, title: '  Renamed \n' });
-    expect(Object.keys(sealed)).toEqual(['id', 'title']);
+    assert.deepEqual(Object.keys(sealed), ['id', 'title']);
     const row: RowRef = { kind: 'task', forkOf: null, ...task };
-    expect((await openFields(openerFor(keys), row, { title: sealed.title!, input: '' })).title).toBe('Renamed');
-    await expect(sealConfigure(keys, { task, title: '   ' })).rejects.toThrow(InputError);
+    assert.equal((await openFields(openerFor(keys), row, { title: sealed.title!, input: '' })).title, 'Renamed');
+    await assert.rejects(sealConfigure(keys, { task, title: '   ' }), InputError);
   });
 
   it('refuses a title for a schedule’s occurrence, whose title is bound to the schedule', async () => {
     const task = { id: 'task0001', createdBy: 'user', scheduleId: 'sched001' } as const;
-    await expect(sealConfigure(keys, { task, title: 'This sweep' })).rejects.toThrow(InputError);
+    await assert.rejects(sealConfigure(keys, { task, title: 'This sweep' }), InputError);
   });
 
   it('sends only what changes: a model alone, no directory, or both', async () => {
     const task = { id: 'task0001', createdBy: 'user', scheduleId: null } as const;
-    expect(await sealConfigure(keys, { task, model: 'opus' })).toEqual({ id: 'task0001', model: 'opus' });
-    expect(await sealConfigure(keys, { task, model: null })).toEqual({ id: 'task0001', model: null });
-    expect(await sealConfigure(keys, { task, effort: 'xhigh' })).toEqual({ id: 'task0001', effort: 'xhigh' });
-    expect(await sealConfigure(keys, { task, effort: null })).toEqual({ id: 'task0001', effort: null });
-    expect(await sealConfigure(keys, { task, autoDone: false })).toEqual({ id: 'task0001', autoDone: false });
-    expect(await sealConfigure(keys, { task, place: null })).toEqual({ id: 'task0001', place: null });
-    expect(await sealConfigure(keys, { task, model: 'haiku', place })).toMatchObject({
+    assert.deepEqual(await sealConfigure(keys, { task, model: 'opus' }), { id: 'task0001', model: 'opus' });
+    assert.deepEqual(await sealConfigure(keys, { task, model: null }), { id: 'task0001', model: null });
+    assert.deepEqual(await sealConfigure(keys, { task, effort: 'xhigh' }), { id: 'task0001', effort: 'xhigh' });
+    assert.deepEqual(await sealConfigure(keys, { task, effort: null }), { id: 'task0001', effort: null });
+    assert.deepEqual(await sealConfigure(keys, { task, autoDone: false }), { id: 'task0001', autoDone: false });
+    assert.deepEqual(await sealConfigure(keys, { task, place: null }), { id: 'task0001', place: null });
+    assert.partialDeepStrictEqual(await sealConfigure(keys, { task, model: 'haiku', place }), {
       model: 'haiku',
       place: { machine: 'deskwork' },
     });
@@ -75,15 +77,15 @@ describe('the icon', () => {
   it('is sealed for the task, and a schedule’s for its occurrences, so the page opens it', async () => {
     const task = { id: 'task0001', createdBy: 'user', scheduleId: null } as const;
     const sealed = await sealConfigure(keys, { task, icon: '🚀' });
-    expect(sealed.icon).toMatch(/^abe1\./);
-    expect(await openIcon(openerFor(keys), { kind: 'task', forkOf: null, ...task }, sealed.icon)).toBe('🚀');
-    expect(await sealConfigure(keys, { task, icon: null })).toEqual({ id: 'task0001', icon: null });
-    await expect(sealConfigure(keys, { task, icon: 'rocket' })).rejects.toThrow('an icon must be one emoji');
+    assert.match(sealed.icon ?? '', /^abe1\./);
+    assert.equal(await openIcon(openerFor(keys), { kind: 'task', forkOf: null, ...task }, sealed.icon), '🚀');
+    assert.deepEqual(await sealConfigure(keys, { task, icon: null }), { id: 'task0001', icon: null });
+    await assert.rejects(sealConfigure(keys, { task, icon: 'rocket' }), /an icon must be one emoji/);
 
     const repeat = await sealNewTask(keys, { input: '/sweep', icon: '🧹', when: { every: 3_600_000 } });
     const occurrence: RowRef = { kind: 'task', id: 'occ00001', createdBy: 'user', scheduleId: repeat.id, forkOf: null };
-    expect(await openIcon(openerFor(keys), occurrence, repeat.icon)).toBe('🧹');
-    expect(await sealNewTask(keys, { input: '/sweep' })).not.toHaveProperty('icon');
+    assert.equal(await openIcon(openerFor(keys), occurrence, repeat.icon), '🧹');
+    assert.ok(!('icon' in (await sealNewTask(keys, { input: '/sweep' }))));
   });
 });
 
@@ -92,14 +94,14 @@ describe('the labels', () => {
     const task = { id: 'task0001', createdBy: 'user', scheduleId: null } as const;
     const row: RowRef = { kind: 'task', forkOf: null, ...task };
     const sealed = await sealConfigure(keys, { task, labels: ['bug', ' ui ', 'Bug'] });
-    expect(sealed.labels).toMatch(/^abe1\./);
-    expect(await openLabels(openerFor(keys), row, sealed.labels)).toEqual(['bug', 'ui']);
-    expect(await sealConfigure(keys, { task, labels: [] })).toEqual({ id: 'task0001', labels: null });
-    await expect(sealConfigure(keys, { task, labels: ['-x'] })).rejects.toThrow(InputError);
+    assert.match(sealed.labels ?? '', /^abe1\./);
+    assert.deepEqual(await openLabels(openerFor(keys), row, sealed.labels), ['bug', 'ui']);
+    assert.deepEqual(await sealConfigure(keys, { task, labels: [] }), { id: 'task0001', labels: null });
+    await assert.rejects(sealConfigure(keys, { task, labels: ['-x'] }), InputError);
 
     const repeat = await sealNewTask(keys, { input: '/sweep', labels: ['chore'], when: { every: 3_600_000 } });
     const occurrence: RowRef = { kind: 'task', id: 'occ00001', createdBy: 'user', scheduleId: repeat.id, forkOf: null };
-    expect(await openLabels(openerFor(keys), occurrence, repeat.labels)).toEqual(['chore']);
-    expect(await sealNewTask(keys, { input: '/sweep', labels: [] })).not.toHaveProperty('labels');
+    assert.deepEqual(await openLabels(openerFor(keys), occurrence, repeat.labels), ['chore']);
+    assert.ok(!('labels' in (await sealNewTask(keys, { input: '/sweep', labels: [] }))));
   });
 });

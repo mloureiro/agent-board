@@ -1,5 +1,5 @@
 import { prsOf } from '@agent-board/shared';
-import type { BoardTask } from './opening';
+import type { BoardTask } from '@agent-board/shared/ui';
 
 /** A task of the user's that asks nothing and has at least one merged PR, every PR of it being merged or closed: it can go to Done. */
 export function canMoveMergedToDone(

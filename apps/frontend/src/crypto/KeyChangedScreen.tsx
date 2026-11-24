@@ -1,7 +1,7 @@
 import { Alert, Button, Center, Code, Paper, Stack, Text, TextInput, Title } from '@mantine/core';
 import { IconAlertTriangle } from '@tabler/icons-react';
 import { useState } from 'react';
-import { shownUserName } from '../lib/shapes';
+import { shownUserName } from '@agent-board/shared/ui';
 
 export const FORGET_WORD = 'FORGET';
 

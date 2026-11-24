@@ -9,7 +9,14 @@ import { uiGuardLink } from './uiGuard';
 import { useRawTRPC, useRawTRPCClient } from './rawTrpc';
 import { isUnauthorized } from './unauthorized';
 
-export type { BoardTask, LastNote, ListedTask, Schedule, TaskDetail, ThreadNote } from './opening';
+export type {
+  BoardTask,
+  LastNote,
+  ListedTask,
+  OpenedSchedule as Schedule,
+  TaskDetail,
+  ThreadNote,
+} from '@agent-board/shared/ui';
 export type { RouterInputs, RouterOutputs } from './wire';
 export { TRPCProvider, useRawTRPC, useRawTRPCClient } from './rawTrpc';
 

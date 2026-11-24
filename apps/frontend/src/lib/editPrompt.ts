@@ -1,4 +1,4 @@
-import type { BoardTask } from './opening';
+import type { BoardTask } from '@agent-board/shared/ui';
 
 /** The prompt of a task of yours can be edited until a worker claims it: waiting in Todo or Backlog, never started, readable. A schedule's card is edited through its schedule. */
 export function canEditPrompt(
