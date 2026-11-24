@@ -24,8 +24,16 @@ type Has<T, P extends string> = P extends `${infer Head}.${infer Rest}`
 /** Paths whose declared input the router would not accept. */
 type InputDrift = { [P in UiPath]: [UiInputs[P]] extends [At<RouterInputs, P>] ? never : P }[UiPath];
 
-/** Paths whose router output is not assignable to the declared output. */
-type OutputDrift = { [P in UiPath]: [At<RouterOutputs, P>] extends [UiOutputs[P]] ? never : P }[UiPath];
+/** Paths whose router output is not assignable to the declared output. A procedure without a body infers as `never`, which fits any declaration, so it must be declared `void`. */
+type OutputDrift = {
+  [P in UiPath]: [At<RouterOutputs, P>] extends [never]
+    ? [UiOutputs[P]] extends [void]
+      ? never
+      : P
+    : [At<RouterOutputs, P>] extends [UiOutputs[P]]
+      ? never
+      : P;
+}[UiPath];
 
 /** Paths of the list the router does not have. */
 type MissingProcedure = { [P in UiPath]: Has<RouterInputs, P> extends true ? never : P }[UiPath];
