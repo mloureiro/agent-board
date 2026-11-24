@@ -1,0 +1,786 @@
+{
+  "cases": [
+    {
+      "name": "a new task with every option",
+      "sealer": "sealNewTask",
+      "ids": ["tsk000000010"],
+      "args": [
+        {
+          "title": "Fix the login redirect",
+          "input": "Users land on /404 after signing in. Find out why.",
+          "priority": "high",
+          "model": "opus",
+          "effort": "high",
+          "lane": "work",
+          "autoDone": true,
+          "when": "backlog",
+          "parentId": "tsk000000000",
+          "place": {
+            "machine": "laptop",
+            "workdir": "/home/alice/app"
+          },
+          "agent": "reviewer",
+          "icon": "🐛",
+          "labels": ["bug", "auth"]
+        }
+      ],
+      "sealed": {
+        "id": "tsk000000010",
+        "title": "abe1.7RpkY3Bl-5LvSyKg78_5yJW84xA189SUUUBJz7cnNIU179QAEoA4iiA0kv8F3WBMAVQ",
+        "input": "abe1.0Ny5ZAsfkudrooV4SRmSYsbr1yMEPliyIOzfyEvr384BOfg3H0GkmqIEWKGaa75x5hS6Z3y9rze_zG7btbghg8BxOw7tcMmdQ2ATHOps",
+        "agent": "abe1.rTi-y_7GQmBipNnj7IiNPZjQIgSlUJcEKNQHeXY1wtWooDtL",
+        "icon": "abe1._LVhDKVTlMqPpH4f5pFd0tMV2Rz_vQ7Neir5ybjXd2s",
+        "labels": "abe1.zjcTcxUi9RRun2ZfgIdO23-K3sWSWl5ko5DXzbSvNMVhMz7Mo-0uEbc_",
+        "priority": "high",
+        "model": "opus",
+        "effort": "high",
+        "lane": "work",
+        "autoDone": true,
+        "when": "backlog",
+        "parentId": "tsk000000000",
+        "place": {
+          "machine": "laptop",
+          "workdir": "abe1.mN6qvrOkG-QKu-XLEwpqQSEGr7QpOP03tmLDAp6NVQfs1Crx7TDwFWZmQA"
+        }
+      },
+      "fields": [
+        {
+          "at": "title",
+          "field": "title",
+          "context": "task:tsk000000010",
+          "plaintext": "Fix the login redirect"
+        },
+        {
+          "at": "input",
+          "field": "input",
+          "context": "task:tsk000000010:user:agent:reviewer",
+          "plaintext": "Users land on /404 after signing in. Find out why."
+        },
+        {
+          "at": "agent",
+          "field": "agent",
+          "context": "task:tsk000000010",
+          "plaintext": "reviewer"
+        },
+        {
+          "at": "icon",
+          "field": "icon",
+          "context": "task:tsk000000010",
+          "plaintext": "🐛"
+        },
+        {
+          "at": "labels",
+          "field": "labels",
+          "context": "task:tsk000000010",
+          "plaintext": "[\"bug\",\"auth\"]"
+        },
+        {
+          "at": "place.workdir",
+          "field": "workdir",
+          "context": "task:tsk000000010",
+          "plaintext": "/home/alice/app"
+        }
+      ],
+      "clear": {
+        "id": "tsk000000010",
+        "title": "<sealed>",
+        "input": "<sealed>",
+        "agent": "<sealed>",
+        "icon": "<sealed>",
+        "labels": "<sealed>",
+        "priority": "high",
+        "model": "opus",
+        "effort": "high",
+        "lane": "work",
+        "autoDone": true,
+        "when": "backlog",
+        "parentId": "tsk000000000",
+        "place": {
+          "machine": "laptop",
+          "workdir": "<sealed>"
+        }
+      }
+    },
+    {
+      "name": "a new repeating task without a title",
+      "sealer": "sealNewTask",
+      "ids": ["sch000000010"],
+      "args": [
+        {
+          "input": "Summarise the open pull requests.",
+          "when": {
+            "every": 3600000
+          },
+          "place": {
+            "machine": "laptop",
+            "workdir": "/home/alice/app"
+          }
+        }
+      ],
+      "sealed": {
+        "id": "sch000000010",
+        "title": "abe1.GXqyXXNBIRMCo9Bq7QCj8FA8ixhS4aTR66-bEoiMDN9fBeitPWs_EVEWB4UWO-w_uvhYG72aFQxowxALSg",
+        "input": "abe1.UYJwbfKqjRJtpphLZIMYPtKZf7iKOESi-qRQrqhHERlr02Ul1J_hl24uXfmIaICUgeI-vFzp26NMs0_Q5A",
+        "when": {
+          "every": 3600000
+        },
+        "place": {
+          "machine": "laptop",
+          "workdir": "abe1.TY06UgXXvfCZjCy4YnRCoVhKWE_zkypjPk7ZDbJFZ-Y5tSu3ueIUJjCn3Q"
+        }
+      },
+      "fields": [
+        {
+          "at": "title",
+          "field": "title",
+          "context": "schedule:sch000000010",
+          "plaintext": "Summarise the open pull requests."
+        },
+        {
+          "at": "input",
+          "field": "input",
+          "context": "schedule:sch000000010:user",
+          "plaintext": "Summarise the open pull requests."
+        },
+        {
+          "at": "place.workdir",
+          "field": "workdir",
+          "context": "schedule:sch000000010",
+          "plaintext": "/home/alice/app"
+        }
+      ],
+      "clear": {
+        "id": "sch000000010",
+        "title": "<sealed>",
+        "input": "<sealed>",
+        "when": {
+          "every": 3600000
+        },
+        "place": {
+          "machine": "laptop",
+          "workdir": "<sealed>"
+        }
+      }
+    },
+    {
+      "name": "a reply",
+      "sealer": "sealReply",
+      "ids": [],
+      "args": ["tsk000000001", "  Also check the mobile layout.  "],
+      "sealed": {
+        "body": "abe1.1x0O58tbl6tLr6QmvMQIVUjyflzu_3PS6-B5N51gE384h413g9ZFV1d0ELa9ld51VFYOXo6DpVEk",
+        "preview": "abe1.QrB_25_-TasI8H4zBInzmWIOwLHvEhpLeg8T3nu6QzO62me7DvuftxGL8iPlTB0hmMjaS7aHR6Bd"
+      },
+      "fields": [
+        {
+          "at": "body",
+          "field": "note.body",
+          "context": "note:tsk000000001:user:comment",
+          "plaintext": "Also check the mobile layout."
+        },
+        {
+          "at": "preview",
+          "field": "note.preview",
+          "context": "note:tsk000000001:user:comment",
+          "plaintext": "Also check the mobile layout."
+        }
+      ],
+      "clear": {
+        "body": "<sealed>",
+        "preview": "<sealed>"
+      }
+    },
+    {
+      "name": "an answer",
+      "sealer": "sealAnswer",
+      "ids": [],
+      "args": [
+        {
+          "id": "tsk000000001",
+          "questionNoteId": "note00000002",
+          "questions": [
+            {
+              "header": "Scope",
+              "question": "Which redirect should change?",
+              "multiSelect": false,
+              "options": [
+                {
+                  "label": "Login only",
+                  "description": "Leave the logout redirect alone.",
+                  "recommended": true
+                },
+                {
+                  "label": "Both",
+                  "description": "Change login and logout together."
+                }
+              ]
+            }
+          ],
+          "answers": [
+            {
+              "selected": ["Login only"],
+              "other": "Keep the logout redirect as it is."
+            }
+          ],
+          "message": "Go with the first option."
+        }
+      ],
+      "sealed": {
+        "id": "tsk000000001",
+        "questionNoteId": "note00000002",
+        "answers": "abe1.gzOPD5Av2tmU0eDRl0rydo_CkG61dBVECiVxm441zbG9aOP5N7UNenBeXFlOCDi4BM7QpTKR61hmMYIZnR73WP-yRuMCu28kkYNGaPF7HuR0CvU4MPTTfowEtNbnEZhh0MaYG_xQRCHkMSeAbNJNtUpCiaEKmtOz-mDZmlIocXelAC9PU6_VTf6kKsOK9TBav0AB7RGzUBl31cI5m6digDO7g2ZkhvdJZTtFIdFYSofrL5qUEivxqJiC_syL2r-qbSYQKFgY2dXVenBj4etvAbfstm2h3yxewnJGgje_RWSfSCVSFvqEwmVUMN2ZUP3v4u9uqBFGz4-vzNEbYFyDMi6_gadUBH6cgTVbxDB6LXwGtIzIHt5yIwNjBfUAaVtYR0TCHnDipa4eIWSOBY8W1O_1ttm5a9mej0l9vkFvniMp5rfGPFVJCI4asKzuPq0LTxcjCUJEmsHbDJ-UWvDH1P-UaN8nGc4PNSBcdLrE-5Crw-77hhlzUfx58o8",
+        "message": {
+          "body": "abe1.iIVXRhSE2ITlzWUK5UC7uCf_hhR-lmAo1hFD4iIligzZopfVZtI209U2N7Uj9YoAjkCKdlA",
+          "preview": "abe1.vZ06PuVKOnPqGNZc414WL4xn_U0oHGnYWzvvxKQCyfuYuWbW22w7_eExMZDkv8Qi9Ebv3Zg"
+        }
+      },
+      "fields": [
+        {
+          "at": "answers",
+          "field": "note.answers",
+          "context": "note:tsk000000001:user:answer",
+          "plaintext": "{\"questions\":[{\"header\":\"Scope\",\"question\":\"Which redirect should change?\",\"multiSelect\":false,\"options\":[{\"label\":\"Login only\",\"description\":\"Leave the logout redirect alone.\",\"recommended\":true},{\"label\":\"Both\",\"description\":\"Change login and logout together.\"}]}],\"answers\":[{\"selected\":[\"Login only\"],\"other\":\"Keep the logout redirect as it is.\"}]}"
+        },
+        {
+          "at": "message.body",
+          "field": "note.body",
+          "context": "note:tsk000000001:user:answer",
+          "plaintext": "Go with the first option."
+        },
+        {
+          "at": "message.preview",
+          "field": "note.preview",
+          "context": "note:tsk000000001:user:answer",
+          "plaintext": "Go with the first option."
+        }
+      ],
+      "clear": {
+        "id": "tsk000000001",
+        "questionNoteId": "note00000002",
+        "answers": "<sealed>",
+        "message": {
+          "body": "<sealed>",
+          "preview": "<sealed>"
+        }
+      }
+    },
+    {
+      "name": "starting an agent proposal",
+      "sealer": "sealStart",
+      "ids": [],
+      "args": [
+        {
+          "id": "tsk000000003",
+          "status": "backlog",
+          "input": "Bump the lockfile.",
+          "createdBy": "agent",
+          "scheduleId": null,
+          "unreadable": []
+        }
+      ],
+      "sealed": "abe1.xaLhOEdMBhP0IphwNs2x4WfxEFyCGk5HPCkjoVL-HxuNQC-_Ll84fAd0c0AHLQ",
+      "fields": [
+        {
+          "at": "",
+          "field": "input",
+          "context": "task:tsk000000003:user",
+          "plaintext": "Bump the lockfile."
+        }
+      ],
+      "clear": "<sealed>"
+    },
+    {
+      "name": "a fork",
+      "sealer": "sealFork",
+      "ids": ["tsk000000011"],
+      "args": [
+        {
+          "parent": {
+            "id": "tsk000000001",
+            "status": "needs-me",
+            "closed": false,
+            "createdBy": "user",
+            "machine": "laptop",
+            "sessionId": "0f3a8b1c-5d2e-4c7a-9b6d-1e2f3a4b5c6d",
+            "workdir": "/home/alice/app",
+            "agent": "reviewer",
+            "unreadable": []
+          },
+          "title": "Try the mobile layout",
+          "input": "Check the mobile layout instead."
+        }
+      ],
+      "sealed": {
+        "id": "tsk000000011",
+        "parentId": "tsk000000001",
+        "title": "abe1.eUbIJQyP049MKiKHFm1KAK7Q1KWicqDQl6972dT274ilEtaO7iwcWrCdY_0eK2w2Yw",
+        "input": "abe1.blNlAsbeC1rKQ-ZV6Z7DyRVGKr0jmnFPYqajAQWMcz6-DzRWbQTNwJYU2_Swc8Ge1u3w6U7KgDv3MwE6",
+        "workdir": "abe1.pjR42ISPYQ-fmu-E2LIbkOmvuA6ad3qqp1upSyhiZ7YSOgdeLnXtdJWc2A",
+        "agent": "abe1.lDnWJwskldLs1WKv3gpEReaOh9i4DnVQp_h75_FEd2O0UhFX"
+      },
+      "fields": [
+        {
+          "at": "title",
+          "field": "title",
+          "context": "task:tsk000000011",
+          "plaintext": "Try the mobile layout"
+        },
+        {
+          "at": "input",
+          "field": "input",
+          "context": "task:tsk000000011:user:fork:tsk000000001:agent:reviewer",
+          "plaintext": "Check the mobile layout instead."
+        },
+        {
+          "at": "workdir",
+          "field": "workdir",
+          "context": "task:tsk000000011",
+          "plaintext": "/home/alice/app"
+        },
+        {
+          "at": "agent",
+          "field": "agent",
+          "context": "task:tsk000000011",
+          "plaintext": "reviewer"
+        }
+      ],
+      "clear": {
+        "id": "tsk000000011",
+        "parentId": "tsk000000001",
+        "title": "<sealed>",
+        "input": "<sealed>",
+        "workdir": "<sealed>",
+        "agent": "<sealed>"
+      }
+    },
+    {
+      "name": "an edit",
+      "sealer": "sealEdit",
+      "ids": [],
+      "args": [
+        {
+          "target": {
+            "id": "tsk000000001",
+            "title": "Fix the login redirect",
+            "input": "Users land on /404 after signing in. Find out why.",
+            "createdBy": "user",
+            "scheduleId": null,
+            "agent": "reviewer",
+            "unreadable": []
+          },
+          "title": "Fix the sign-in redirect",
+          "input": "Users land on /404 after signing in; fix it."
+        }
+      ],
+      "sealed": {
+        "id": "tsk000000001",
+        "title": "abe1.veA3fv-iBdoWzSC9_adtjvVMNdw40RGM_APmr8SIjaS8lqHtZFudrI0lFIHhtApMEHZTFg",
+        "input": "abe1.H-8Xcztozo2EAuYHp6AkSHB9bYVdJcFTAmFxSAYTD7g_gvNADKON20lybVn63--qz84ED4gqubygfzKlKPmAQfZDDY8iL3Ok",
+        "previous": {
+          "body": "abe1.aUt8NXBQgcxqTCwLVqFrL-mVDWle8Xv99lJbeFatXwREnXJ6XLbIswFz1RSi5BHeYjhVfJx73Qs3_OOVG4oBprX3eUifw_g3fta9br51Z3VnFhNhcB5pvKzxu4zZy_nHnExuPoOrdCnEiQTWQ_5TEVeoDIvxCThwBkgNTvPpGXtYFT-vxxPr3EriKRU",
+          "preview": "abe1.Asp27-gjCviS4X0CyVoGxuhSUabDAjCPKA8wVw-tCIKdTHg6FjZqf6r1UwXFyXhoZssn3N2RbtrtW1_cV2pgD_BBnFLcvQlvPsE9yk7aVAClTcRC5p1UW9lS_40KI4VxEsYqY_47lvleVCtp_m6omu8luqsOLLXvBokDNlZd-J0a0PhBmH_XA7pvD3s"
+        }
+      },
+      "fields": [
+        {
+          "at": "title",
+          "field": "title",
+          "context": "task:tsk000000001",
+          "plaintext": "Fix the sign-in redirect"
+        },
+        {
+          "at": "input",
+          "field": "input",
+          "context": "task:tsk000000001:user:agent:reviewer",
+          "plaintext": "Users land on /404 after signing in; fix it."
+        },
+        {
+          "at": "previous.body",
+          "field": "note.body",
+          "context": "note:tsk000000001:user:event",
+          "plaintext": "Prompt before editing\n\nTitle: Fix the login redirect\n\n```\nUsers land on /404 after signing in. Find out why.\n```"
+        },
+        {
+          "at": "previous.preview",
+          "field": "note.preview",
+          "context": "note:tsk000000001:user:event",
+          "plaintext": "Prompt before editing\n\nTitle: Fix the login redirect\n\n```\nUsers land on /404 after signing in. Find out why.\n```"
+        }
+      ],
+      "clear": {
+        "id": "tsk000000001",
+        "title": "<sealed>",
+        "input": "<sealed>",
+        "previous": {
+          "body": "<sealed>",
+          "preview": "<sealed>"
+        }
+      }
+    },
+    {
+      "name": "applying a polished prompt",
+      "sealer": "sealApply",
+      "ids": [],
+      "args": [
+        {
+          "polishId": "polish000001",
+          "target": {
+            "id": "tsk000000001",
+            "title": "Fix the login redirect",
+            "input": "Users land on /404 after signing in. Find out why.",
+            "createdBy": "user",
+            "scheduleId": null,
+            "agent": "reviewer",
+            "unreadable": []
+          },
+          "rewrite": {
+            "title": "Fix the redirect after sign-in",
+            "prompt": "After signing in, users reach /404. Find the cause."
+          }
+        }
+      ],
+      "sealed": {
+        "id": "tsk000000001",
+        "polishId": "polish000001",
+        "title": "abe1.VUC7bhHDlx_Rb1NtH4WdLX2QStIhRIGJZImhEndtH0ayD40dqyDNX-icWe2aWScDlQqLnaZW58QxIQ",
+        "input": "abe1.t8VJsdth4Ujo8X1QS2U_q56FgyEFGiGC0ejUGxncxF2jA1yKMrMCcXjdEV5-ggQJMFc3dmZi7qTiKj-qNCe1pVjEP-B0p7Iy1iJClDdj7Q",
+        "previous": {
+          "body": "abe1.sTPwnJYNh9HaS-18i1xDcw0dbdZ9370LxtpOStTBfndUpcJtq5kuhbMsL2vz59xXS0pc-7euRhFk94tznkF1sLarZCXrA7mIckecj8dqbIVCepBUGpcD2I6FwX6HEtO7BTtbDP2MhnCtnoTvtxECtrer6St201ulJsSIvDMcOR8yMwXkQL9d6cCBpVYjlw",
+          "preview": "abe1.rlOj-_u4XBTA6Waq94hgqB_z7ev8DJA-FtvQS2XwNvLnTGomWi9pS8v0firrbHjkblhVb1cMJ2guVtBCSaEGJcMLdddjbqmbvGihM1ix-X1MFNuWYz7fKM4shaP9zCmxLIrCoZeeiJ8N20sqvbNazOkk8Su0mRiHa7St-bmJjwgnZdqczUrGx6aZextG2w"
+        }
+      },
+      "fields": [
+        {
+          "at": "title",
+          "field": "title",
+          "context": "task:tsk000000001",
+          "plaintext": "Fix the redirect after sign-in"
+        },
+        {
+          "at": "input",
+          "field": "input",
+          "context": "task:tsk000000001:user:agent:reviewer",
+          "plaintext": "After signing in, users reach /404. Find the cause."
+        },
+        {
+          "at": "previous.body",
+          "field": "note.body",
+          "context": "note:tsk000000001:user:event",
+          "plaintext": "Prompt before polishing\n\nTitle: Fix the login redirect\n\n```\nUsers land on /404 after signing in. Find out why.\n```"
+        },
+        {
+          "at": "previous.preview",
+          "field": "note.preview",
+          "context": "note:tsk000000001:user:event",
+          "plaintext": "Prompt before polishing\n\nTitle: Fix the login redirect\n\n```\nUsers land on /404 after signing in. Find out why.\n```"
+        }
+      ],
+      "clear": {
+        "id": "tsk000000001",
+        "polishId": "polish000001",
+        "title": "<sealed>",
+        "input": "<sealed>",
+        "previous": {
+          "body": "<sealed>",
+          "preview": "<sealed>"
+        }
+      }
+    },
+    {
+      "name": "changing the settings of a task",
+      "sealer": "sealConfigure",
+      "ids": [],
+      "args": [
+        {
+          "task": {
+            "id": "tsk000000001",
+            "createdBy": "user",
+            "scheduleId": null
+          },
+          "model": "opus",
+          "effort": null,
+          "lane": "work",
+          "autoDone": false,
+          "icon": "🔧",
+          "labels": ["infra"],
+          "place": {
+            "machine": "laptop",
+            "workdir": "/home/alice/infra"
+          },
+          "title": "Rename the task"
+        }
+      ],
+      "sealed": {
+        "id": "tsk000000001",
+        "model": "opus",
+        "effort": null,
+        "lane": "work",
+        "autoDone": false,
+        "icon": "abe1.1-fIDLdSn5bxG167FEegrGMHBEKfKbZtsm4Iq29wwrs",
+        "labels": "abe1.GX0ZxztRB3usAK4wD2wt5GCN59NrAfTSrgqCxm-LpgU6KU4PGQ",
+        "title": "abe1.z3X7ApxT_KO4wLEFSI8dznE9T1jK22j-3IvkmLe5G4hCpInkLZBCC_ci7w",
+        "place": {
+          "machine": "laptop",
+          "workdir": "abe1.UTl7p3FO_M0sEcoB7nLZMODWVBYQT3gHHaUuwFxuySfBxzYDPGHe_rNz266x"
+        }
+      },
+      "fields": [
+        {
+          "at": "title",
+          "field": "title",
+          "context": "task:tsk000000001",
+          "plaintext": "Rename the task"
+        },
+        {
+          "at": "icon",
+          "field": "icon",
+          "context": "task:tsk000000001",
+          "plaintext": "🔧"
+        },
+        {
+          "at": "labels",
+          "field": "labels",
+          "context": "task:tsk000000001",
+          "plaintext": "[\"infra\"]"
+        },
+        {
+          "at": "place.workdir",
+          "field": "workdir",
+          "context": "task:tsk000000001",
+          "plaintext": "/home/alice/infra"
+        }
+      ],
+      "clear": {
+        "id": "tsk000000001",
+        "model": "opus",
+        "effort": null,
+        "lane": "work",
+        "autoDone": false,
+        "icon": "<sealed>",
+        "labels": "<sealed>",
+        "title": "<sealed>",
+        "place": {
+          "machine": "laptop",
+          "workdir": "<sealed>"
+        }
+      }
+    },
+    {
+      "name": "editing a schedule",
+      "sealer": "sealScheduleUpdate",
+      "ids": [],
+      "args": [
+        {
+          "id": "sch000000001",
+          "title": "Weekly dependency check",
+          "input": "Look for outdated dependencies.",
+          "agent": "reviewer",
+          "place": {
+            "machine": "laptop",
+            "workdir": "/home/alice/app"
+          },
+          "priority": "normal",
+          "model": null,
+          "autoDone": false,
+          "repeat": {
+            "everyMs": 604800000
+          },
+          "runsLeft": null,
+          "until": null,
+          "maxConcurrent": null,
+          "unreadable": []
+        }
+      ],
+      "sealed": {
+        "id": "sch000000001",
+        "priority": "normal",
+        "model": null,
+        "autoDone": false,
+        "repeat": {
+          "everyMs": 604800000
+        },
+        "runsLeft": null,
+        "until": null,
+        "maxConcurrent": null,
+        "title": "abe1.cOwZpDQ45MkHLvv2w94SXe-eIxmGIo7HXYQ1DIhTaZUQQgomWnbljkeEdMQ--7WLhNf-",
+        "input": "abe1.7_wQw9IT4MKSiRp4YrSigsqloCF_MInKJRYlCd9WF29SIOKJmQ1Ip-SWv48tEUyaks686FGvEBBW4F0",
+        "agent": "abe1.q5rjG9RsrrqiPdS0tN0lsnJMKxxSxgKMaTMoURhOkQi6okHP",
+        "place": {
+          "machine": "laptop",
+          "workdir": "abe1.0nQ6oZe9cX44knuSoswqR2Ro4-yRMShzHBc6w9l8ZEXU9iCSF_j5W938OA"
+        }
+      },
+      "fields": [
+        {
+          "at": "title",
+          "field": "title",
+          "context": "schedule:sch000000001",
+          "plaintext": "Weekly dependency check"
+        },
+        {
+          "at": "input",
+          "field": "input",
+          "context": "schedule:sch000000001:user:agent:reviewer",
+          "plaintext": "Look for outdated dependencies."
+        },
+        {
+          "at": "agent",
+          "field": "agent",
+          "context": "schedule:sch000000001",
+          "plaintext": "reviewer"
+        },
+        {
+          "at": "place.workdir",
+          "field": "workdir",
+          "context": "schedule:sch000000001",
+          "plaintext": "/home/alice/app"
+        }
+      ],
+      "clear": {
+        "id": "sch000000001",
+        "priority": "normal",
+        "model": null,
+        "autoDone": false,
+        "repeat": {
+          "everyMs": 604800000
+        },
+        "runsLeft": null,
+        "until": null,
+        "maxConcurrent": null,
+        "title": "<sealed>",
+        "input": "<sealed>",
+        "agent": "<sealed>",
+        "place": {
+          "machine": "laptop",
+          "workdir": "<sealed>"
+        }
+      }
+    },
+    {
+      "name": "saving the title rules",
+      "sealer": "sealTitleRulesInput",
+      "ids": [],
+      "args": [
+        [
+          {
+            "pattern": "^fix\\b",
+            "flags": "i",
+            "icon": "🐛",
+            "labels": ["bug"],
+            "instruction": "Start with a verb."
+          }
+        ],
+        2
+      ],
+      "sealed": {
+        "document": "abe1.qvJiNv7KDzTlJAA6z0DC9FHa84HiSwEHmOS3kvcu9DfXKd83zmFsUNtVKnEO9cXLLIjRpoGblZnk97iavUc8ej9HIZA1mfwGvxKgTG3CE8qVwkUOgJFhOTFkDzsTTXI90x-Z6zzIXNiyFEBabYmBn8kB9tvVvjyiC0fqqnDRgSQtIiUeW6uyvzs0hzshB89OT1e5LTJ_gA",
+        "version": 3,
+        "expectedVersion": 2
+      },
+      "fields": [
+        {
+          "at": "document",
+          "field": "titles",
+          "context": "titles:v3",
+          "plaintext": "{\"version\":3,\"rules\":[{\"pattern\":\"^fix\\\\b\",\"flags\":\"i\",\"icon\":\"🐛\",\"labels\":[\"bug\"],\"instruction\":\"Start with a verb.\"}]}"
+        }
+      ],
+      "clear": {
+        "document": "<sealed>",
+        "version": 3,
+        "expectedVersion": 2
+      }
+    },
+    {
+      "name": "saving the link rules",
+      "sealer": "sealLinks",
+      "ids": [],
+      "args": [
+        [
+          {
+            "pattern": "ABC-(\\d+)",
+            "url": "https://tracker.example/issues/ABC-$1"
+          }
+        ],
+        1
+      ],
+      "sealed": {
+        "document": "abe1.7DkBgawRUbCESCtkE9MDA9VIIPVKOBcu1VNeMitD39pMi6uIZ40FKRODKfa1edtqYTPzz9d9Hw8gbaeOjQz_p_3fAD2js3__TCWqHixu_KrhUFvw06d172J-R1jx-wI6FMv-L8pGaaA4pusDf2waidhuONR0w85LixU",
+        "version": 2,
+        "expectedVersion": 1
+      },
+      "fields": [
+        {
+          "at": "document",
+          "field": "links",
+          "context": "links:v2",
+          "plaintext": "{\"version\":2,\"rules\":[{\"pattern\":\"ABC-(\\\\d+)\",\"url\":\"https://tracker.example/issues/ABC-$1\"}]}"
+        }
+      ],
+      "clear": {
+        "document": "<sealed>",
+        "version": 2,
+        "expectedVersion": 1
+      }
+    },
+    {
+      "name": "importing a file of another owner",
+      "sealer": "importBoard",
+      "ids": [],
+      "args": [
+        [
+          "{\"format\":\"agent-board-export\",\"version\":1,\"exportedAt\":\"2026-11-20T09:30:00.000Z\",\"owner\":\"bob\",\"keyId\":\"75cced822c1dc0bf\",\"keySlots\":[{\"kind\":\"passphrase\",\"kdf\":\"argon2id\",\"m\":65536,\"t\":3,\"p\":1,\"salt\":\"c_zHFMu2bpo1aijSAMC9Xg\",\"wrapped\":\"abw1.Hnv0vZghsCon_zfSlwbCtVuOmryP9aAUfEwa3QTUg2WX87VKajkSsfSiIU8YtN6eKG36usi1pk_70HEi\"},{\"kind\":\"recovery\",\"wrapped\":\"abw1.r5IgmLuknauPC_CPyiTrFLHRW1hkPNLZlyb9c3935IHUHqTP3xn6c5pdBK9AoTU7mMyz1wpxkeJW1bgh\"}],\"transcripts\":false,\"prefs\":{}}",
+          "{\"table\":\"task\",\"row\":{\"id\":\"tsk000000020\",\"createdBy\":\"user\",\"scheduleId\":null,\"forkOf\":null,\"agent\":null,\"title\":\"abe1.4hIspeHqXP9JQNt6Rn272BqjxJ-NQzOWPzjmeaQq1JtgyqXr3Jcdjqc\",\"input\":\"abe1.28iRrxNoSztbCVhjgUPdEDMZ5vTGL-U3UEQGdPCyjekAhW1YRqw31O4AZqKkx2DwLnwPP-fspT0a7Q\"}}"
+        ]
+      ],
+      "sealed": [
+        {
+          "keyId": "75cced822c1dc0bf",
+          "table": "task",
+          "rows": [
+            {
+              "id": "tsk000000020",
+              "createdBy": "user",
+              "scheduleId": null,
+              "forkOf": null,
+              "agent": null,
+              "title": "abe1.ePNWNWZYRnp2_91X35Hgas8vrHj4mJNIQRLpk4CPCOuV7w6n8Aj3cMY",
+              "input": "abe1.eRWulJ4kZa4qyxUXtpRf2tnstHDJ9vP4yLZ_U7WZWizvhs7IRPf_wn0b-bUHZZNnk3JCjC-mPYikkw"
+            }
+          ]
+        }
+      ],
+      "fields": [
+        {
+          "at": "0.rows.0.title",
+          "field": "title",
+          "context": "task:tsk000000020",
+          "plaintext": "Imported task"
+        },
+        {
+          "at": "0.rows.0.input",
+          "field": "input",
+          "context": "task:tsk000000020:user",
+          "plaintext": "Written by the previous owner."
+        }
+      ],
+      "clear": [
+        {
+          "keyId": "75cced822c1dc0bf",
+          "table": "task",
+          "rows": [
+            {
+              "id": "tsk000000020",
+              "createdBy": "user",
+              "scheduleId": null,
+              "forkOf": null,
+              "agent": null,
+              "title": "<sealed>",
+              "input": "<sealed>"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
