@@ -122,3 +122,40 @@ test('board self-update --rollback cannot be combined with --check or --resume',
     rmSync(f.dir, { recursive: true });
   }
 });
+
+test('board self-update --server cannot be combined with --check, --resume or --rollback', async () => {
+  const f = fixture([]);
+  try {
+    for (const other of ['--check', '--resume', '--rollback'])
+      await assert.rejects(
+        runBoard(['self-update', '--server', 'https://new.example.com', other], {
+          env: f.deps.env,
+          writeOut: () => undefined,
+          version: '0.40.0',
+          interactive: true,
+          platform: 'linux',
+        }),
+        UsageError,
+      );
+  } finally {
+    rmSync(f.dir, { recursive: true });
+  }
+});
+
+test('board self-update --server without a terminal refuses and changes nothing', async () => {
+  const f = fixture([]);
+  try {
+    await assert.rejects(
+      runBoard(['self-update', '--server', 'https://new.example.com'], {
+        env: f.deps.env,
+        writeOut: () => undefined,
+        version: '0.40.0',
+        interactive: false,
+        platform: 'linux',
+      }),
+      /--server needs a terminal.*nothing was changed/,
+    );
+  } finally {
+    rmSync(f.dir, { recursive: true });
+  }
+});

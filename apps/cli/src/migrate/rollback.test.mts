@@ -25,7 +25,7 @@ import { unitFilesOf } from './units.mts';
 const text = (path: string): string => readFileSync(path, 'utf8');
 
 function scenario(
-  options: { platform?: string; kind?: 'update' | 'steps'; minClient?: number; unreachable?: boolean } = {},
+  options: { platform?: string; kind?: 'update' | 'steps' | 'server'; minClient?: number; unreachable?: boolean } = {},
 ) {
   const platform = options.platform ?? 'linux';
   const f = fixture([], { platform });
@@ -204,6 +204,25 @@ test('a backup without a binary is refused with its directory named', async () =
       return true;
     });
     assert.deepEqual(s.snapshot(), before);
+  } finally {
+    rmSync(s.f.dir, { recursive: true });
+  }
+});
+
+test('a backup of a server move is refused with its directory and the way back named', async () => {
+  const s = scenario({ kind: 'server' });
+  try {
+    const before = s.snapshot();
+    await assert.rejects(rollback(s.rollbackDeps), (error: Error) => {
+      assert.ok(error.message.includes(s.backup.dir), error.message);
+      assert.match(
+        error.message,
+        /moving to another board.*board self-update --server https:\/\/board\.example\.com.*nothing was changed/,
+      );
+      return true;
+    });
+    assert.deepEqual(s.snapshot(), before);
+    assert.deepEqual(s.calls.range, []);
   } finally {
     rmSync(s.f.dir, { recursive: true });
   }

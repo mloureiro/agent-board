@@ -1,5 +1,4 @@
-import { randomBytes } from 'node:crypto';
-import { chmodSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { lstatSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { isRecord } from '@agent-board/shared';
 import type { Paths } from '../config/config.mts';
@@ -10,7 +9,7 @@ import type { UpdateState } from '../self/update-state.mts';
 import { AGENT_NAMES, agentFile, agentTarget } from '../setup/launchd.mts';
 import type { AgentName } from '../setup/launchd.mts';
 import { SystemError } from '../setup/system.mts';
-import { backupsDir } from './layout.mts';
+import { backupsDir, stageFile } from './layout.mts';
 import { listBackups, markRolledBack, readBackup } from './backup.mts';
 import type { BackupEntry, BackupManifest } from './backup.mts';
 import { deleteJournal } from './journal.mts';
@@ -100,13 +99,16 @@ function currentContent(dest: string): Buffer | undefined {
   return readFileSync(dest);
 }
 
-// Written beside its place with its final mode and renamed over it; an unpredictable name made exclusively, so nobody who can
-// write that directory can plant it first.
-function stage(dest: string, content: Buffer, mode: number): string {
-  const temp = join(dirname(dest), `.${basename(dest)}.rollback-${randomBytes(8).toString('hex')}`);
-  writeFileSync(temp, content, { flag: 'wx', mode });
-  chmodSync(temp, mode);
-  return temp;
+// The board a server-move backup was taken on, as a hint for the way back; empty when the backup does not name one.
+function movedFrom(contents: Map<string, Buffer>): string {
+  const web = contents.get('config/web.json');
+  if (web === undefined) return '';
+  try {
+    const raw: unknown = JSON.parse(web.toString('utf8'));
+    return `; "board self-update --server ${webUrlOf(isRecord(raw) ? raw : {})}" points this machine back at the board it was on`;
+  } catch {
+    return '';
+  }
 }
 
 async function serverCheck(
@@ -162,6 +164,10 @@ export async function rollback(deps: RollbackDeps): Promise<'rolled-back' | 'dec
     const read = readBackup(entry.dir);
     if (!read.ok) throw refuse(`the backup ${entry.dir} cannot be trusted: ${read.problem}`);
     const { manifest, contents } = read;
+    if (manifest.kind === 'server')
+      throw refuse(
+        `the newest backup ${entry.dir} is from moving to another board, which a rollback does not undo${movedFrom(contents)}; its files are there if you want to restore them by hand`,
+      );
     if (manifest.kind !== 'update')
       throw refuse(
         `the newest backup ${entry.dir} has no binary (kind ${manifest.kind}); restoring the config alone would make the next tick run the same steps again; restore its files by hand if you need them`,
@@ -212,9 +218,9 @@ export async function rollback(deps: RollbackDeps): Promise<'rolled-back' | 'dec
     try {
       for (const restore of changed) {
         mkdirSync(dirname(restore.dest), { recursive: true });
-        staged.push({ temp: stage(restore.dest, restore.content, restore.mode), dest: restore.dest });
+        staged.push({ temp: stageFile(restore.dest, restore.content, restore.mode, 'rollback'), dest: restore.dest });
       }
-      staged.push({ temp: stage(deps.execPath, binary, 0o755), dest: deps.execPath });
+      staged.push({ temp: stageFile(deps.execPath, binary, 0o755, 'rollback'), dest: deps.execPath });
     } catch (error) {
       for (const file of staged) rmSync(file.temp, { force: true });
       throw refuse(`cannot write the restored files (${errorText(error)})`);

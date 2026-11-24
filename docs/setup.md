@@ -261,7 +261,7 @@ Fix the cause or do the step, then run `board self-update --resume`. It continue
 1. It takes the migration lock and refuses while another process holds it.
 2. It reads the newest backup. When that backup was rolled back already it says `nothing to roll back` and changes nothing; it never goes on to an older one.
 3. It checks every file of the backup against the checksums in its manifest.
-4. A backup without a binary (kind `steps`, made by a tick for a binary that updated some other way) is refused, and the message names the backup directory so its files can be copied back by hand. Restoring the config alone would make the next tick run the same steps again.
+4. A backup without a binary (kind `steps`, made by a tick for a binary that updated some other way) is refused, and the message names the backup directory so its files can be copied back by hand. Restoring the config alone would make the next tick run the same steps again. A backup of kind `server`, made by [moving to another server](#moving-to-another-server), is refused too, with its directory and the `board self-update --server <old url>` that goes back.
 5. It reads the board's URL and token from the backup and asks the board for its API range. When the board now serves clients only from a newer API than the old CLI speaks, it refuses and prints both numbers, and when the board cannot be reached within 15 s it refuses too. Both refusals say `nothing was changed`.
 6. From a terminal it lists what it restores and asks (default no). Without a terminal it goes on.
 7. It restores the config files, the unit files and the binary, each written beside its place and renamed over it. A file that is a symlink at its place is refused and named, and the backup is only restored to the binary path and the config and unit directories it was made for. On Linux it runs `systemctl --user daemon-reload` when a unit changed. On macOS an agent that is loaded and whose plist changed is booted out and bootstrapped again.
@@ -288,6 +288,46 @@ A rollback restores the files of this machine only. Whatever the board server st
 A dry run of the dispatcher logs `DRY migration <n> step(s)` and changes nothing. `board doctor` also fails on a `migration/applied.json` it cannot read, naming the file, because every tick fails on it.
 
 A machine updated by a CLI older than 0.38.0, by `install.sh` or by a `git pull` never saw the warning. Its first tick on the new binary finds the steps its marker is missing, backs up without a binary (kind `steps`), and runs them.
+
+### Moving to another server
+
+`board self-update --server <url>` points a machine at another board, after your data is on it. It changes only this machine. The board you leave keeps its data, and deleting it there is your decision.
+
+The order is fixed:
+
+1. In the browser, on the board you use now: **Settings › Account › Your data → Download export** ([Your data](usage.md#your-data)).
+2. In the browser, on the target: sign in the same way, so that it gives you the same user name, and import the file. The import keeps the row ids and the machine token hashes, so the tasks, the run history, the feeds' state on the board and the machine registrations arrive, and the machines need no new token.
+3. On each machine, in a terminal: `board self-update --server https://target.example.com`.
+
+The command works on a release binary and on a checkout, downloads no release and needs a terminal; without one it refuses. It cannot be combined with `--check`, `--resume` or `--rollback`, and it refuses while a migration is unfinished. The URL must be an `https` URL (or `http` for localhost) with no user name, password, query or fragment, or it is a usage error and nothing is sent.
+
+Before it changes anything it checks the target, and each failure ends with `nothing was changed`:
+
+| Check                            | Message says                                                                                                                                       |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The target answers the token     | `<url> does not accept this machine's token: import your board export there first (Settings › Account › Your data), then run this again`           |
+| The target holds a data key      | `<url> holds no data key yet: import your board export there first …`                                                                              |
+| The key id is this machine's     | `<url> holds another board (key id …, this machine's key id …)`                                                                                    |
+| The target serves this CLI       | The CLI's usual message: run `board self-update` first (a checkout: `git pull`)                                                                    |
+| Same user as the board you leave | `<url> signs you in as <x>, but the board at <source> belongs to <y>`. Skipped when the source cannot be reached; the key id then proves the user. |
+| No worker is running             | `<n> worker(s) running; run board self-update --server again once they end`                                                                        |
+
+It then asks the board you leave which other machines it still lists (`machine.list`). Any other machine seen in the last 15 minutes is named, with the warning that it keeps claiming tasks there until it runs the command too. A board without `machine.list`, or one that does not answer, gives `cannot tell whether other machines still use <source>`; the move goes on either way.
+
+After you confirm (default no), it takes the migration lock and backs up the config files and the unit files as a backup of kind `server` (the same directory as the [other backups](#the-backup)). It rewrites `url` in `web.json` and nothing else in it, keeping the file's mode, through a staged file renamed into place, and refuses before writing anything when `web.json` is a symlink. `env` (the token and the data key), `config.json` and the units stay as they are: the feeds, the worker and its units read the URL from `web.json`, so they talk to the target from the next run on, and nothing is copied between the boards. It restarts the listener and the watch unit and checks the target once more. When that check fails it prints the error, that this machine points at the target now, and the command that points it back.
+
+What the state directory keeps across the move:
+
+| State                                                                                   | After the move                                                                                                                                     |
+| --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Waits, watches and their events, feed records, feed update prompts, the PR refresh time | Kept: keyed by task ids, which the import keeps, or by this machine alone.                                                                         |
+| Feed control ids, feeds and the directory list                                          | Kept: the board holds the feeds' index and the directory index with the machine row, and the next tick sends them again when the target's differs. |
+| Skills and models cache, usage readings, context windows, `update.json`                 | Kept: they describe this machine, not a board.                                                                                                     |
+| The version of the shared agents applied last (`agents.board/state.json`)               | Forgotten when the target holds a lower version than the one applied, so the next tick applies the target's agents; the agents on disk stay.       |
+
+`board self-update --rollback` does not undo a move: it refuses a backup of kind `server`, names its directory and prints the command that goes back. To return, run `board self-update --server <the old url>`: the old board still accepts the token. Server data is never moved or deleted by the CLI.
+
+A rollback reads only the newest backup, so after a move it no longer reaches the backup of an update made before it. That older backup also holds the `web.json` of the board you left, and restoring it would point the machine back there. Roll an update back before you move; after the move, its files stay in the backup directory to restore by hand.
 
 ### Releases come from mloureiro/agent-board (CLI 0.35.0)
 
@@ -323,6 +363,10 @@ From then on `board self-update` takes releases from the fork. `board --version`
 ### `board --version` names its updater (CLI 0.36.0)
 
 `board --version` ends with where the CLI updates from: `updates from mloureiro/agent-board` for a release binary, `updates with git pull` for a checkout. The CLI alone changes. A script that matches the whole line needs the new ending; one that matches `(api <n>` still works.
+
+### `board self-update --server <url>` (CLI 0.40.0)
+
+The CLI alone changes; the server needs no deploy, and nothing changes on a machine until the command runs. `board self-update --server <url>` points a machine at another board after you imported your export there, as described under [Moving to another server](#moving-to-another-server). The warning about other machines needs the board you leave to serve `machine.list` (the server of the release that added `list-machines`); a board without it still moves, and says it cannot tell. `board self-update --rollback` refuses a backup made by a move and prints the command that goes back.
 
 ### `board self-update --rollback` (CLI 0.39.0)
 
