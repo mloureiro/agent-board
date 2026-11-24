@@ -4,6 +4,7 @@
 //
 //   DATABASE_URL=... APP_DATABASE_URL=... pnpm --filter @agent-board/backend exec tsx src/scripts/seedMachine.ts <owner> <machine>
 import { deriveKeys, encodeDataKey, generateDataKey, wrapDataKey } from '@agent-board/shared';
+import { MIN_UI_CLIENT } from '@agent-board/shared/ui';
 import { loadConfig } from '../config';
 import { createDb } from '../db/client';
 import { OidcClient } from '../services/auth/oidc';
@@ -36,6 +37,8 @@ const board = appRouter.createCaller({
   username: owner,
   sessionHash: null,
   setSessionCookie: () => undefined,
+  uiClientApi: null,
+  minUiClient: MIN_UI_CLIENT,
 });
 
 const dataKey = generateDataKey();

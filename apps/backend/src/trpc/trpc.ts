@@ -22,18 +22,44 @@ export interface Context {
   sessionHash: string | null;
   /** Sends the browser the session cookie for a token, or with null removes it; does nothing on a board without login. */
   setSessionCookie: (token: string | null) => void;
+  /** The UI API version the client declared in `x-board-ui-api`; null for a client that sent none, such as the bundled frontend. */
+  uiClientApi: number | null;
+  /** The lowest UI API version the server accepts; `MIN_UI_CLIENT` except where a test builds the server with another. */
+  minUiClient: number;
+}
+
+/** Why a request was refused for its UI API version; the error formatter turns it into `data.upgrade`. */
+class UiClientTooOld extends Error {
+  constructor(readonly minClient: number) {
+    super('ui client too old');
+  }
 }
 
 const t = initTRPC.context<Context>().create({
   errorFormatter({ shape, error }) {
     return {
       ...shape,
-      data: { ...shape.data, zodIssues: error.cause instanceof ZodError ? error.cause.issues : null },
+      data: {
+        ...shape.data,
+        zodIssues: error.cause instanceof ZodError ? error.cause.issues : null,
+        ...(error.cause instanceof UiClientTooOld ? { upgrade: { minClient: error.cause.minClient } } : {}),
+      },
     };
   },
 });
 
 export const router = t.router;
+
+/** Refuses a client that declared a UI API version below the minimum, before anything is written. Absent header: no check. */
+const uiVersion = t.middleware(({ ctx, next }) => {
+  if (ctx.uiClientApi !== null && ctx.uiClientApi < ctx.minUiClient)
+    throw new TRPCError({
+      code: 'PRECONDITION_FAILED',
+      message: 'This app is too old for this board. Update it.',
+      cause: new UiClientTooOld(ctx.minUiClient),
+    });
+  return next();
+});
 
 const mapErrors = t.middleware(async ({ next }) => {
   const result = await next();
@@ -84,8 +110,10 @@ const scoped = t.middleware(async ({ ctx, next, path, type }) => {
   }
 });
 
+const baseProcedure = t.procedure.use(uiVersion);
+
 /** Needs a signed-in user and runs in a transaction scoped to them (`ctx.db`). */
-export const procedure = t.procedure.use(mapErrors).use(scoped);
+export const procedure = baseProcedure.use(mapErrors).use(scoped);
 
 /** Reachable without signing in: the sign-in itself. It gets `ctx.root`, not a scoped transaction. */
-export const publicProcedure = t.procedure.use(mapErrors);
+export const publicProcedure = baseProcedure.use(mapErrors);

@@ -77,6 +77,7 @@ import {
   wakeNow,
 } from '../services/tasks';
 import { authRouter, passkeysRouter } from './auth';
+import { uiRouter } from './ui';
 import { parsedBy, sealed } from './inputs';
 import { procedure, router } from './trpc';
 
@@ -753,6 +754,7 @@ export const appRouter = router({
   agents: agentsRouter,
   links: linksRouter,
   titleRules: titleRulesRouter,
+  ui: uiRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -1,3 +1,4 @@
+import { MIN_UI_CLIENT } from '@agent-board/shared/ui';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeEach } from 'vitest';
 import type { Config, LoginConfig } from '../config';
@@ -70,6 +71,8 @@ export function testContext(root: Db, username: string | null = 'jascha', overri
     username,
     sessionHash: null,
     setSessionCookie: () => undefined,
+    uiClientApi: null,
+    minUiClient: MIN_UI_CLIENT,
     ...overrides,
   };
 }

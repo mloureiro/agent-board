@@ -5,6 +5,7 @@ import { createTRPCClient, httpBatchLink, TRPCClientError } from '@trpc/client';
 import { useMemo } from 'react';
 import { useKeys } from '../crypto/KeyContext';
 import { createPlainTRPC, type PlainTRPC } from './plainTrpc';
+import { uiGuardLink } from './uiGuard';
 import { useRawTRPC, useRawTRPCClient } from './rawTrpc';
 import { isUnauthorized } from './unauthorized';
 
@@ -68,7 +69,7 @@ export function createClients() {
     }),
   });
   const trpcClient = createTRPCClient<AppRouter>({
-    links: [httpBatchLink({ url: '/trpc' })],
+    links: [uiGuardLink, httpBatchLink({ url: '/trpc' })],
   });
   return { queryClient, trpcClient };
 }
