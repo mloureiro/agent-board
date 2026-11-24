@@ -214,6 +214,20 @@ Passkeys need nothing but `PUBLIC_URL`. Nobody can sign in until an account exis
 
 A name that is in use is refused, so a sign-up cannot take over a board that already exists, whichever method created it. A user whose board a passkey created cannot remove their last passkey, because it is their only way in: Settings › Account shows the refusal, and adding a second one first lifts it. To add a user later, set the token again, give it to them, and remove it afterwards. Passkeys are discoverable and require user verification, so the device asks for a fingerprint, a face or a PIN and the user types no name.
 
+### Signing in from another browser
+
+A window that cannot run the sign-in method itself, such as a desktop app's webview that has no passkey support, can borrow a sign-in from the system browser. The login page offers **Sign in with your browser** on every board with login on.
+
+1. The window starts a hand-off and shows a code such as `K7QM-2XPD` with a link to `/handoff/<id>`.
+2. The user opens the link in a browser, signs in there by any method the board offers and checks that the code on the page matches the window's.
+3. Pressing **Approve** signs the window in. The window polls, and its next request receives a normal session cookie.
+
+The hand-off lives ten minutes and works once. Nothing is signed in until someone approves, and the window redeems the approval only with the secret it kept from the start, so a flow id alone is of no use. The window's session takes the method of the session that approved it, and it is an ordinary session in every other respect: it appears wherever sessions are listed and ends the same way.
+
+The code check is a phishing mitigation, not a guarantee. Someone who sends a victim both the link and the code can get the victim to approve a sign-in as themselves, so approve only a sign-in you started. The approval page names the account it signs in.
+
+The endpoints behind it (`auth.handoff.start`, `describe`, `approve`, `finish`) have no rate limit of their own, like the other sign-in endpoints. Limit them at the ingress.
+
 ### No login
 
 ```text
