@@ -10,3 +10,4 @@ export * from './requests.mts';
 export * from './sharedAgents.mts';
 export * from './responses.mts';
 export * from './boardImport.mts';
+export * from './plainBoard.mts';
