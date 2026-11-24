@@ -1,0 +1,1 @@
+ALTER TYPE "public"."auth_flow_kind" ADD VALUE 'handoff';

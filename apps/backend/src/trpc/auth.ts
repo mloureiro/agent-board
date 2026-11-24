@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { loginOf, type AuthEnv } from '../services/auth/env';
 import { CHALLENGE, VERIFIER } from '../services/auth/flows';
+import { approveHandoff, describeHandoff, finishHandoff, startHandoff } from '../services/auth/handoff';
 import { finishOidc, startOidc } from '../services/auth/oidc';
 import {
   listPasskeys,
@@ -55,6 +56,24 @@ const samlRouter = router({
     .mutation(async ({ ctx, input }) => signedIn(ctx, await finishSaml(authEnv(ctx), input))),
 });
 
+const handoffRouter = router({
+  start: publicProcedure
+    .input(z.object({ challenge }))
+    .mutation(({ ctx, input }) => startHandoff(authEnv(ctx), input.challenge)),
+  describe: procedure.input(z.object({ flow })).query(({ ctx, input }) => describeHandoff(ctx.db, input.flow)),
+  approve: procedure
+    .input(z.object({ flow }))
+    .mutation(({ ctx, input }) =>
+      approveHandoff(ctx.db, { username: ctx.username, sessionHash: ctx.sessionHash }, input.flow),
+    ),
+  finish: publicProcedure.input(z.object({ flow, verifier })).mutation(async ({ ctx, input }) => {
+    const result = await finishHandoff(authEnv(ctx), input);
+    if (result === 'pending') return { status: 'pending' as const };
+    ctx.setSessionCookie(result);
+    return { status: 'signed-in' as const };
+  }),
+});
+
 const passkeyRouter = router({
   loginOptions: publicProcedure.mutation(({ ctx }) => loginOptions(authEnv(ctx))),
   login: publicProcedure
@@ -88,6 +107,7 @@ export const authRouter = router({
   oidc: oidcRouter,
   saml: samlRouter,
   passkey: passkeyRouter,
+  handoff: handoffRouter,
 });
 
 /** The signed-in user's own passkeys. */

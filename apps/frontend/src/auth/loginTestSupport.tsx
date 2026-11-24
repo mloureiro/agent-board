@@ -15,6 +15,11 @@ export const mutations = {
   oidcFinish: vi.fn(),
   samlStart: vi.fn(),
   samlFinish: vi.fn(),
+  handoffStart: vi.fn(),
+  handoffFinish: vi.fn(),
+  handoffApprove: vi.fn(),
+  handoffDescribe: vi.fn(),
+  me: vi.fn(),
 };
 
 export type TestConfig =
@@ -39,11 +44,27 @@ export const rawClient = {
     },
     oidc: { start: { mutate: mutations.oidcStart }, finish: { mutate: mutations.oidcFinish } },
     saml: { start: { mutate: mutations.samlStart }, finish: { mutate: mutations.samlFinish } },
+    handoff: {
+      start: { mutate: mutations.handoffStart },
+      finish: { mutate: mutations.handoffFinish },
+      approve: { mutate: mutations.handoffApprove },
+    },
   },
 };
 
 export const trpcFacade = {
-  auth: { config: { queryOptions: () => ({ queryKey: ['auth.config'], queryFn: async () => authConfig.current }) } },
+  me: { queryOptions: () => ({ queryKey: ['me'], queryFn: () => mutations.me() as Promise<unknown> }) },
+  auth: {
+    config: { queryOptions: () => ({ queryKey: ['auth.config'], queryFn: async () => authConfig.current }) },
+    handoff: {
+      describe: {
+        queryOptions: (input: { flow: string }) => ({
+          queryKey: ['auth.handoff.describe', input.flow],
+          queryFn: () => mutations.handoffDescribe(input) as Promise<unknown>,
+        }),
+      },
+    },
+  },
 };
 
 function Where() {

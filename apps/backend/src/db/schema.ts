@@ -463,6 +463,7 @@ export const authFlowKind = pgEnum('auth_flow_kind', [
   'passkey-login',
   'passkey-register',
   'passkey-signup',
+  'handoff',
 ]);
 
 /**
@@ -477,7 +478,7 @@ export const authFlows = pgTable(
     /** For the redirect flows: base64url(sha256(verifier)) of the browser that started it. */
     challenge: text('challenge'),
     data: jsonb('data').$type<Record<string, unknown>>().notNull().default({}),
-    /** The signed-in user a passkey-register flow belongs to. */
+    /** The signed-in user a passkey-register flow belongs to, or who approved a handoff. */
     owner: text('owner').references(() => appUsers.username, { onDelete: 'cascade' }),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   },

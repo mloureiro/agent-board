@@ -3,6 +3,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from './AppLayout';
+import { HANDOFF_PATH } from './auth/handoffPath';
+import { HandoffApproval } from './auth/HandoffApproval';
 import { LoginPage } from './auth/LoginPage';
 import { RedirectReturn } from './auth/RedirectReturn';
 import { AccountDeletedProvider } from './components/AccountDeletedProvider';
@@ -108,6 +110,7 @@ export function App() {
       <Routes>
         <Route path="login/oidc" element={<RedirectReturn method="oidc" />} />
         <Route path="login/saml" element={<RedirectReturn method="saml" />} />
+        <Route path={`${HANDOFF_PATH.slice(1)}:flow`} element={<HandoffApproval />} />
         <Route path="*" element={<SignedInApp />} />
       </Routes>
     </AccountDeletedProvider>
