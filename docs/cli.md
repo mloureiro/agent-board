@@ -1598,6 +1598,14 @@ it runs (`systemctl --user try-restart`, or `launchctl kickstart -k` on macOS
 when launchd has the agent loaded). Running workers keep the old file until they
 end. --check only reports whether a newer release exists.
 
+When the release declares migration steps, the update first warns that a
+migration is needed and asks (a terminal only; without one it goes on).
+Everything is backed up first: the old binary, the config files and the unit
+files, in the state directory under backups, of which the 3 newest are kept. The
+steps then run through the new binary, one line each, and the listener and watch
+unit restart. From a terminal it refuses while workers run. A step that fails or
+needs you stops the migration: fix it, then run `board self-update --resume`.
+
 It needs `gh`, logged in. A checkout is updated with `git pull` and `pnpm
 install` instead, and says so. Not available inside a board run.
 

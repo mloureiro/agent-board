@@ -77,6 +77,7 @@ test('an interactive person step continues when confirmed and stops as needs-per
     f.answers.push(false);
     assert.equal(await runMigration(f.deps, { interactive: true }), 'stopped');
     assert.ok(f.printed.includes('do by-hand by hand'));
+    assert.ok(f.printed.some((line) => /^migration stopped at by-hand .*run "board self-update --resume"/.test(line)));
     assert.equal(readJournal(f.deps.paths.stateDir)?.stopped?.reason, 'needs-person');
     f.answers.push(true);
     assert.equal(await runMigration(f.deps, { interactive: true }), 'done');
@@ -93,6 +94,7 @@ test('an interactive person step whose check still fails stops as needs-person',
     assert.equal(await runMigration(f.deps, { interactive: true }), 'stopped');
     assert.equal(readJournal(f.deps.paths.stateDir)?.stopped?.reason, 'needs-person');
     assert.ok(f.printed.includes('by-hand is not done yet: its check still fails'));
+    assert.ok(f.printed.some((line) => /^migration stopped at by-hand .*run "board self-update --resume"/.test(line)));
   } finally {
     cleanup(f);
   }

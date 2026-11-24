@@ -40,9 +40,13 @@ async function runStep(
   const check = async (): Promise<boolean> => (step.check === undefined ? true : step.check(context));
   if (options.interactive) {
     deps.print(step.instruction);
-    if (!(await deps.confirm('Done?'))) return { stop: { reason: 'needs-person', message: step.instruction } };
+    if (!(await deps.confirm('Done?'))) {
+      deps.print(`migration stopped at ${step.id} (${step.title}); ${RESUME_HINT}`);
+      return { stop: { reason: 'needs-person', message: step.instruction } };
+    }
     if (await check()) return { unitsChanged: false };
     deps.print(`${step.id} is not done yet: its check still fails`);
+    deps.print(`migration stopped at ${step.id} (${step.title}); ${RESUME_HINT}`);
     return { stop: { reason: 'needs-person', message: step.instruction } };
   }
   if (step.check !== undefined && (await step.check(context))) return { unitsChanged: false };
