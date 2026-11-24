@@ -1,7 +1,6 @@
 import { PasswordInput } from '@mantine/core';
 import { useState } from 'react';
-import { passphraseProblem, samePassphrase } from './passphrase';
-
+import { passphraseProblem, samePassphrase } from '@agent-board/shared/ui';
 export interface NewPassphrase {
   passphrase: string;
   again: string;

@@ -9,7 +9,7 @@ import { SESSION_MARKER_KEY } from '../../lib/session';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AccountDeletedProvider } from '../../components/AccountDeletedProvider';
 import { KeyProvider } from '../../crypto/KeyProvider';
-import { createKeySetup } from '../../crypto/keySlots';
+import { createKeySetup } from '../../crypto/unlocker';
 import { AccountSettings } from './AccountSettings';
 import { EncryptionSettings } from './EncryptionSettings';
 import { MachinesSettings } from './MachinesSettings';

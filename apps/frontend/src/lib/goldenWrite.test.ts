@@ -36,8 +36,8 @@ import {
 } from '@agent-board/shared';
 import { writeFileSync } from 'node:fs';
 import { describe, it, vi } from 'vitest';
-import { createKeySetup } from '../crypto/keySlots';
-import { derivePassphraseKey, PRODUCTION_KDF } from '../crypto/kdf';
+import { PRODUCTION_KDF, derivePassphraseKey } from '@agent-board/shared/ui';
+import { argon2idHash, createKeySetup } from '../crypto/unlocker';
 import {
   FIXTURES,
   openers,
@@ -95,7 +95,7 @@ describe.skipIf(process.env['GOLDEN_WRITE'] !== '1')('writing the golden fixture
       kdf: PRODUCTION_KDF,
       passphrase,
       salt: toBase64Url(salt),
-      wrappingKey: toBase64Url(await derivePassphraseKey(passphrase, salt, PRODUCTION_KDF)),
+      wrappingKey: toBase64Url(await derivePassphraseKey(passphrase, salt, PRODUCTION_KDF, argon2idHash)),
       setup: {
         passphrase: 'golden setup passphrase, throwaway',
         recoveryKey: created.recoveryKey,

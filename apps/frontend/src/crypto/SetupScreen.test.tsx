@@ -4,10 +4,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { unlockKeys } from './keySlots';
+import { recoveryGroups } from '@agent-board/shared/ui';
+import { unlockKeys } from './unlocker';
 import { SetupScreen } from './SetupScreen';
-import { recoveryGroups } from './recoveryKey';
-
 const setup = vi.hoisted(() => vi.fn(async (_: unknown) => null));
 
 vi.mock('../lib/trpc', () => ({

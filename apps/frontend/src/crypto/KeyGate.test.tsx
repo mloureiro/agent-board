@@ -5,7 +5,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { KeyGate } from './KeyGate';
-import { createKeySetup } from './keySlots';
+import { createKeySetup } from './unlocker';
 import { createMemoryDraftStorage, draftKeys, type MemoryDraftStorage } from '../test/draftStorage';
 import { createMemoryKeyStore } from '../test/memoryKeyStore';
 import { useKeys, useLock } from './KeyContext';

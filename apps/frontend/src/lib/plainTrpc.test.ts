@@ -19,7 +19,7 @@ import { createTRPCClient, TRPCClientError, type TRPCLink } from '@trpc/client';
 import { createTRPCOptionsProxy } from '@trpc/tanstack-react-query';
 import { observable } from '@trpc/server/observable';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createKeySetup } from '../crypto/keySlots';
+import { createKeySetup } from '../crypto/unlocker';
 import { openBoardTask } from './opening';
 import { createPlainTRPC } from './plainTrpc';
 import { openAs, sealerFor } from './contexts';

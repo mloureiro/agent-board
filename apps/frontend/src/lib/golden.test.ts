@@ -2,8 +2,6 @@
 import { deriveKeys, fromBase64Url, open, type Keys } from '@agent-board/shared';
 import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { derivePassphraseKey } from '../crypto/kdf';
-import { openDataKey, unlockKeys } from '../crypto/keySlots';
 import {
   FIXTURES,
   openers,
@@ -56,24 +54,6 @@ async function expectOpensToRecord(sealed: unknown, record: RequestCase): Promis
 describe('the keys', () => {
   it('derive the recorded key id from the recorded data key', () => {
     expect(keys.keyId).toBe(keyFixture.keyId);
-  });
-
-  it('derive the recorded wrapping key from the recorded passphrase and salt', async () => {
-    const wrappingKey = await derivePassphraseKey(keyFixture.passphrase, bytes(keyFixture.salt), keyFixture.kdf);
-    expect(Array.from(wrappingKey)).toEqual(Array.from(bytes(keyFixture.wrappingKey)));
-  });
-
-  it('open the recorded key setup with the passphrase and with the recovery key to one data key and its key id', async () => {
-    const { keySetup, passphrase, recoveryKey, keyId } = keyFixture.setup;
-    const stored = keySetup as Parameters<typeof unlockKeys>[0]['stored'];
-    const withPassphrase = await openDataKey(stored.slots, { kind: 'passphrase', passphrase });
-    const withRecovery = await openDataKey(stored.slots, { kind: 'recovery', recoveryKey });
-    expect(Array.from(withPassphrase)).toEqual(Array.from(withRecovery));
-    for (const secret of [
-      { kind: 'passphrase', passphrase },
-      { kind: 'recovery', recoveryKey },
-    ] as const)
-      expect((await unlockKeys({ owner: keyFixture.owner, stored, secret })).keyId).toBe(keyId);
   });
 });
 

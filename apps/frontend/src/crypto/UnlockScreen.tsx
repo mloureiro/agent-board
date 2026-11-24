@@ -16,10 +16,9 @@ import { IconLock } from '@tabler/icons-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { errorMessage, useTRPC } from '../lib/trpc';
-import { PRODUCTION_KDF, type KdfParams } from './kdf';
-import { replacePassphrase, unlockKeys, type Secret } from './keySlots';
+import { PASSPHRASE_ADVICE, PRODUCTION_KDF, type KdfParams, type Secret } from '@agent-board/shared/ui';
+import { replacePassphrase, unlockKeys } from './unlocker';
 import { NewPassphraseFields, useNewPassphrase } from './NewPassphraseFields';
-import { PASSPHRASE_ADVICE } from './passphrase';
 import { useSubmit } from './useSubmit';
 
 interface Props {

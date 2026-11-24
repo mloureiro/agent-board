@@ -1,4 +1,4 @@
-import { KeyError } from './kdf';
+import { KeyError } from './kdf.mts';
 
 // 32 random bytes, written in Crockford's base32 (no I, L, O or U, so nothing is confused with a digit) with four more
 // characters of checksum, in groups of four: 56 characters in all.

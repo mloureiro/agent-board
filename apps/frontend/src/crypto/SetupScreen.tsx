@@ -18,12 +18,16 @@ import { IconAlertTriangle, IconCheck, IconCopy, IconLock } from '@tabler/icons-
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTRPC } from '../lib/trpc';
-import { PRODUCTION_KDF, type KdfParams } from './kdf';
+import {
+  PASSPHRASE_ADVICE,
+  PRODUCTION_KDF,
+  recoveryGroups,
+  sameRecoveryText,
+  type KdfParams,
+} from '@agent-board/shared/ui';
+import { createKeySetup } from './unlocker';
 import { ImportSetup } from './ImportSetup';
-import { createKeySetup } from './keySlots';
 import { NewPassphraseFields, useNewPassphrase } from './NewPassphraseFields';
-import { PASSPHRASE_ADVICE } from './passphrase';
-import { recoveryGroups, sameRecoveryText } from './recoveryKey';
 import { useSubmit } from './useSubmit';
 
 // Which groups of the recovery key the person types back (1-based), to show they have a copy they can read.
