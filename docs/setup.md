@@ -246,7 +246,7 @@ Made only when a step applies, before anything changes, in `backups/<time>-<kind
 - the previous binary (an update only), every file directly in the config directory (`web.json`, `env`, `config.json`), and the unit files (`~/.config/systemd/user`, or the three launchd plists on macOS);
 - a `manifest.json` with the versions, the API level of the old CLI and a checksum of every file.
 
-The backup holds the machine token and the data key, so the directory is mode 700 and its files mode 600. `board doctor` warns when a backup is readable by others. The 3 newest backups stay after a migration ends, and one a journal names is never removed.
+The backup holds the machine token and the data key, so the directory is mode 700 and its files mode 600. `board doctor` warns when a backup is readable by others. The 3 newest backups stay after a migration ends or a server move, and one a journal names is never removed.
 
 #### When a step stops
 
@@ -267,7 +267,7 @@ Fix the cause or do the step, then run `board self-update --resume`. It continue
 7. It restores the config files, the unit files and the binary, each written beside its place and renamed over it. A file that is a symlink at its place is refused and named, and the backup is only restored to the binary path and the config and unit directories it was made for. On Linux it runs `systemctl --user daemon-reload` when a unit changed. On macOS an agent that is loaded and whose plist changed is booted out and bootstrapped again.
 8. It sets the migration marker back to the old version, deletes the journal of a migration that stopped, marks the backup as rolled back, restarts the listener and the watch unit, and prints what it restored.
 
-After a rollback auto-update holds the release it rolled back from, and every older one: the dispatcher logs `UPDATE-HELD <version> was rolled back; run "board self-update" to take it` and does not update. A plain `board self-update` lifts the hold before it starts, and `board doctor` reports a held version. The hold is the `heldThrough` field of `update.json`.
+After a rollback auto-update holds the newer of the release the backup was made for and the release that was running, and every older one: the dispatcher logs `UPDATE-HELD <version> was rolled back; run "board self-update" to take it` and does not update. A plain `board self-update` lifts the hold only once it has replaced the binary or found the installed release already the newest; declining the migration prompt or a failed `gh` call keeps it. `board doctor` reports a held version. The hold is the `heldThrough` field of `update.json`.
 
 A rollback restores the files of this machine only. Whatever the board server stored while the new version ran stays, and a migration step that changed server data has nothing to undo it.
 
@@ -363,6 +363,10 @@ From then on `board self-update` takes releases from the fork. `board --version`
 ### `board --version` names its updater (CLI 0.36.0)
 
 `board --version` ends with where the CLI updates from: `updates from mloureiro/agent-board` for a release binary, `updates with git pull` for a checkout. The CLI alone changes. A script that matches the whole line needs the new ending; one that matches `(api <n>` still works.
+
+### Rollback holds, hold clearing and backup pruning (CLI 0.41.0)
+
+The CLI alone changes; the server needs no deploy. `board self-update --rollback` holds auto-update through the running release when a later update brought no steps, so the next tick no longer reinstalls it. A plain `board self-update` keeps the hold when you decline the migration prompt or `gh` is not logged in, and lifts it only after the binary was replaced or the installed release is already the newest. `board self-update --server` keeps only the 3 newest backups, like a migration does.
 
 ### `board self-update --server <url>` (CLI 0.40.0)
 

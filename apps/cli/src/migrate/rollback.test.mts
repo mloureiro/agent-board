@@ -25,7 +25,13 @@ import { unitFilesOf } from './units.mts';
 const text = (path: string): string => readFileSync(path, 'utf8');
 
 function scenario(
-  options: { platform?: string; kind?: 'update' | 'steps' | 'server'; minClient?: number; unreachable?: boolean } = {},
+  options: {
+    platform?: string;
+    kind?: 'update' | 'steps' | 'server';
+    minClient?: number;
+    unreachable?: boolean;
+    version?: string;
+  } = {},
 ) {
   const platform = options.platform ?? 'linux';
   const f = fixture([], { platform });
@@ -65,6 +71,7 @@ function scenario(
     compiled: true,
     execPath,
     uid: 501,
+    version: options.version ?? '0.40.0',
     now: deps.now,
     print: deps.print,
     interactive: false,
@@ -111,6 +118,18 @@ test('after a finished migration the config, the units and the binary are the ba
     assert.ok(listBackups(s.f.deps.paths.stateDir)[0]?.manifest.rolledBackAt !== null);
     assert.equal(existsSync(lockPath(s.f.deps.paths.stateDir)), false);
     assert.deepEqual(readdirSync(join(s.f.dir, 'bin')), ['board'], 'no staged file is left beside the binary');
+  } finally {
+    rmSync(s.f.dir, { recursive: true });
+  }
+});
+
+test('a step-less update after the backup moves the hold to the running release', async () => {
+  const s = scenario({ version: '0.42.0' });
+  try {
+    assert.equal(await rollback(s.rollbackDeps), 'rolled-back');
+    assert.equal(s.updateState.held, '0.42.0');
+    assert.ok(s.f.printed.includes('rolling back board 0.42.0 -> 0.37.0:'));
+    assert.ok(s.f.printed.some((line) => line.includes('holds release 0.42.0 and older')));
   } finally {
     rmSync(s.f.dir, { recursive: true });
   }

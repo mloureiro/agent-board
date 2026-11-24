@@ -291,6 +291,7 @@ async function updateWithMigration(
       deleteJournal(stateDir);
       throw error;
     }
+    deps.clearHold?.();
     deps.print(`updated board ${deps.version} -> ${newVersion}`);
     if (migration.context === 'command') {
       const code = await migration.handOff();
@@ -312,7 +313,6 @@ export async function selfUpdate(deps: SelfUpdateDeps, flags: SelfUpdateFlags): 
       'this board runs from a checkout: update it with "git pull" and "pnpm install", then run apps/cli/install.sh',
     );
   const asset = assetName(deps.platform, deps.arch);
-  if (!flags.check) deps.clearHold?.();
   try {
     await deps.gh(['auth', 'status']);
   } catch (error) {
@@ -333,6 +333,7 @@ export async function selfUpdate(deps: SelfUpdateDeps, flags: SelfUpdateFlags): 
   );
   if (newest === undefined) throw new SystemError(`${RELEASE_REPO} has no ${TAG_PREFIX}* release`);
   if (compareVersions(newest.version, deps.version) <= 0) {
+    if (!flags.check) deps.clearHold?.();
     deps.print(`board ${deps.version} is the newest release`);
     return 'unchanged';
   }
@@ -380,6 +381,7 @@ export async function selfUpdate(deps: SelfUpdateDeps, flags: SelfUpdateFlags): 
         throw new SystemError(`the new binary says it is ${plan.to}, not ${newest.version}; nothing was replaced`);
       if (deps.migration === undefined || plan === undefined || plan.steps.length === 0) {
         replaceBinary(staged, deps.execPath);
+        deps.clearHold?.();
         deps.print(`updated board ${deps.version} -> ${newest.version}`);
         const restarted = await deps.restartListener();
         if (restarted !== undefined) deps.print(restarted);
