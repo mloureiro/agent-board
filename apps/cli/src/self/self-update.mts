@@ -15,13 +15,36 @@ import { dirname, join } from 'node:path';
 import { compareVersions, isRecord } from '@agent-board/shared';
 import { LONG_RUNNING_SERVICES } from '../setup/setup.mts';
 import { agentLabel, agentTarget, isAgentLoaded } from '../setup/launchd.mts';
+import { ReportedFailure } from '../cli.mts';
 import { SystemError } from '../setup/system.mts';
 import { errorText } from '../output/text.mts';
+import { createBackup } from '../migrate/backup.mts';
+import type { MigrationDeps } from '../migrate/deps.mts';
+import { deleteJournal, readJournal, writeJournal } from '../migrate/journal.mts';
+import { releaseLock, takeLock } from '../migrate/lock.mts';
+import type { Plan } from '../migrate/plan-output.mts';
+import { unitFilesOf } from '../migrate/units.mts';
 import { RELEASE_REPO } from './version.mts';
 
 const TAG_PREFIX = 'cli-v';
 // Releases are x.y.z only: a pre-release tag would rank above its release by number alone.
 const RELEASE_TAG = /^cli-v\d+\.\d+\.\d+$/;
+
+// What an update needs to run the migration steps a release declares; without it the update only replaces the binary.
+export interface UpdateMigration {
+  // The staged binary's own answer to which steps it brings.
+  planOf: (staged: string) => Promise<Plan>;
+  // Where the backup and the journal go, and what the backup records.
+  state: Pick<MigrationDeps, 'paths' | 'platform' | 'env' | 'home' | 'cliApi' | 'now'>;
+  // Whether a person is at a terminal and can be asked.
+  interactive: boolean;
+  confirm: (message: string) => Promise<boolean>;
+  activeWorkers: () => Promise<number>;
+  // A command runs the steps itself through the new binary; a dispatch tick leaves them to its next tick.
+  context: 'command' | 'tick';
+  // Runs `self-update --resume` of the installed binary to the end; its exit code.
+  handOff: () => Promise<number>;
+}
 
 export interface SelfUpdateDeps {
   // Whether this is a released binary; a checkout is updated with git.
@@ -36,6 +59,7 @@ export interface SelfUpdateDeps {
   // Restarts the listener and the watch unit, which keep the old code until then; the line to print, if there is one.
   restartListener: () => Promise<string | undefined>;
   print: (line: string) => void;
+  migration?: UpdateMigration;
 }
 
 export interface SelfUpdateFlags {
@@ -181,6 +205,87 @@ export function checksumOf(sums: string, name: string): string | undefined {
   return undefined;
 }
 
+function replaceBinary(staged: string, execPath: string): void {
+  try {
+    renameSync(staged, execPath);
+  } catch (error) {
+    throw new SystemError(`cannot replace ${execPath}: ${errorText(error)}`);
+  }
+}
+
+// The new binary brings steps: ask, back up, record the journal, replace the binary, then let the new binary run them.
+async function updateWithMigration(
+  deps: SelfUpdateDeps,
+  migration: UpdateMigration,
+  plan: Plan,
+  staged: string,
+  newVersion: string,
+): Promise<'updated' | 'unchanged'> {
+  const { state } = migration;
+  const { stateDir, configDir } = state.paths;
+  if (readJournal(stateDir) !== undefined)
+    throw new SystemError('a migration is unfinished; run "board self-update --resume" first');
+  if (migration.interactive) {
+    const running = await migration.activeWorkers();
+    if (running > 0) {
+      deps.print(`${running} worker(s) running; run board self-update again once they end`);
+      throw new ReportedFailure('workers are running');
+    }
+    deps.print('There are breaking changes, so a migration is needed.');
+    for (const step of plan.steps) deps.print(`  ${step.title}${step.kind === 'person' ? ' (needs you)' : ''}`);
+    if (
+      !(await migration.confirm('Do you want to continue? (Everything will be backed up for a rollback if needed.)'))
+    ) {
+      deps.print('nothing changed');
+      return 'unchanged';
+    }
+  }
+  takeLock(stateDir, { adoptParent: false });
+  let handedToTick = false;
+  try {
+    const now = state.now();
+    const backup = createBackup({
+      stateDir,
+      kind: 'update',
+      from: deps.version ?? plan.from,
+      to: newVersion,
+      cliApi: state.cliApi,
+      binaryPath: deps.execPath,
+      configDir,
+      unitFiles: unitFilesOf(state.platform, state.env, state.home),
+      platform: state.platform,
+      now,
+    });
+    writeJournal(stateDir, {
+      version: 1,
+      from: plan.from,
+      to: plan.to,
+      steps: plan.steps.map((step) => step.id),
+      done: [],
+      backup: backup.name,
+      startedAt: now.toISOString(),
+    });
+    try {
+      replaceBinary(staged, deps.execPath);
+    } catch (error) {
+      deleteJournal(stateDir);
+      throw error;
+    }
+    deps.print(`updated board ${deps.version} -> ${newVersion}`);
+    if (migration.context === 'command') {
+      const code = await migration.handOff();
+      if (code !== 0) throw new ReportedFailure('the migration did not finish', code);
+      return 'updated';
+    }
+    const restarted = await deps.restartListener();
+    if (restarted !== undefined) deps.print(restarted);
+    handedToTick = true;
+    return 'updated';
+  } finally {
+    if (!handedToTick) releaseLock(stateDir);
+  }
+}
+
 // Whether a newer binary replaced this one.
 export async function selfUpdate(deps: SelfUpdateDeps, flags: SelfUpdateFlags): Promise<'updated' | 'unchanged'> {
   if (!deps.compiled || deps.version === undefined)
@@ -243,17 +348,26 @@ export async function selfUpdate(deps: SelfUpdateDeps, flags: SelfUpdateFlags): 
     // An unpredictable name, created exclusively, so nobody who can write that directory can plant it first.
     const staged = join(dirname(deps.execPath), `.board-update-${randomBytes(8).toString('hex')}`);
     try {
-      writeFileSync(staged, readFileSync(join(dir, asset)), { mode: 0o755, flag: 'wx' });
-      chmodSync(staged, 0o755);
-      renameSync(staged, deps.execPath);
-    } catch (error) {
+      try {
+        writeFileSync(staged, readFileSync(join(dir, asset)), { mode: 0o755, flag: 'wx' });
+        chmodSync(staged, 0o755);
+      } catch (error) {
+        throw new SystemError(`cannot replace ${deps.execPath}: ${errorText(error)}`);
+      }
+      const plan = deps.migration === undefined ? undefined : await deps.migration.planOf(staged);
+      if (plan !== undefined && plan.to !== newest.version)
+        throw new SystemError(`the new binary says it is ${plan.to}, not ${newest.version}; nothing was replaced`);
+      if (deps.migration === undefined || plan === undefined || plan.steps.length === 0) {
+        replaceBinary(staged, deps.execPath);
+        deps.print(`updated board ${deps.version} -> ${newest.version}`);
+        const restarted = await deps.restartListener();
+        if (restarted !== undefined) deps.print(restarted);
+        return 'updated';
+      }
+      return await updateWithMigration(deps, deps.migration, plan, staged, newest.version);
+    } finally {
       rmSync(staged, { force: true });
-      throw new SystemError(`cannot replace ${deps.execPath}: ${errorText(error)}`);
     }
-    deps.print(`updated board ${deps.version} -> ${newest.version}`);
-    const restarted = await deps.restartListener();
-    if (restarted !== undefined) deps.print(restarted);
-    return 'updated';
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

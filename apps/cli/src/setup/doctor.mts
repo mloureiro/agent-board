@@ -80,6 +80,7 @@ import {
 } from './launchd.mts';
 import type { AgentName } from './launchd.mts';
 import { errorText, shellQuote } from '../output/text.mts';
+import type { MigrationState } from '../migrate/state.mts';
 import { PluginError, resolvePluginRoot } from '../worker/plugins.mts';
 import type { PluginFiles } from '../worker/plugins.mts';
 
@@ -120,6 +121,8 @@ export interface DoctorDeps {
   // The subscription usage this machine's runs reported.
   usageStore: Pick<UsageStore, 'read'>;
   now: () => Date;
+  // The unfinished migration, if any, and the state of the backups; undefined: doctor says nothing about migrations.
+  migration?: () => MigrationState;
   // Runs a program of an integration; a `path` in the spec replaces PATH.
   runCommand: (spec: CommandSpec) => Promise<CommandResult>;
   // The installed plugin marketplaces: the registry, why a checkout is not at its pinned commit, and an integration's program.
@@ -1100,6 +1103,64 @@ const checkPluginsAndFeeds: Check = async (deps) => {
   return results;
 };
 
+const checkMigration: Check = ({ migration }) => {
+  if (migration === undefined) return [];
+  const state = migration();
+  const results: CheckResult[] = [];
+  const { journal } = state;
+  if (journal !== undefined && 'unreadable' in journal)
+    results.push(
+      problem(
+        'migration',
+        'fail',
+        journal.unreadable,
+        'fix or delete the journal file named in the message; "board self-update --resume" refuses until then',
+      ),
+    );
+  else if (journal !== undefined) {
+    const { stopped, steps, done, to } = journal.present;
+    if (stopped === undefined)
+      results.push(
+        problem(
+          'migration',
+          'warn',
+          `${steps.length - done.length} of ${steps.length} step(s) to ${to} are pending`,
+          'run "board self-update --resume", or wait for the next dispatch tick',
+        ),
+      );
+    else
+      results.push(
+        problem(
+          'migration',
+          'fail',
+          `stopped at ${stopped.id}: ${stopped.message}`,
+          stopped.reason === 'failed'
+            ? 'fix the cause, then run "board self-update --resume"'
+            : 'do the step by hand, then run "board self-update --resume"',
+        ),
+      );
+  } else if (state.waitingSteps > 0)
+    results.push(
+      problem(
+        'migration',
+        'warn',
+        `this binary brings ${state.waitingSteps} migration step(s) that have not run`,
+        'run "board self-update --resume", or wait for the next dispatch tick',
+      ),
+    );
+  else results.push(ok('migration', 'nothing pending'));
+  if (state.looseBackups.length > 0)
+    results.push(
+      problem(
+        'backups',
+        'warn',
+        `${state.looseBackups.join(', ')} can be read by others, and a backup holds the machine token`,
+        'chmod 700 the backup directories and chmod 600 the files in them',
+      ),
+    );
+  return results;
+};
+
 const CHECKS: Check[] = [
   checkNode,
   checkConfigDir,
@@ -1111,6 +1172,7 @@ const CHECKS: Check[] = [
   checkUsageLimits,
   checkPluginsAndFeeds,
   checkWorker,
+  checkMigration,
 ];
 
 export async function runChecks(deps: DoctorDeps): Promise<CheckResult[]> {

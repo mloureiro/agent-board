@@ -1162,3 +1162,69 @@ test('doctor warns when config.json holds more feeds than the board shows', asyn
   assert.equal(warning?.level, 'warn');
   assert.match(warning?.message ?? '', /31 feeds; .*at most 30/);
 });
+
+const journalOf = (stopped?: { reason: 'failed' | 'needs-person'; message: string }) => ({
+  present: {
+    version: 1 as const,
+    from: '0.37.0',
+    to: '0.40.0',
+    steps: ['a', 'b'],
+    done: ['a'],
+    backup: 'b',
+    startedAt: '2026-11-24T10:00:00.000Z',
+    ...(stopped === undefined ? {} : { stopped: { id: 'b', at: '2026-11-24T10:01:00.000Z', ...stopped } }),
+  },
+});
+
+const migrationResults = async (
+  state: Partial<ReturnType<NonNullable<DoctorDeps['migration']>>>,
+): Promise<CheckResult[]> => {
+  const results = await runChecks(
+    machine(GOOD, { migration: () => ({ journal: undefined, waitingSteps: 0, looseBackups: [], ...state }) }),
+  );
+  return results.filter((result) => result.name === 'migration' || result.name === 'backups');
+};
+
+test('doctor says nothing is pending when no journal and no step wait', async () => {
+  assert.deepEqual(await migrationResults({}), [{ name: 'migration', level: 'ok', message: 'nothing pending' }]);
+});
+
+test('doctor reports a journal that is pending, with the resume hint', async () => {
+  const [result] = await migrationResults({ journal: journalOf() });
+  assert.equal(result?.level, 'warn');
+  assert.match(result?.message ?? '', /1 of 2 step\(s\) to 0\.40\.0 are pending/);
+  assert.match(result?.hint ?? '', /board self-update --resume/);
+});
+
+test('doctor reports where a migration stopped, why, and how to go on', async () => {
+  const [failed] = await migrationResults({ journal: journalOf({ reason: 'failed', message: 'disk full' }) });
+  assert.equal(failed?.level, 'fail');
+  assert.equal(failed?.message, 'stopped at b: disk full');
+  assert.match(failed?.hint ?? '', /board self-update --resume/);
+  const [person] = await migrationResults({
+    journal: journalOf({ reason: 'needs-person', message: 'move the folder' }),
+  });
+  assert.equal(person?.level, 'fail');
+  assert.match(person?.hint ?? '', /by hand.*board self-update --resume/);
+});
+
+test('doctor reports a journal it cannot read', async () => {
+  const [result] = await migrationResults({
+    journal: { unreadable: '/state/migration/journal.json is not valid JSON' },
+  });
+  assert.equal(result?.level, 'fail');
+  assert.match(result?.message ?? '', /journal\.json is not valid JSON/);
+});
+
+test('doctor warns when a marker is behind this binary with steps pending', async () => {
+  const [result] = await migrationResults({ waitingSteps: 2 });
+  assert.equal(result?.level, 'warn');
+  assert.match(result?.message ?? '', /2 migration step\(s\) that have not run/);
+});
+
+test('doctor warns about backups others can read', async () => {
+  const results = await migrationResults({ looseBackups: ['/state/backups/x/config/env'] });
+  const backups = results.find((result) => result.name === 'backups');
+  assert.equal(backups?.level, 'warn');
+  assert.match(backups?.message ?? '', /\/state\/backups\/x\/config\/env/);
+});

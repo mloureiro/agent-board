@@ -53,7 +53,11 @@ import { createGitHub } from './github.mts';
 import type { GitHub } from './github.mts';
 import { createPrRefreshState, prRefreshFile, refreshPrStatesIfDue } from './pr-states.mts';
 import type { PrRefreshState } from './pr-states.mts';
-import { TICK_LIMIT_S } from './tick.mts';
+import { MIGRATION_ABORT_AT_S, MIGRATION_START_WINDOW_S, TICK_LIMIT_S } from './tick.mts';
+import { realMigrationDeps } from '../commands/migration-deps.mts';
+import type { MigrationDeps } from '../migrate/deps.mts';
+import { runPendingMigration } from '../migrate/tick.mts';
+import { realPlanOf } from '../migrate/plan-output.mts';
 import {
   buildMachineUsage,
   createUsageStore,
@@ -103,6 +107,8 @@ export interface DispatchDeps extends Context {
   runWatch: WatchRunner;
   isAlive: (pid: number) => boolean;
   update: UpdateDeps;
+  // The migration steps a new release declares; undefined: the tick runs none.
+  migration?: MigrationDeps;
   // Keys of config.json the CLI ignores (see configWarnings), logged at the start of every tick.
   configWarnings: () => string[];
   // The PR states of open tasks are looked up here at most every 10 minutes; undefined `github`: `gh` is not installed.
@@ -520,6 +526,18 @@ export async function runDispatch(given: DispatchDeps): Promise<void> {
   for (const warning of deps.configWarnings()) log(`WARN config.json: ${warning}`);
   for (const reason of Object.values(config.agentErrors))
     log(`WARN config.json: ${reason}; tasks that name this agent are not run`);
+  if (deps.migration !== undefined) {
+    const outcome = await runPendingMigration({
+      deps: deps.migration,
+      activeWorkers: async () => (await system.activeWorkers()).length,
+      tickStart,
+      startWindowMs: MIGRATION_START_WINDOW_S * 1000,
+      abortAtMs: MIGRATION_ABORT_AT_S * 1000,
+      dryRun: deps.dryRun,
+      log,
+    });
+    if (outcome !== 'none') return;
+  }
   let listed: Task[];
   try {
     listed = await backend.listTasks();
@@ -776,6 +794,12 @@ export async function runDispatch(given: DispatchDeps): Promise<void> {
 export async function dispatchMain({ dryRun }: { dryRun: boolean }): Promise<void> {
   const context = buildContext(dryRun);
   const compiled = isCompiledBinary();
+  const system = createWorkerSystem({ dryRun, print });
+  const migrationDeps = realMigrationDeps({
+    options: { restartListener: realListenerRestart({ block: false }) },
+    env: process.env,
+    out: print,
+  });
   const cancelLimit = limitTick(TICK_LIMIT_MS, () => {
     print(`tick stopped after ${TICK_LIMIT_MS / 1000} s`);
     process.exit(TICK_TIMED_OUT);
@@ -803,11 +827,21 @@ export async function dispatchMain({ dryRun }: { dryRun: boolean }): Promise<voi
                 // The dispatcher runs inside the listener's unit, whose stop waits for it: asking must not wait for the stop.
                 restartListener: realListenerRestart({ block: false }),
                 print,
+                migration: {
+                  planOf: realPlanOf(process.env),
+                  state: migrationDeps,
+                  interactive: false,
+                  confirm: async () => false,
+                  activeWorkers: async () => (await system.activeWorkers()).length,
+                  context: 'tick',
+                  handOff: async () => 0,
+                },
               },
               {},
             ),
         },
-        system: createWorkerSystem({ dryRun, print }),
+        migration: migrationDeps,
+        system,
         files: createRunFiles(),
         now: () => new Date(),
         logTail: readLogTail,

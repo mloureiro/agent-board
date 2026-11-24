@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { lockPath, releaseLock, takeLock } from './lock.mts';
+import { LockHeldError, lockPath, releaseLock, takeLock } from './lock.mts';
 
 const withDir = (run: (dir: string) => void): void => {
   const dir = mkdtempSync(join(tmpdir(), 'board-lock-test-'));
@@ -60,5 +60,57 @@ test('release removes the lock of the caller and leaves another process lock alo
     assert.equal(existsSync(lockPath(dir)), true);
     releaseLock(dir, 100);
     assert.equal(existsSync(lockPath(dir)), false);
+  });
+});
+
+test('two takers that both see the same stale lock cannot both win', () => {
+  withDir((dir) => {
+    takeLock(dir, { adoptParent: false, pid: 111 });
+    let raced = false;
+    const alive = (pid: number): boolean => {
+      if (pid !== 111) return true;
+      if (!raced) {
+        raced = true;
+        takeLock(dir, { adoptParent: false, pid: 222, alive });
+      }
+      return false;
+    };
+    assert.throws(
+      () => takeLock(dir, { adoptParent: false, pid: 333, alive }),
+      (error) => error instanceof LockHeldError && error.holder === 222,
+    );
+    assert.equal(holder(dir), 222);
+    assert.equal(existsSync(`${lockPath(dir)}.replace`), false);
+  });
+});
+
+test('a taker that is replacing the lock keeps a second one out', () => {
+  withDir((dir) => {
+    takeLock(dir, { adoptParent: false, pid: 111 });
+    writeFileSync(`${lockPath(dir)}.replace`, '222');
+    assert.throws(() => takeLock(dir, { adoptParent: false, pid: 333, alive: () => false }), LockHeldError);
+    assert.equal(holder(dir), 111);
+  });
+});
+
+test('a replacement guard left by a dead taker is cleared once it is old', () => {
+  withDir((dir) => {
+    takeLock(dir, { adoptParent: false, pid: 111 });
+    const guard = `${lockPath(dir)}.replace`;
+    writeFileSync(guard, '222');
+    const old = new Date('2026-01-01T00:00:00Z');
+    utimesSync(guard, old, old);
+    takeLock(dir, { adoptParent: false, pid: 333, alive: () => false, now: () => new Date('2026-01-01T00:05:00Z') });
+    assert.equal(holder(dir), 333);
+    assert.equal(existsSync(guard), false);
+  });
+});
+
+test('a lock that is empty counts as stale and is replaced', () => {
+  withDir((dir) => {
+    takeLock(dir, { adoptParent: false, pid: 111 });
+    writeFileSync(lockPath(dir), '');
+    takeLock(dir, { adoptParent: false, pid: 222, alive: () => true });
+    assert.equal(holder(dir), 222);
   });
 });

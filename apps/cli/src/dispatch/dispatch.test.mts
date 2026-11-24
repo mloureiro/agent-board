@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { after, test } from 'node:test';
 import { limitTick, runDispatch } from './dispatch.mts';
+import { autoStep, fixture as migrationFixture } from '../__tests__/helpers/migration.mts';
+import { readMarker, writeMarker } from '../migrate/marker.mts';
+import type { MigrationStep } from '../migrate/steps.mts';
 import type { DispatchDeps } from './dispatch.mts';
 import { BackendError } from '../backend/backend.mts';
 import type { Fetch } from '../backend/backend.mts';
@@ -1889,4 +1892,71 @@ test('a task the board cannot be asked about keeps its watches; a dry run drops 
   await runDispatch(dry.deps);
   assert.deepEqual(dry.watches.tasks(), ['d1']);
   assert.ok(dry.logs.includes('DROP-WATCHES d1 its task is done'));
+});
+
+function withMigration(registry: MigrationStep[], active: string[] = []) {
+  const f = migrationFixture(registry);
+  writeMarker(f.deps.paths.stateDir, '0.37.0');
+  const ticks = setup([todo('t1')], active);
+  const listed: string[] = [];
+  const listTasks = ticks.backend.listTasks.bind(ticks.backend);
+  ticks.backend.listTasks = async (options) => {
+    listed.push('list');
+    return listTasks(options);
+  };
+  ticks.deps.migration = f.deps;
+  ticks.deps.now = f.deps.now;
+  return { ...ticks, f, listed };
+}
+
+test('a migration that is pending runs and ends the tick before the board is asked for tasks', async () => {
+  const { deps, f, listed, started, logs } = withMigration([autoStep('a', '0.38.0')]);
+  try {
+    await runDispatch(deps);
+    assert.deepEqual(listed, []);
+    assert.deepEqual(started, []);
+    assert.ok(logs.includes('MIGRATION-DONE'));
+    assert.equal(readMarker(f.deps.paths.stateDir), '0.40.0');
+  } finally {
+    rmSync(f.dir, { recursive: true });
+  }
+});
+
+test('running workers hold a pending migration back and no task is claimed meanwhile', async () => {
+  const { deps, f, listed, started, logs } = withMigration([autoStep('a', '0.38.0')], ['agent-board-r1']);
+  try {
+    await runDispatch(deps);
+    assert.deepEqual(listed, []);
+    assert.deepEqual(started, []);
+    assert.ok(logs.includes('MIGRATION-WAIT 1 worker(s) running'));
+  } finally {
+    rmSync(f.dir, { recursive: true });
+  }
+});
+
+test('with nothing declared the tick is the one it was without migration support', async () => {
+  const plain = setup([todo('t1')]);
+  const migrating = withMigration([]);
+  try {
+    await runDispatch(plain.deps);
+    await runDispatch(migrating.deps);
+    assert.deepEqual(migrating.logs, plain.logs);
+    assert.deepEqual(migrating.started, plain.started);
+    assert.deepEqual(migrating.listed, ['list']);
+  } finally {
+    rmSync(migrating.f.dir, { recursive: true });
+  }
+});
+
+test('a dry run reports a pending migration and ends the tick', async () => {
+  const { deps, f, listed, logs } = withMigration([autoStep('a', '0.38.0')]);
+  try {
+    deps.dryRun = true;
+    await runDispatch(deps);
+    assert.deepEqual(listed, []);
+    assert.ok(logs.includes('DRY migration 1 step(s)'));
+    assert.equal(readMarker(f.deps.paths.stateDir), '0.37.0');
+  } finally {
+    rmSync(f.dir, { recursive: true });
+  }
 });

@@ -1,6 +1,6 @@
 {
   "name": "@agent-board/cli",
-  "version": "0.37.0",
+  "version": "0.38.0",
   "private": true,
   "description": "Dispatcher, worker and the board command: run headless Claude Code tasks from the board",
   "type": "module",

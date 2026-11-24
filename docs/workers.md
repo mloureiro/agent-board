@@ -112,6 +112,10 @@ The heartbeat, pause flag, lane and working directory of a run live in `$XDG_RUN
 
 If the clock jumps because the machine slept, the worker moves the heartbeat up to the wake, so the sleep does not count as time without a tool call. The dispatcher's sweep does not count quiet time on a tick that follows a gap of more than 10 minutes.
 
+## Updates and migrations
+
+A release can declare steps that change a machine's own files. While one is pending, stopped or running, the dispatcher claims no task on that machine, so no worker runs the old code against the changed files. It waits for the running workers to end (`MIGRATION-WAIT` in the dispatcher's log), runs the steps within its 110 s tick (no step starts after 60 s, and one still running at 95 s is aborted), and continues on the next tick. A step that failed or needs you stops the machine's dispatcher until you run `board self-update --resume`. The log lines and the steps are described under [Machine migrations](setup.md#machine-migrations).
+
 ## Talking to a running agent
 
 The worker starts `claude -p` with `--input-format stream-json` and keeps its stdin open for the whole run. The prompt is the first user message, written as a JSON line. The worker writes three more things to stdin:

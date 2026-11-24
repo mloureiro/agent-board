@@ -3,6 +3,9 @@
 
 // A tick is stopped after this long: the dispatch unit's TimeoutStartSec, the listener's limit and the tick's own backstop.
 export const TICK_LIMIT_S = 110;
+// A migration step starts only within this long of the tick's start; a step still running is aborted at the second mark.
+export const MIGRATION_START_WINDOW_S = TICK_LIMIT_S - 50;
+export const MIGRATION_ABORT_AT_S = TICK_LIMIT_S - 15;
 // After the stop, how long a tick gets before it is killed.
 export const TICK_GRACE_S = 10;
 // How long stopping the listener may take: it waits for the running tick, which takes the limit and the grace at most.

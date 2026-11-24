@@ -13,7 +13,11 @@ import type { ProgramShared } from './program-shared.mts';
 
 const execFileAsync = promisify(execFile);
 
-export function realMigrationDeps({ options, env, out }: ProgramShared): MigrationDeps {
+export function realMigrationDeps({
+  options,
+  env,
+  out,
+}: Pick<ProgramShared, 'options' | 'env' | 'out'>): MigrationDeps {
   const platform = options.platform ?? process.platform;
   return {
     registry: options.migrationSteps ?? MIGRATION_STEPS,

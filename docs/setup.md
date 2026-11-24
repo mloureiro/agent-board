@@ -206,7 +206,7 @@ For a change that raises `MIN_CLIENT`, in this order:
 3. Deploy or restart the server. Migrations run on start.
 4. Wait for the CLI release. Once the change is on `main`, CI publishes `cli-v<version>` before it builds the images, so `board self-update` has something to fetch before any machine is switched. `board self-update --check` on a machine shows it.
 5. Update the CLI on each machine, then run `board doctor`.
-   - A release binary: `board self-update`. It needs `gh`.
+   - A release binary: `board self-update`. It needs `gh`. It also runs the migration steps the release declares (see [Machine migrations](#machine-migrations)).
    - A checkout: `git pull`, `pnpm install` and `apps/cli/install.sh`. A checkout that only pulls cannot resolve new dependencies, and then `board`, dispatch and every run's hook fail.
    - Run `board setup` once if an older version wrote the units.
 6. Start the timer and the listener again: `systemctl --user start agent-board-dispatch.timer agent-board-listen.service`.
@@ -224,6 +224,53 @@ The listener is one process that keeps the code it started with, across reconnec
 Stopping the listener waits for a dispatch tick that is running. The unit's `TimeoutStopSec` is 130 s: a tick's 110 s limit, its 10 s grace and a margin.
 
 The listener checks the API range each time it connects. When the server no longer serves this CLI, the listener logs that and exits, and systemd restarts it every 10 seconds until the CLI matches. When the server is older than the CLI, the listener logs that once and keeps reconnecting with its usual backoff.
+
+### Machine migrations
+
+A release can declare steps that change a machine's own files: units, the config directory, where the CLI keeps its state. `board self-update` and the dispatcher's `autoUpdate` run them, so a machine does not need hand edits after an update. A release that declares none updates exactly as before: no warning, no backup, no step.
+
+#### Updating from a terminal
+
+After the download is checked, the old binary asks the new one which steps it brings. With none, it replaces itself and restarts the listener as before. With some, and a terminal:
+
+1. If workers run, it refuses before asking, says how many run, and changes nothing. Run `board self-update` again once they end. `board self-update --resume` from a terminal refuses the same way.
+2. It prints `There are breaking changes, so a migration is needed.`, one line per step (a step that needs you is marked `(needs you)`) and asks whether to continue. The default is no, and then nothing changes and the downloaded file is removed.
+3. On yes it takes the migration lock, backs up, writes the journal and replaces the binary. The new binary then runs the steps, one line each as it runs them, restarts the listener and the watch unit, and prints where the backup is.
+
+Without a terminal (a script, cron) it does not ask and does not refuse for workers; it goes ahead.
+
+#### The backup
+
+Made only when a step applies, before anything changes, in `backups/<time>-<kind>-<from>-<to>/` of the state directory (`~/.local/state/agent-board`, or `AGENT_BOARD_STATE_DIR`):
+
+- the previous binary (an update only), every file directly in the config directory (`web.json`, `env`, `config.json`), and the unit files (`~/.config/systemd/user`, or the three launchd plists on macOS);
+- a `manifest.json` with the versions, the API level of the old CLI and a checksum of every file.
+
+The backup holds the machine token and the data key, so the directory is mode 700 and its files mode 600. `board doctor` warns when a backup is readable by others. The 3 newest backups stay after a migration ends, and one a journal names is never removed.
+
+#### When a step stops
+
+A step that fails stops the migration and prints `migration stopped at <id> (<title>): <reason>`. A step that needs a person prints its instruction. From a terminal it asks `Done?`, checks the result when the step has a check, and stops with the `--resume` hint if you decline or the check still fails. Without a terminal it stops with the instruction and the hint, unless its check already passes.
+
+Fix the cause or do the step, then run `board self-update --resume`. It continues with the steps the journal (`migration/journal.json`) still lists, so finished steps do not run again. `board doctor` reports a journal that is pending or stopped, with the reason and the hint, and a machine whose marker is behind this binary with steps waiting.
+
+#### The dispatcher
+
+`autoUpdate` updates the same way, without asking. Because the dispatcher runs inside the listener, the update replaces the binary, writes the journal and ends the tick; the next tick runs the steps. While a migration is pending, stopped or running, no tick claims a task, so no worker runs the old code against the new files. Each tick logs one of:
+
+| Line                                    | Meaning                                                                                                                                                                                   |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MIGRATION-RUNNING`                     | Another process holds the migration lock; the tick ends.                                                                                                                                  |
+| `MIGRATION-WAIT <n> worker(s) running`  | Workers must end first. The tick ends, and the next one looks again.                                                                                                                      |
+| `MIGRATION ✓ <title>`                   | A step finished.                                                                                                                                                                          |
+| `MIGRATION-DONE`                        | The last step finished, and the listener and watch unit restart without waiting.                                                                                                          |
+| `MIGRATION-OUT-OF-TIME`                 | No step starts later than 60 s into a tick, and a step still running at 95 s is aborted. The next tick continues from that step, which every step allows because it is safe to run twice. |
+| `MIGRATION-BLOCKED <id>: <instruction>` | A step waits for you. Do it, then run `board self-update --resume`; a step with a check goes on by itself once the check passes.                                                          |
+| `MIGRATION-FAILED <id>: <reason>`       | A step failed. A tick does not retry it; run `board self-update --resume`.                                                                                                                |
+
+A dry run of the dispatcher logs `DRY migration <n> step(s)` and changes nothing.
+
+A machine updated by a CLI older than 0.38.0, by `install.sh` or by a `git pull` never saw the warning. Its first tick on the new binary finds the steps its marker is missing, backs up without a binary (kind `steps`), and runs them.
 
 ### Releases come from mloureiro/agent-board (CLI 0.35.0)
 
@@ -259,6 +306,10 @@ From then on `board self-update` takes releases from the fork. `board --version`
 ### `board --version` names its updater (CLI 0.36.0)
 
 `board --version` ends with where the CLI updates from: `updates from mloureiro/agent-board` for a release binary, `updates with git pull` for a checkout. The CLI alone changes. A script that matches the whole line needs the new ending; one that matches `(api <n>` still works.
+
+### Updates run migration steps (CLI 0.38.0)
+
+The CLI alone changes. No release declares a step yet, so updating to 0.38.0 changes nothing on a machine: `board self-update` and the dispatcher's update behave as before. From this release on, an update that brings steps warns, backs up and runs them, as described under [Machine migrations](#machine-migrations). A CLI at 0.37.0 or older replaces itself without asking, so an update from one of them skips the warning and the backup of the binary: the first dispatch tick of the new binary runs the steps.
 
 ### Machine migrations (CLI 0.37.0)
 
@@ -599,7 +650,7 @@ The `autoUpdate` key of `config.json` lets the dispatcher fetch the CLI itself.
 | `always`                 | Also updates at the start of a tick when the board advertises a newer release and no worker runs. While a worker runs it logs `UPDATE-WAIT` and goes on. |
 | `never`                  | Leaves it to you.                                                                                                                                        |
 
-An update runs `board self-update` in-process and asks systemd to restart the listener without waiting. The tick logs what happened and ends with success, and the next tick runs the new binary. Workers run as their own transient units, so the listener restart does not stop them.
+An update runs `board self-update` in-process and asks systemd to restart the listener without waiting. The tick logs what happened and ends with success, and the next tick runs the new binary. When the release declares migration steps, the update does not ask, and the next tick runs them: see [Machine migrations](#machine-migrations). Workers run as their own transient units, so the listener restart does not stop them.
 
 When it does not work:
 
