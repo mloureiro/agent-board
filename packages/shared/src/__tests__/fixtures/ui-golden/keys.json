@@ -1,0 +1,36 @@
+{
+  "owner": "alice",
+  "dataKey": "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA",
+  "keyId": "75cced822c1dc0bf",
+  "kdf": {
+    "m": 65536,
+    "t": 3,
+    "p": 1
+  },
+  "passphrase": "golden vector passphrase, throwaway",
+  "salt": "oKGio6SlpqeoqaqrrK2urw",
+  "wrappingKey": "-4FegrRLP_SPAW9R4ygYBqeV_k3k9c1xTDqdsEW6kDc",
+  "setup": {
+    "passphrase": "golden setup passphrase, throwaway",
+    "recoveryKey": "Q3W3-XKDC-3VJC-ZT2E-H7RX-6B1P-Y94D-1KYT-QDPQ-S732-JPP5-QZCS-2C60-89K0",
+    "keyId": "19b0552187b12ade",
+    "keySetup": {
+      "keyId": "19b0552187b12ade",
+      "slots": [
+        {
+          "kind": "passphrase",
+          "kdf": "argon2id",
+          "m": 65536,
+          "t": 3,
+          "p": 1,
+          "salt": "c_zHFMu2bpo1aijSAMC9Xg",
+          "wrapped": "abw1.Hnv0vZghsCon_zfSlwbCtVuOmryP9aAUfEwa3QTUg2WX87VKajkSsfSiIU8YtN6eKG36usi1pk_70HEi"
+        },
+        {
+          "kind": "recovery",
+          "wrapped": "abw1.r5IgmLuknauPC_CPyiTrFLHRW1hkPNLZlyb9c3935IHUHqTP3xn6c5pdBK9AoTU7mMyz1wpxkeJW1bgh"
+        }
+      ]
+    }
+  }
+}
