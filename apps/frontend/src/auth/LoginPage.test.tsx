@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SESSION_MARKER_KEY } from '../lib/session';
@@ -47,6 +47,7 @@ beforeEach(() => {
   });
 });
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -68,7 +69,10 @@ describe('the sign-in page', () => {
     expect(await button('Company login')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Sign in with a passkey' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Create an account' })).not.toBeInTheDocument();
-    expect(screen.getAllByRole('button')).toHaveLength(1);
+    expect(screen.getAllByRole('button').map((each) => each.textContent)).toEqual([
+      'Company login',
+      'Sign in with your browser',
+    ]);
   });
 
   it('shows a label from the server as text, never as markup', async () => {
@@ -110,6 +114,35 @@ describe('the sign-in page', () => {
     expect(await button('Sign in with a passkey')).toBeDisabled();
     expect(screen.getByText('This browser does not support passkeys.')).toBeInTheDocument();
     expect(await button('Sign in with Authelia')).toBeEnabled();
+  });
+});
+
+describe('signing in with the browser', () => {
+  it('is offered below the other methods, whatever the board offers', async () => {
+    authConfig.current = { login: true, passkeys: false, signup: false, oidc: null, saml: null };
+    renderAt(<LoginPage />);
+    expect(await button('Sign in with your browser')).toBeEnabled();
+  });
+
+  it('is absent when the board has no sign-in', async () => {
+    authConfig.current = { login: false };
+    renderAt(<LoginPage />);
+    await screen.findByText('This board has no sign-in set up.');
+    expect(screen.queryByRole('button', { name: 'Sign in with your browser' })).not.toBeInTheDocument();
+  });
+
+  it('swaps the methods for the code, and cancelling brings them back and stops checking', async () => {
+    mutations.handoffStart.mockResolvedValue({ flow: 'f9', code: 'K7Q-4MD' });
+    mutations.handoffFinish.mockResolvedValue({ status: 'pending' });
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    renderAt(<LoginPage />);
+    await userEvent.click(await button('Sign in with your browser'));
+    expect(await screen.findByText('K7Q-4MD')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sign in with a passkey' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(await button('Sign in with a passkey')).toBeInTheDocument();
+    await act(() => vi.advanceTimersByTimeAsync(10_000));
+    expect(mutations.handoffFinish).not.toHaveBeenCalled();
   });
 });
 
