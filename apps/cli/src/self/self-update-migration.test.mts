@@ -308,3 +308,31 @@ test('a plan answer outside the expected shape is refused', () => {
   ];
   for (const text of refused) assert.throws(() => parsePlan(text), /did not answer its migration plan/, text);
 });
+
+test('a journal that appears while the prompt waits is not overwritten and no backup is taken', async () => {
+  const f = setup();
+  try {
+    f.deps.migration = {
+      ...(f.deps.migration as UpdateMigration),
+      confirm: async () => {
+        writeJournal(f.stateDir, {
+          version: 1,
+          from: '0.37.0',
+          to: '0.4.0',
+          steps: ['other'],
+          done: [],
+          backup: 'someone-elses',
+          startedAt: '2026-11-24T10:15:03.000Z',
+        });
+        return true;
+      },
+    };
+    await assert.rejects(selfUpdate(f.deps, {}), /a migration is unfinished/);
+    assert.equal(readJournal(f.stateDir)?.backup, 'someone-elses');
+    assert.equal(binary(f.execPath), 'old binary');
+    assert.equal(existsSync(join(f.stateDir, 'backups')), false);
+    assert.equal(existsSync(lockPath(f.stateDir)), false);
+  } finally {
+    f.clean();
+  }
+});

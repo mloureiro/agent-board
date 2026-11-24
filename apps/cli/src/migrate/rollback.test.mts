@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   readdirSync,
@@ -335,5 +336,51 @@ test('on macOS a loaded agent whose plist changed is booted out and in again, an
   } finally {
     rmSync(loaded.f.dir, { recursive: true });
     rmSync(unloaded.f.dir, { recursive: true });
+  }
+});
+
+test('a file that cannot be staged leaves the machine as it was and says why', async () => {
+  const s = scenario();
+  const unitDir = join(s.unitPath, '..');
+  try {
+    const before = s.snapshot();
+    chmodSync(unitDir, 0o555);
+    await assert.rejects(rollback(s.rollbackDeps), /cannot write the restored files \(.*\); nothing was changed/);
+    chmodSync(unitDir, 0o755);
+    assert.deepEqual(s.snapshot(), before);
+    assert.deepEqual(readdirSync(join(s.f.dir, 'bin')), ['board']);
+    assert.deepEqual(
+      readdirSync(s.f.deps.paths.configDir).filter((name) => name.includes('.rollback-')),
+      [],
+    );
+    assert.equal(s.updateState.held, undefined);
+  } finally {
+    chmodSync(unitDir, 0o755);
+    rmSync(s.f.dir, { recursive: true });
+  }
+});
+
+test('a unit reload that fails still leaves the marker and the journal rolled back', async () => {
+  const s = scenario();
+  try {
+    const { stateDir } = s.f.deps.paths;
+    writeJournal(stateDir, {
+      version: 1,
+      from: '0.37.0',
+      to: '0.40.0',
+      steps: ['a'],
+      done: [],
+      backup: s.backup.name,
+      startedAt: '2026-11-24T10:15:03.000Z',
+    });
+    s.rollbackDeps.run = async () => {
+      throw new Error('systemctl failed');
+    };
+    await assert.rejects(rollback(s.rollbackDeps), /systemctl failed/);
+    assert.equal(text(s.execPath), 'old binary');
+    assert.equal(readMarker(stateDir), '0.37.0');
+    assert.equal(readJournal(stateDir), undefined);
+  } finally {
+    rmSync(s.f.dir, { recursive: true });
   }
 });

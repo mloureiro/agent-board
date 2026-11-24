@@ -326,7 +326,7 @@ From then on `board self-update` takes releases from the fork. `board --version`
 
 ### `board self-update --rollback` (CLI 0.39.0)
 
-The CLI alone changes. `board self-update --rollback` restores the config, the units and the binary from the newest backup and holds auto-update at the release it left, as described under [Rolling back](#rolling-back). Nothing changes on a machine until the command runs. A tick that finds a leftover `.board-update-*` file beside the binary from a killed update removes it when it is over an hour old, and a tick's update no longer leaves the migration lock behind. `board doctor` fails on a `migration/applied.json` it cannot read, where it used to say nothing was pending.
+The CLI alone changes. `board self-update --rollback` restores the config, the units and the binary from the newest backup and holds auto-update at the release it left, as described under [Rolling back](#rolling-back). Nothing changes on a machine until the command runs. An update removes a leftover `.board-update-*` file beside the binary from a killed update when it is over an hour old, as it starts, and a tick's update no longer leaves the migration lock behind. `board doctor` fails on a `migration/applied.json` it cannot read, where it used to say nothing was pending.
 
 ### Updates run migration steps (CLI 0.38.0)
 

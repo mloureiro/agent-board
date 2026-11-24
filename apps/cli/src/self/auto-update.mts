@@ -49,8 +49,8 @@ export async function tryUpdate(run: UpdateRun, why: string): Promise<UpdateOutc
   }
   const held = state.heldThrough();
   const advertised = run.advertised();
-  if (held !== undefined && advertised !== undefined && compareVersions(advertised, held) <= 0) {
-    log(`UPDATE-HELD ${advertised} was rolled back; run "board self-update" to take it`);
+  if (held !== undefined && (advertised === undefined || compareVersions(advertised, held) <= 0)) {
+    log(`UPDATE-HELD ${advertised ?? `up to ${held}`} was rolled back; run "board self-update" to take it`);
     return 'unavailable';
   }
   const retryAfter = state.retryAfter();

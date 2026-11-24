@@ -208,27 +208,32 @@ export async function rollback(deps: RollbackDeps): Promise<'rolled-back' | 'dec
           macAgents.push(name);
       }
 
-    const stagedBinary = stage(deps.execPath, binary, 0o755);
+    const staged: { temp: string; dest: string }[] = [];
     try {
       for (const restore of changed) {
         mkdirSync(dirname(restore.dest), { recursive: true });
-        const staged = stage(restore.dest, restore.content, restore.mode);
-        try {
-          renameSync(staged, restore.dest);
-        } finally {
-          rmSync(staged, { force: true });
-        }
+        staged.push({ temp: stage(restore.dest, restore.content, restore.mode), dest: restore.dest });
       }
-      renameSync(stagedBinary, deps.execPath);
-    } finally {
-      rmSync(stagedBinary, { force: true });
+      staged.push({ temp: stage(deps.execPath, binary, 0o755), dest: deps.execPath });
+    } catch (error) {
+      for (const file of staged) rmSync(file.temp, { force: true });
+      throw refuse(`cannot write the restored files (${errorText(error)})`);
     }
+    try {
+      for (const file of staged) renameSync(file.temp, file.dest);
+    } catch (error) {
+      throw new SystemError(
+        `the rollback stopped while putting files back (${errorText(error)}); the backup is at ${entry.dir}, restore the rest by hand`,
+      );
+    } finally {
+      for (const file of staged) rmSync(file.temp, { force: true });
+    }
+    writeMarker(stateDir, manifest.from);
+    deleteJournal(stateDir);
     const unitsChanged = changed.some((restore) => restore.stored.startsWith('units/'));
     if (unitsChanged && deps.platform === 'linux') await deps.run('systemctl', ['--user', 'daemon-reload']);
     await reloadMacAgents(deps, macAgents);
 
-    writeMarker(stateDir, manifest.from);
-    deleteJournal(stateDir);
     markRolledBack(entry.dir, manifest, deps.now());
     deps.updateState.holdThrough(manifest.to);
     const restarted = await deps.restart();

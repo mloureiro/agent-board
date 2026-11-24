@@ -261,6 +261,8 @@ async function updateWithMigration(
   }
   takeLock(stateDir, { adoptParent: false });
   try {
+    if (readJournal(stateDir) !== undefined)
+      throw new SystemError('a migration is unfinished; run "board self-update --resume" first');
     const now = state.now();
     const backup = createBackup({
       stateDir,

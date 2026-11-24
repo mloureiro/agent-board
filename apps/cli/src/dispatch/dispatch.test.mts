@@ -1110,11 +1110,11 @@ test('a release at or below the one a rollback left behind is held, with always 
     always.logs.join('\n'),
   );
 
-  const tooOldCli = setup([], [], {}, { advertised: '0.5.5', held: '0.6.0' });
+  const tooOldCli = setup([], [], {}, { held: '0.6.0' });
   tooOld(tooOldCli.backend);
   await assert.rejects(runDispatch(tooOldCli.deps), /older than the board server/);
   assert.deepEqual(tooOldCli.updates, []);
-  assert.ok(tooOldCli.logs.some((line) => line.startsWith('UPDATE-HELD 0.5.5')));
+  assert.ok(tooOldCli.logs.some((line) => line.startsWith('UPDATE-HELD up to 0.6.0')));
 });
 
 test('a release above the held one updates as before', async () => {
