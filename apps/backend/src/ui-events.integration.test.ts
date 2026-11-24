@@ -113,7 +113,7 @@ describe('GET /api/ui/events', () => {
     expect(stream.events()).toBe(1);
   });
 
-  it('sends one event for a machine write and none for a heartbeat or a read, and nothing but comments, events and empty data', async () => {
+  it('sends one event for a machine write and none for a heartbeat, a run inbox read or a read, and nothing but comments, events and empty data', async () => {
     await start();
     const token = await issue('laptop');
     const id = await claimedTask(token);
@@ -121,6 +121,7 @@ describe('GET /api/ui/events', () => {
     const stream = await openStream();
 
     expect((await calls('heartbeat', { id, body: { lane: 'a', borrowed: false } })).status).toBe(200);
+    expect((await calls('run-inbox', { id })).status).toBe(200);
     await calls('list-tasks');
     await calls('get-task', { id });
     await calls('version');

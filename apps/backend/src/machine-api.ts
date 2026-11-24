@@ -530,6 +530,7 @@ const VIEW_SILENT_COMMANDS = new Set([
   'read-notes',
   'list-schedules',
   'heartbeat',
+  'run-inbox',
 ]);
 
 export interface MachineApiOptions {
