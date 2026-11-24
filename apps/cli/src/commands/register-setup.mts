@@ -14,17 +14,21 @@ import { EXEC_PATH, isCompiledBinary } from '../self/self.mts';
 import { realGh, realListenerRestart, selfUpdate } from '../self/self-update.mts';
 import type { SelfUpdateFlags } from '../self/self-update.mts';
 import { releaseVersion } from '../self/version.mts';
-import { realSetupDeps, setup, unitDirectory, whichOnPath } from '../setup/setup.mts';
+import { installedBoardPath, realSetupDeps, setup, unitDirectory, whichOnPath } from '../setup/setup.mts';
+import { uninstall } from '../setup/uninstall.mts';
+import type { UninstallFlags } from '../setup/uninstall.mts';
 import { DEFAULT_LINES, restartUnits, runInherited, showLogs, WORKER_UNITS } from '../setup/units.mts';
 import type { LogsFlags, WorkerUnit } from '../setup/units.mts';
 import type { SetupDeps, SetupFlags } from '../setup/setup.mts';
+import { runDir } from '../worker/runtime.mts';
 import { plainLine } from '../output/terminal.mts';
 import { exampleNames, exampleText } from './example.mts';
 import { examples, paragraphs, SETUP } from './help-text.mts';
 import type { ProgramShared } from './program-shared.mts';
 
 export function registerSetupCommands(shared: ProgramShared): void {
-  const { program, options, env, inRun, writeOut, out, makeContext, writeJson, jsonOption, notInRun } = shared;
+  const { program, options, env, inRun, writeOut, out, makeContext, writeJson, jsonOption, dryRunOption, notInRun } =
+    shared;
   const systemctlCode: DoctorDeps['systemctl'] =
     options.systemctlCode ??
     ((args) =>
@@ -159,6 +163,36 @@ export function registerSetupCommands(shared: ProgramShared): void {
       notInRun('board setup is not available inside a board run');
       await setup(setupDeps(), flags);
     });
+
+  dryRunOption(
+    program
+      .command('uninstall')
+      .helpGroup(SETUP)
+      .summary('remove the worker units and the installed board from this machine')
+      .description(
+        paragraphs(
+          'Undo `board setup` and the install: stop, disable and delete the dispatch timer, the listener and the watch unit (on macOS: boot out and delete the three launchd agents), and delete the installed board (~/.local/bin/board or $BOARD_INSTALL_DIR/board: the binary, or the link a checkout install made). A unit that is not installed or not running is skipped; one that fails to stop keeps its file, and the installed board stays so the command can be run again; the command exits 1. With --include-optional, a directory that is the home directory or holds it is refused. Workers that run keep running until they end. A checkout itself is never touched.',
+          'The config directory (web.json, config.json, and env with the token and the data key), the state directory (task logs, sessions, watches) and the run directory are kept, so `install.sh` and `board setup --enable` bring the machine back as it was. --include-optional removes them too; keep a copy of the data key first if this machine may need it again. --dry-run prints what would be stopped and removed and changes nothing. Not available inside a board run.',
+        ),
+      )
+      .option('--include-optional', 'also remove the config, state and run directories')
+      .addHelpText(
+        'after',
+        examples('board uninstall --dry-run', 'board uninstall', 'board uninstall --include-optional'),
+      ),
+  ).action(async (flags: UninstallFlags) => {
+    notInRun('board uninstall is not available inside a board run');
+    const deps = setupDeps();
+    const paths = getPaths(env);
+    await uninstall(
+      {
+        setup: deps,
+        installedBoard: installedBoardPath(env),
+        optionalDirs: [paths.configDir, paths.stateDir, runDir(env, deps.platform)],
+      },
+      { ...flags, dryRun: flags.dryRun === true || program.opts<{ dryRun?: boolean }>().dryRun === true },
+    );
+  });
 
   program
     .command('restart')

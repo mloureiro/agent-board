@@ -40,6 +40,7 @@ const VISIBLE = [
   'init',
   'doctor',
   'setup',
+  'uninstall',
   'restart',
   'logs',
   'self-update',
