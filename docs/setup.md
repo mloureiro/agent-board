@@ -260,6 +260,15 @@ From then on `board self-update` takes releases from the fork. `board --version`
 
 `board --version` ends with where the CLI updates from: `updates from mloureiro/agent-board` for a release binary, `updates with git pull` for a checkout. The CLI alone changes. A script that matches the whole line needs the new ending; one that matches `(api <n>` still works.
 
+### Machine migrations (CLI 0.37.0)
+
+The CLI alone changes. No release declares a migration step yet, so updating to 0.37.0 changes nothing on a machine. It adds the machinery that later releases use to change a machine's own files, and the command that continues a migration which stopped.
+
+- `board self-update --resume` runs the steps a stopped migration still lists, then restarts the listener and the watch unit. With nothing to run it prints `nothing to resume`. It works on a checkout too, cannot be combined with `--check`, and from a terminal refuses while workers run.
+- The state directory (`~/.local/state/agent-board`, or `AGENT_BOARD_STATE_DIR`) gains `migration/applied.json`, the version whose steps are applied, written by `board init` on a new machine and by `board self-update --resume` on an older one. A machine that has a `web.json` and no marker counts from 0.37.0, so it receives every step declared after that release.
+- A migration that has steps to run first copies `web.json`, `env`, `config.json` and the unit files into `backups/<time>-<kind>-<from>-<to>/` in the state directory. The backup holds the machine token and the data key, so the directory is mode 700 and its files mode 600. The three newest backups stay.
+- While a migration is unfinished, `migration/journal.json` lists its steps and the ones done. `board self-update --resume` reads it, and a journal it cannot read is reported with its path and changes nothing.
+
 ### Feeds, plugins and Settings › Feeds (CLI 0.34.0)
 
 The CLI adds `board feeds`, `board plugins` and a `feeds` key in `config.json` (see [Feeds](usage.md#feeds) and [Plugins](plugins.md)). The server adds the feature `machine.feeds`, migrations `0047_machine-sources`, `0050_drop-machine-sources` and `0051_machine-feeds`, and the **Feeds** page under Settings. The migrations run when the backend starts. Deploy and release in any order. No `MIN_CLIENT` or `API_VERSION` change.

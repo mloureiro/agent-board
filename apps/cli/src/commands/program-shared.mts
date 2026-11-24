@@ -1,6 +1,7 @@
 import type { EventEmitter } from 'node:events';
 import type { Command } from 'commander';
 import type { ContextOptions, LinkingContext } from '../cli.mts';
+import type { MigrationStep } from '../migrate/steps.mts';
 import type { SelfUpdateDeps } from '../self/self-update.mts';
 import type { UpdateState } from '../self/update-state.mts';
 import type { DoctorDeps } from '../setup/doctor.mts';
@@ -42,6 +43,8 @@ export interface ProgramOptions {
   gh?: (args: string[]) => Promise<string>;
   // Restarts the listener after self-update replaced the binary.
   restartListener?: SelfUpdateDeps['restartListener'];
+  // The migration steps `board self-update --resume` and `board internal migration-plan` use instead of the built-in registry.
+  migrationSteps?: readonly MigrationStep[];
   // The command line being run, set by runBoard.
   argv?: string[];
   // Where `board watch` and `board wait --check` store their watches, how they run a command, and the directory it runs in.

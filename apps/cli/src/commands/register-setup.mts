@@ -11,19 +11,23 @@ import type { CheckResult, DoctorDeps } from '../setup/doctor.mts';
 import { clackPrompts, init } from '../setup/init.mts';
 import type { InitFlags } from '../setup/init.mts';
 import { EXEC_PATH, isCompiledBinary } from '../self/self.mts';
+import { resumeMigration } from '../migrate/resume.mts';
 import { realGh, realListenerRestart, selfUpdate } from '../self/self-update.mts';
 import type { SelfUpdateFlags } from '../self/self-update.mts';
-import { releaseVersion } from '../self/version.mts';
+import { releaseOf } from '../migrate/deps.mts';
+import { cliVersion, releaseVersion } from '../self/version.mts';
 import { installedBoardPath, realSetupDeps, setup, unitDirectory, whichOnPath } from '../setup/setup.mts';
 import { uninstall } from '../setup/uninstall.mts';
 import type { UninstallFlags } from '../setup/uninstall.mts';
 import { DEFAULT_LINES, restartUnits, runInherited, showLogs, WORKER_UNITS } from '../setup/units.mts';
 import type { LogsFlags, WorkerUnit } from '../setup/units.mts';
 import type { SetupDeps, SetupFlags } from '../setup/setup.mts';
+import { createWorkerSystem } from '../setup/worker-system.mts';
 import { runDir } from '../worker/runtime.mts';
 import { plainLine } from '../output/terminal.mts';
 import { exampleNames, exampleText } from './example.mts';
 import { examples, paragraphs, SETUP } from './help-text.mts';
+import { realMigrationDeps } from './migration-deps.mts';
 import type { ProgramShared } from './program-shared.mts';
 
 export function registerSetupCommands(shared: ProgramShared): void {
@@ -105,10 +109,12 @@ export function registerSetupCommands(shared: ProgramShared): void {
     )
     .action(async (flags: InitFlags) => {
       notInRun('board init is not available inside a board run');
-      const { configDir } = getPaths(env);
+      const { configDir, stateDir } = getPaths(env);
       await init(
         {
           configDir,
+          stateDir,
+          version: releaseOf(options.version ?? cliVersion()),
           interactive: options.interactive ?? process.stdin.isTTY === true,
           prompts: options.prompts ?? clackPrompts(),
           hostName: options.hostName ?? hostname().split('.')[0] ?? 'machine',
@@ -255,12 +261,26 @@ export function registerSetupCommands(shared: ProgramShared): void {
       paragraphs(
         'Download the newest cli-v* release of mloureiro/agent-board with `gh`, check it against SHA256SUMS and replace this binary with it, then restart the listener if it runs (`systemctl --user try-restart`, or `launchctl kickstart -k` on macOS when launchd has the agent loaded). Running workers keep the old file until they end. --check only reports whether a newer release exists.',
         'It needs `gh`, logged in. A checkout is updated with `git pull` and `pnpm install` instead, and says so. Not available inside a board run.',
+        '--resume continues a migration that stopped: it runs the steps the journal still lists, then restarts the listener. It also works on a checkout, and says `nothing to resume` when nothing is pending. From a terminal it refuses while workers run.',
       ),
     )
     .option('--check', 'only report whether a newer release exists')
-    .addHelpText('after', examples('board self-update --check', 'board self-update'))
-    .action(async (flags: SelfUpdateFlags) => {
+    .option('--resume', 'continue a stopped migration')
+    .addHelpText('after', examples('board self-update --check', 'board self-update', 'board self-update --resume'))
+    .action(async (flags: SelfUpdateFlags & { resume?: boolean }) => {
       notInRun('board self-update is not available inside a board run');
+      if (flags.resume) {
+        if (flags.check) throw new UsageError('--resume and --check cannot be used together');
+        const platform = options.platform ?? process.platform;
+        const result = await resumeMigration(realMigrationDeps(shared), {
+          interactive: options.interactive ?? (process.stdin.isTTY === true && process.stdout.isTTY === true),
+          activeWorkers: async () =>
+            (await createWorkerSystem({ dryRun: false, print: out, platform }).activeWorkers()).length,
+        });
+        if (result === 'nothing') out('nothing to resume');
+        if (result === 'stopped') throw new ReportedFailure('migration stopped');
+        return;
+      }
       await selfUpdate(
         {
           compiled: isCompiledBinary(),
