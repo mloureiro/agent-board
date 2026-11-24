@@ -10,6 +10,7 @@ agent-board is a board for headless Claude Code runs: a Fastify/tRPC backend, a 
 | What a user sees and does                                     | `docs/usage.md`                                           |
 | Dispatch, lanes, worker permissions, how a run starts         | `docs/workers.md`                                         |
 | Sealing contexts and the threat model                         | `docs/encryption.md`, `packages/shared/src/sealing.mts`   |
+| The UI API a custom UI builds on                              | `docs/ui-api.md`                                          |
 | CLI ↔ server wire protocol                                    | `docs/machine-api.md`, `packages/shared/src/contract.mts` |
 | Feed plugins, marketplaces, the integration protocol          | `docs/plugins.md`                                         |
 | Install, config keys, upgrade steps per contract              | `docs/setup.md`                                           |

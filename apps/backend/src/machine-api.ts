@@ -42,6 +42,7 @@ import {
   parseWireTranscriptBatch,
   parseWireUsage,
   parseWireFeeds,
+  rejectUnknownKeys,
   parseWireFeedRequestAck,
   parseWireWait,
   TranscriptError,
@@ -63,6 +64,7 @@ import {
   machineForToken,
   machineUsageIndex,
   machineFeedsState,
+  listActiveMachines,
   ackFeedRequests,
   recordClient,
   setMachineCatalog,
@@ -383,6 +385,9 @@ async function handleMachineCall(
       const change = parsed(() => parseWireTitleRuleApply(body['body']));
       return applyTitleRule(db, idOf(body, 'task'), change, run);
     }
+    case 'list-machines':
+      parsed(() => rejectUnknownKeys(body, [], 'list-machines'));
+      return { machines: await listActiveMachines(db, machine) };
     case 'get-agents':
       return getSharedAgents(db);
     case 'set-agents':
@@ -520,6 +525,20 @@ const DISPATCH_WRITES = new Set([
   'set-agents',
 ]);
 
+/** The commands that leave what a view shows as it was: they only read, or arrive every 15 s per running task as a liveness sign. Every other command notifies the views. */
+const VIEW_SILENT_COMMANDS = new Set([
+  'version',
+  'list-tasks',
+  'get-task',
+  'get-title-rules',
+  'get-agents',
+  'read-notes',
+  'list-schedules',
+  'list-machines',
+  'heartbeat',
+  'run-inbox',
+]);
+
 export interface MachineApiOptions {
   /** How often an open event stream gets a ping and has its token checked again. */
   pingMs: number;
@@ -637,6 +656,8 @@ export function registerMachineApi(
       });
       if (command === 'apply-title-rule' ? storedAny(result) : DISPATCH_WRITES.has(command))
         changes.notify(machine.owner);
+      if (command === 'apply-title-rule' ? storedAny(result) : !VIEW_SILENT_COMMANDS.has(command))
+        changes.notifyViews(machine.owner);
       return { result };
     }
 

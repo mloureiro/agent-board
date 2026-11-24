@@ -1,3 +1,6 @@
+import { ContractError } from '@agent-board/shared';
+import { MIN_UI_CLIENT, parseUiApiHeader, UI_API_HEADER } from '@agent-board/shared/ui';
+import { TRPCError } from '@trpc/server';
 import { fastifyTRPCPlugin, type FastifyTRPCPluginOptions } from '@trpc/server/adapters/fastify';
 import Fastify from 'fastify';
 import type { Config } from './config';
@@ -11,6 +14,7 @@ import { cookieValue, hashToken, sessionCookie, sessionOwner, tokenShaped } from
 import { Changes, CHANGES_DEBOUNCE_MS } from './services/changes';
 import { AppError, type AppErrorCode } from './services/errors';
 import { appRouter, type AppRouter } from './trpc/router';
+import { registerUiEvents } from './ui-events';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -18,6 +22,15 @@ declare module 'fastify' {
     username: string | null;
     /** The sha256 of the request's session token, when it carries a live one. */
     sessionHash: string | null;
+  }
+}
+
+function uiClientApiOf(header: string | string[] | undefined): number | null {
+  try {
+    return parseUiApiHeader(header);
+  } catch (error) {
+    if (error instanceof ContractError) throw new TRPCError({ code: 'BAD_REQUEST', message: error.message });
+    throw error;
   }
 }
 
@@ -39,6 +52,8 @@ export interface ServerOptions extends Partial<MachineApiOptions> {
   changes?: Changes;
   /** Lets OIDC talk to an http issuer, for a test's fake one. Never read from the environment. */
   allowInsecureOidc?: boolean;
+  /** The lowest UI API version the server accepts, for a test that needs a client below it. Never read from the environment. */
+  minUiClient?: number;
 }
 
 export async function buildServer(config: Config, root: Db, options: ServerOptions = {}) {
@@ -100,10 +115,13 @@ export async function buildServer(config: Config, root: Db, options: ServerOptio
     if (sent !== null && req.username === null) reply.header('set-cookie', sessionCookie(config.auth, null));
   });
 
+  const pingMs = options.pingMs ?? 25_000;
   registerMachineApi(app, root, config, changes, {
-    pingMs: options.pingMs ?? 25_000,
+    pingMs,
     ...(options.vocabulary === undefined ? {} : { vocabulary: options.vocabulary }),
   });
+
+  registerUiEvents(app, root, config, changes, pingMs);
 
   if (config.auth.login && config.auth.saml) {
     const env: AuthEnv = { root, login: config.auth, log: app.log, oidc };
@@ -115,6 +133,8 @@ export async function buildServer(config: Config, root: Db, options: ServerOptio
     trpcOptions: {
       router: appRouter,
       createContext: ({ req, res }) => ({
+        uiClientApi: uiClientApiOf(req.headers[UI_API_HEADER]),
+        minUiClient: options.minUiClient ?? MIN_UI_CLIENT,
         root,
         config,
         changes,

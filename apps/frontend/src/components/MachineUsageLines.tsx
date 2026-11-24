@@ -1,6 +1,6 @@
 import { Stack, Text } from '@mantine/core';
 import { ago, clock } from '../lib/time';
-import type { Machine } from '../lib/opening';
+import type { Machine } from '@agent-board/shared/ui';
 import {
   activeHold,
   describeHoldWindow,

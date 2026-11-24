@@ -344,6 +344,10 @@ Each machine sends the board three sealed documents: its directory list, its cat
 
 **Settings.** Settings › Machines and Settings › Encryption show and re-wrap a key only when it is the one the browser is using, whatever the board reports.
 
+**Where the unlock lives.** The Argon2id derivation, the key slots, the recovery key and the passphrase rules are in `packages/shared/src/ui/` (`kdf.mts`, `keySlots.mts`, `recoveryKey.mts`, `passphrase.mts`), imported from `@agent-board/shared/ui`. Shared holds no Argon2id implementation, so it keeps no runtime dependency: each UI passes one to `createUnlocker`. The frontend passes `hash-wasm`'s (`apps/frontend/src/crypto/unlocker.ts`). Only the key store, which uses IndexedDB, stays in each UI.
+
+**Where the sealing and opening live.** What the browser seals per request (`requests.mts`), opens per response (`responses.mts`) and shape-checks (`shapes.mts`), with the board import (`boardImport.mts`), is in `packages/shared/src/ui/`, typed by the wire types of `wire.mts`. Which procedure seals what it sends and opens what it returns is decided once, in `plainBoard.mts`: `createPlainBoard(transport, keys)` returns plaintext-in, plaintext-out calls over a `BoardTransport` that each UI implements (the bundled frontend over its tRPC client), and holds no cache. The frontend imports it from `@agent-board/shared/ui` and holds no sealer or opener. Shared uses no DOM type: the file an import reads is anything with a `size` and a byte `stream()`, and the preferences it restores go through a callback.
+
 **Passphrases.** A passphrase is trimmed and NFKC-normalised in one place before it is checked and hashed, so setup, unlock and change treat it alike.
 
 **Clear values on screen.** Everything the browser shows from the board in the clear goes through the same shape checks as the CLI's wire parsers:

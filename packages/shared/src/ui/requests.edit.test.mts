@@ -1,8 +1,9 @@
-import { deriveKeys, openFields, sealFields, textBeforeEdit, type RowRef } from '@agent-board/shared';
-import { describe, expect, it } from 'vitest';
-import { sealerFor } from './contexts';
-import { openerFor } from './opening';
-import { InputError, sealEdit, sealScheduleUpdate, type EditTarget, type ScheduleUpdate } from './sealing';
+import { deriveKeys, openFields, sealFields, textBeforeEdit, type RowRef } from '../index.mts';
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
+import { sealerFor } from './requests.mts';
+import { openerFor } from './responses.mts';
+import { InputError, sealEdit, sealScheduleUpdate, type EditTarget, type ScheduleUpdate } from './requests.mts';
 
 const keys = await deriveKeys(
   Uint8Array.from({ length: 32 }, (_, i) => i),
@@ -29,50 +30,61 @@ describe('sealEdit', () => {
   it('seals the new title and prompt so that the task’s row opens them, and no other row does', async () => {
     const sealed = await sealEdit(keys, { target: target(), title: ' New title ', input: ' New prompt\n' });
     const row: RowRef = { kind: 'task', id: 'task0001', createdBy: 'user', scheduleId: null, forkOf: null };
-    expect(await opened(row, sealed)).toMatchObject({ title: 'New title', input: 'New prompt', unreadable: [] });
-    expect((await opened({ ...row, id: 'task0002' }, sealed)).unreadable).toEqual(['title', 'input']);
+    assert.partialDeepStrictEqual(await opened(row, sealed), {
+      title: 'New title',
+      input: 'New prompt',
+      unreadable: [],
+    });
+    assert.deepEqual((await opened({ ...row, id: 'task0002' }, sealed)).unreadable, ['title', 'input']);
   });
 
   it('keeps the fork link of a fork: the edited prompt opens under it and under no other', async () => {
     const sealed = await sealEdit(keys, { target: target({ forkOf: 'parent01' }), title: 'a', input: 'b' });
     const row: RowRef = { kind: 'task', id: 'task0001', createdBy: 'user', scheduleId: null, forkOf: 'parent01' };
-    expect((await opened(row, sealed)).unreadable).toEqual([]);
-    expect((await opened({ ...row, forkOf: null }, sealed)).unreadable).toEqual(['input']);
-    expect((await opened({ ...row, forkOf: 'parent02' }, sealed)).unreadable).toEqual(['input']);
+    assert.deepEqual((await opened(row, sealed)).unreadable, []);
+    assert.deepEqual((await opened({ ...row, forkOf: null }, sealed)).unreadable, ['input']);
+    assert.deepEqual((await opened({ ...row, forkOf: 'parent02' }, sealed)).unreadable, ['input']);
   });
 
   it('seals the old text as a note of the user’s', async () => {
     const sealed = await sealEdit(keys, { target: target(), title: 'a', input: 'b' });
-    expect(sealed.previous.body).toMatch(/^abe1\./);
-    expect(textBeforeEdit(target())).toBe('Prompt before editing\n\nTitle: Old title\n\n```\nOld prompt\n```');
+    assert.match(sealed.previous.body, /^abe1\./);
+    assert.equal(textBeforeEdit(target()), 'Prompt before editing\n\nTitle: Old title\n\n```\nOld prompt\n```');
   });
 
   it('refuses a schedule’s occurrence, which a sealed edit could be replayed on as the schedule’s prompt', async () => {
-    await expect(
+    await assert.rejects(
       sealEdit(keys, { target: target({ scheduleId: 'sched001' }), title: 'a', input: 'b' }),
-    ).rejects.toThrow(/Schedules page/);
+      /Schedules page/,
+    );
   });
 
   it('binds the prompt to the agent the task runs as', async () => {
     const sealed = await sealEdit(keys, { target: target({ agent: 'reviewer' }), title: 'a', input: 'b' });
     const row: RowRef = { kind: 'task', id: 'task0001', createdBy: 'user', scheduleId: null, forkOf: null };
     const { agent } = await sealFields(sealerFor(keys), { ...row, agent: 'reviewer' }, { title: '', input: '' });
-    expect(await opened(row, { ...sealed, agent })).toMatchObject({ input: 'b', agent: 'reviewer', unreadable: [] });
-    expect((await opened(row, sealed)).unreadable).toEqual(['input']);
+    assert.partialDeepStrictEqual(await opened(row, { ...sealed, agent }), {
+      input: 'b',
+      agent: 'reviewer',
+      unreadable: [],
+    });
+    assert.deepEqual((await opened(row, sealed)).unreadable, ['input']);
   });
 
   it('takes a title from the prompt when the title is blank, and refuses an empty prompt', async () => {
     const sealed = await sealEdit(keys, { target: target(), title: '  ', input: 'Fix the export' });
     const row: RowRef = { kind: 'task', id: 'task0001', createdBy: 'user', scheduleId: null, forkOf: null };
-    expect((await opened(row, sealed)).title).toBe('Fix the export');
-    await expect(sealEdit(keys, { target: target(), title: 't', input: '  ' })).rejects.toThrow(InputError);
+    assert.equal((await opened(row, sealed)).title, 'Fix the export');
+    await assert.rejects(sealEdit(keys, { target: target(), title: 't', input: '  ' }), InputError);
   });
 
   it('refuses a task that is not the user’s or that cannot be read, since the old text could not be kept', async () => {
-    await expect(sealEdit(keys, { target: target({ createdBy: 'agent' }), title: 'a', input: 'b' })).rejects.toThrow(
+    await assert.rejects(
+      sealEdit(keys, { target: target({ createdBy: 'agent' }), title: 'a', input: 'b' }),
       InputError,
     );
-    await expect(sealEdit(keys, { target: target({ unreadable: ['input'] }), title: 'a', input: 'b' })).rejects.toThrow(
+    await assert.rejects(
+      sealEdit(keys, { target: target({ unreadable: ['input'] }), title: 'a', input: 'b' }),
       InputError,
     );
   });
@@ -101,38 +113,39 @@ describe('sealScheduleUpdate', () => {
       keys,
       update({ agent: ' auditor ', place: { machine: 'laptop', workdir: '/work' }, priority: 'high', runsLeft: 3 }),
     );
-    expect(sealed).toMatchObject({
+    assert.partialDeepStrictEqual(sealed, {
       id: 'sched001',
       priority: 'high',
       runsLeft: 3,
       repeat: { everyMs: 3_600_000 },
       place: { machine: 'laptop' },
     });
-    expect(sealed).not.toHaveProperty('unreadable');
-    expect(
+    assert.ok(!('unreadable' in sealed));
+    assert.partialDeepStrictEqual(
       await openFields(
         openerFor(keys),
         { kind: 'schedule', id: 'sched001' },
         { ...sealed, workdir: sealed.place?.workdir },
       ),
-    ).toMatchObject({ title: 'Nightly', input: 'sweep', agent: 'auditor', workdir: '/work', unreadable: [] });
-    expect((await opened({ kind: 'schedule', id: 'sched002' }, sealed)).unreadable).toContain('title');
+      { title: 'Nightly', input: 'sweep', agent: 'auditor', workdir: '/work', unreadable: [] },
+    );
+    assert.ok((await opened({ kind: 'schedule', id: 'sched002' }, sealed)).unreadable.includes('title'));
   });
 
   it('seals again under a new agent, which the old one does not open', async () => {
     const withAgent = await sealScheduleUpdate(keys, update({ agent: 'auditor' }));
     const without = await sealScheduleUpdate(keys, update());
-    expect(without).not.toHaveProperty('agent');
-    expect(without.input).not.toBe(withAgent.input);
+    assert.ok(!('agent' in without));
+    assert.notEqual(without.input, withAgent.input);
   });
 
   it('leaves no directory sealed for none', async () => {
-    expect((await sealScheduleUpdate(keys, update())).place).toBeNull();
+    assert.equal((await sealScheduleUpdate(keys, update())).place, null);
   });
 
   it('refuses an empty prompt, a bad agent name and a schedule that cannot be read', async () => {
-    await expect(sealScheduleUpdate(keys, update({ input: ' ' }))).rejects.toThrow(InputError);
-    await expect(sealScheduleUpdate(keys, update({ agent: 'not an agent!' }))).rejects.toThrow(InputError);
-    await expect(sealScheduleUpdate(keys, update({ unreadable: ['input'] }))).rejects.toThrow(InputError);
+    await assert.rejects(sealScheduleUpdate(keys, update({ input: ' ' })), InputError);
+    await assert.rejects(sealScheduleUpdate(keys, update({ agent: 'not an agent!' })), InputError);
+    await assert.rejects(sealScheduleUpdate(keys, update({ unreadable: ['input'] })), InputError);
   });
 });

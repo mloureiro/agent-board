@@ -3,7 +3,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { forkSlot } from '../lib/drafts';
 import { useDraft } from '../lib/draftsContext';
-import { forkProblem } from '../lib/sealing';
+import { forkProblem } from '@agent-board/shared/ui';
 import { errorMessage, useTRPC, type BoardTask } from '../lib/trpc';
 import { MarkdownEditor } from './MarkdownEditor';
 

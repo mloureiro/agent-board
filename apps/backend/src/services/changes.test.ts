@@ -59,4 +59,38 @@ describe('Changes', () => {
     vi.advanceTimersByTime(1000);
     expect(heard).not.toHaveBeenCalled();
   });
+
+  describe('the view topic', () => {
+    const viewed = vi.fn();
+
+    beforeEach(() => {
+      viewed.mockReset();
+      changes.subscribeViews('jascha', viewed);
+    });
+
+    it('is separate from the dispatch topic, in both directions', () => {
+      changes.notifyViews('jascha');
+      vi.advanceTimersByTime(100);
+      expect(viewed).toHaveBeenCalledTimes(1);
+      expect(heard).not.toHaveBeenCalled();
+      changes.notify('jascha');
+      vi.advanceTimersByTime(100);
+      expect(heard).toHaveBeenCalledTimes(1);
+      expect(viewed).toHaveBeenCalledTimes(1);
+    });
+
+    it('drops a pending event on close and on the end of the owner’s streams, and stops listening when told to', () => {
+      changes.notifyViews('jascha');
+      changes.close();
+      vi.advanceTimersByTime(1000);
+      changes.notifyViews('jascha');
+      changes.endStreams('jascha');
+      vi.advanceTimersByTime(1000);
+      expect(viewed).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+      expect(changes.viewListenerCount('jascha')).toBe(1);
+      changes.subscribeViews('jascha', () => undefined)();
+      expect(changes.viewListenerCount('jascha')).toBe(1);
+    });
+  });
 });

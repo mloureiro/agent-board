@@ -125,6 +125,23 @@ export async function listMachines(db: DbOrTx, advertisedCli: string | null) {
   }));
 }
 
+/** The owner's machines whose token still works, by name, with the sighting of each: what another machine may know of them. */
+export async function listActiveMachines(
+  db: DbOrTx,
+  current: string,
+): Promise<{ name: string; lastSeenAt: string | null; current: boolean }[]> {
+  const rows = await db
+    .select({ name: machines.name, lastSeenAt: machines.lastSeenAt })
+    .from(machines)
+    .where(isNull(machines.revokedAt))
+    .orderBy(asc(machines.name));
+  return rows.map(({ name, lastSeenAt }) => ({
+    name,
+    lastSeenAt: lastSeenAt === null ? null : lastSeenAt.toISOString(),
+    current: name === current,
+  }));
+}
+
 /** The sealed catalogues the machines sent, by machine name; kept out of `listMachines` because that one is polled. */
 export async function listMachineCatalogs(db: DbOrTx) {
   return db

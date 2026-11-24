@@ -18,7 +18,7 @@ import {
 import { modals } from '@mantine/modals';
 import { IconCornerDownRight, IconGitFork, IconLockOff, IconTerminal2, IconX } from '@tabler/icons-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { ActionPanel } from '../components/ActionPanel';
 import { ContextUsageBar } from '../components/ContextUsageBar';
@@ -44,13 +44,25 @@ import { ThreadItem } from '../components/ThreadItem';
 import { TranscriptDrawer } from '../components/TranscriptDrawer';
 import { openQuestionOf } from '../lib/answers';
 import { skillsFor } from '../lib/catalog';
-import { canFork } from '../lib/sealing';
+import { canFork } from '@agent-board/shared/ui';
 import { STATUS_COLOR, STATUS_LABEL } from '../lib/status';
 import { ago, stamp } from '../lib/time';
 import { errorMessage, POLL_MS, useTRPC } from '../lib/trpc';
 import { heldTask } from '../lib/usageHold';
 import { useNow } from '../lib/useNow';
 import { unlistedMachine } from '../lib/workingDirectories';
+
+const PANEL_HEIGHT_VAR = '--task-panel-height';
+
+function trackPanelHeight(element: HTMLDivElement) {
+  const root = document.documentElement;
+  const observer = new ResizeObserver(() => root.style.setProperty(PANEL_HEIGHT_VAR, `${element.offsetHeight}px`));
+  observer.observe(element);
+  return () => {
+    observer.disconnect();
+    root.style.removeProperty(PANEL_HEIGHT_VAR);
+  };
+}
 
 const UNREADABLE_LABEL = (field: UnreadableField): string =>
   field === 'input' ? 'prompt' : field === 'workdir' ? 'directory' : field;
@@ -84,7 +96,6 @@ function TaskView({ id }: { id: string }) {
   const machines = useQuery({ ...trpc.machines.list.queryOptions(), refetchInterval: POLL_MS });
   const now = useNow(30_000);
   const catalogs = useQuery(trpc.machines.catalogs.queryOptions());
-  const bottom = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useSearchParams();
   const transcriptOpen = search.get('transcript') !== null;
   const setTranscriptOpen = (open: boolean) => setSearch(open ? { transcript: '1' } : {}, { replace: true });
@@ -93,7 +104,7 @@ function TaskView({ id }: { id: string }) {
 
   // Land on the newest note and the action panel; follow new notes as they arrive.
   useEffect(() => {
-    if (noteCount > 0) bottom.current?.scrollIntoView({ block: 'end' });
+    if (noteCount > 0) document.documentElement.scrollTo({ top: document.documentElement.scrollHeight });
   }, [noteCount]);
 
   if (query.isLoading) {
@@ -119,7 +130,7 @@ function TaskView({ id }: { id: string }) {
 
   return (
     <Container size="md" px={0}>
-      <Stack gap="md" pb="xl">
+      <Stack gap="md" className="task-page">
         <Breadcrumbs styles={{ root: { flexWrap: 'nowrap', minWidth: 0 }, separator: { flexShrink: 0 } }}>
           <Anchor component={Link} to="/" size="sm">
             Board
@@ -357,8 +368,10 @@ function TaskView({ id }: { id: string }) {
           live={task.status === 'running'}
         />
 
-        <div ref={bottom}>
-          <ActionPanel task={task} thread={thread} followUps={followUps} skills={skills} />
+        <div className="task-panel" ref={trackPanelHeight}>
+          <div className="task-panel-scroll">
+            <ActionPanel task={task} thread={thread} followUps={followUps} skills={skills} />
+          </div>
         </div>
       </Stack>
     </Container>

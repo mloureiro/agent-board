@@ -28,11 +28,11 @@ import {
 } from '../../cli/src/__tests__/helpers/fakes.mts';
 import { createFeedUpdates } from '../../cli/src/feeds/updates.mts';
 import { createWatchStore } from '../../cli/src/watch/store.mts';
-import { createKeySetup, exportDataKey } from '../../frontend/src/crypto/keySlots';
+import { createKeySetup, exportDataKey } from '../../frontend/src/crypto/unlocker';
 import { inspectStoredKeys } from '../../frontend/src/crypto/keyStore';
 import { createBrowserHarness } from '../../frontend/src/test/browserHarness';
 import { createMemoryKeyStore } from '../../frontend/src/test/memoryKeyStore';
-import { openerFor } from '../../frontend/src/lib/opening';
+import { openerFor } from '@agent-board/shared/ui';
 import { notes, tasks } from './db/schema';
 import { buildServer } from './server';
 import { createSession } from './services/auth/sessions';

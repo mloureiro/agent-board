@@ -5,8 +5,8 @@ import { TRPCClientError } from '@trpc/client';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { sealerFor } from '../../lib/contexts';
-import { openBoardTitleRules } from '../../lib/opening';
+import { sealerFor } from '@agent-board/shared/ui';
+import { openBoardTitleRules } from '@agent-board/shared/ui';
 import { TitlesSettings } from './TitlesSettings';
 
 const wire = vi.hoisted(() => ({ current: null as unknown }));

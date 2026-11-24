@@ -4,7 +4,7 @@ import { modals } from '@mantine/modals';
 import type { DraftStore } from '../lib/drafts';
 import { proposalSlot } from '../lib/drafts';
 import { useDraftIn } from '../lib/draftsContext';
-import { startsProposal, type Proposal } from '../lib/sealing';
+import { startsProposal, type Proposal } from '@agent-board/shared/ui';
 
 const TITLE = 'Start this agent’s proposal as yours?';
 

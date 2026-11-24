@@ -1,4 +1,4 @@
-import type { ListedTask } from './opening';
+import type { ListedTask } from '@agent-board/shared/ui';
 
 export const DESKTOP_NOTIFICATIONS_PREFERENCE_KEY = 'agent-board.desktopNotifications';
 const PREFERENCE_EVENT = 'agent-board:desktop-notifications';

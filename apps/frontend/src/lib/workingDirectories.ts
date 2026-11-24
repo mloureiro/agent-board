@@ -1,6 +1,6 @@
 import type { ComboboxItem, ComboboxItemGroup } from '@mantine/core';
 import { RECENT_MS } from './clientStatus';
-import type { Machine } from './opening';
+import type { Machine } from '@agent-board/shared/ui';
 import { ago } from './time';
 
 export interface DirectoryChoice {

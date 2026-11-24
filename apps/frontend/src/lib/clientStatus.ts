@@ -1,4 +1,4 @@
-import type { Machine } from './opening';
+import type { Machine } from '@agent-board/shared/ui';
 
 /** How a machine's CLI compares with the board, as the server judged it. */
 export type ClientStatus = Machine['clientStatus'];

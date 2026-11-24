@@ -1,0 +1,1439 @@
+{
+  "cases": [
+    {
+      "name": "a task of the user with every field sealed",
+      "opener": "openBoardTask",
+      "args": [
+        {
+          "id": "tsk000000001",
+          "workdir": "abe1.4KHsPn3iORnUkGJuda_NqN41vVTRkuVE38tNHsUt4yXLIRt3BgC86uy86g",
+          "pr": null,
+          "prState": null,
+          "status": "running",
+          "priority": "normal",
+          "model": "opus",
+          "effort": "high",
+          "requestedLane": null,
+          "autoDone": false,
+          "closed": false,
+          "machine": "laptop",
+          "sessionId": "0f3a8b1c-5d2e-4c7a-9b6d-1e2f3a4b5c6d",
+          "next": "fresh",
+          "head": null,
+          "openQuestion": false,
+          "createdBy": "user",
+          "lane": "work",
+          "borrowed": false,
+          "lastActiveAt": null,
+          "runStartedAt": null,
+          "paused": false,
+          "notBefore": null,
+          "scheduleId": null,
+          "wakeAt": null,
+          "waitCheck": false,
+          "woken": false,
+          "proposed": false,
+          "started": false,
+          "parentId": null,
+          "createdAt": "2026-11-20T09:00:00.000Z",
+          "updatedAt": "2026-11-20T09:30:00.000Z",
+          "title": "abe1.s0C4aJOtHZQkahzVw7hA_9NY3V_p8Mp74bea8z7CZysLstq2katQ_KlKcbx37RtE1EU",
+          "input": "abe1.qhScsTuHOXF2aIaAMVQsmz3OLxGI5TSp0hMeuYI2GVhW39AglThykVwY8GQz2Qt59LHhlhiXbgteuXy6kjIcZVA",
+          "agent": "abe1.2Yn1Qx-uqzP-V2cPIO999vgOitnj7vmmDRAKtGAJNLZSOKUR",
+          "icon": "abe1.ONW2FA-3Vfq-QPj13DdzzaRF3w3AZ7y04lfm92nNnlQ",
+          "labels": "abe1.rUHcy_ujUaRKFay_EkiWJH2cgg_4Gn9K_YD16Xumux3p0d1rjD45r4v0",
+          "prs": [
+            {
+              "id": "pr0000000001",
+              "pr": "abe1.z9NEjxr8CleV4S28JQrXBONz8hCKOzJPIEfTRFY9XRpM_96GNZZ1YOHdq1zH9c6B6ShZ7Tvh7L81uBBQFhnF",
+              "state": "open"
+            }
+          ],
+          "promptPrState": "merged",
+          "watches": "abe1.MbQat-w_cnkcHrPtJHnYvU9uQDL9Okw9v61mpvgrFJYuMtB_5BfFSJvc-Fzk4EJQ5C52Y9jQxXQ0LHz84QI3Va6EWmBada6yD1kiG4V9NfGGFpIt44ZT-rkngr7Yc-R4Rva07jN4KXRSzy_H9yW4_R6X7_HL-LyLwf5gXRhj24c709-7zguLG4VyHdwvmLm4fq_Q5x2rfQyKG1NMxQtwwMXtqr0StnFo1ftMTZZrW5_adf8EWsWk70ry5Blt8g",
+          "watchStops": ["fedcba9876543210"]
+        }
+      ],
+      "opened": {
+        "id": "tsk000000001",
+        "workdir": "/home/alice/app",
+        "status": "running",
+        "priority": "normal",
+        "model": "opus",
+        "effort": "high",
+        "requestedLane": null,
+        "autoDone": false,
+        "closed": false,
+        "machine": "laptop",
+        "sessionId": "0f3a8b1c-5d2e-4c7a-9b6d-1e2f3a4b5c6d",
+        "next": "fresh",
+        "head": null,
+        "openQuestion": false,
+        "createdBy": "user",
+        "lane": "work",
+        "borrowed": false,
+        "lastActiveAt": null,
+        "runStartedAt": null,
+        "paused": false,
+        "notBefore": null,
+        "scheduleId": null,
+        "wakeAt": null,
+        "waitCheck": false,
+        "woken": false,
+        "proposed": false,
+        "started": false,
+        "parentId": null,
+        "createdAt": "2026-11-20T09:00:00.000Z",
+        "updatedAt": "2026-11-20T09:30:00.000Z",
+        "title": "Fix the login redirect",
+        "input": "/review the redirect after signing in",
+        "agent": "reviewer",
+        "icon": "🐛",
+        "labels": ["bug", "auth"],
+        "promptPrState": "merged",
+        "unreadable": [],
+        "prs": [
+          {
+            "id": "pr0000000001",
+            "url": "https://github.com/acme/app/pull/17",
+            "state": "open"
+          }
+        ],
+        "watches": [
+          {
+            "id": "0123456789abcdef",
+            "name": "ci",
+            "kind": "ci",
+            "label": "CI #116",
+            "status": "4 of 7 passed",
+            "deadline": "2026-11-20T14:20:00.000Z"
+          }
+        ],
+        "watchEvents": 2,
+        "watchStops": ["fedcba9876543210"],
+        "skillLabels": ["review"],
+        "invalid": []
+      }
+    },
+    {
+      "name": "an occurrence of a schedule",
+      "opener": "openBoardTask",
+      "args": [
+        {
+          "id": "tsk000000002",
+          "workdir": "abe1.OxfCb52RPcHgW1LpiU3z7qR-wgbHA-h-Qgtnq4Q_H9x9keBztEATOWy2KA",
+          "pr": null,
+          "prState": null,
+          "status": "needs-me",
+          "priority": "normal",
+          "model": null,
+          "effort": null,
+          "requestedLane": null,
+          "autoDone": false,
+          "closed": false,
+          "machine": null,
+          "sessionId": null,
+          "next": "fresh",
+          "head": null,
+          "openQuestion": false,
+          "createdBy": "user",
+          "lane": null,
+          "borrowed": false,
+          "lastActiveAt": null,
+          "runStartedAt": null,
+          "paused": false,
+          "notBefore": null,
+          "scheduleId": "sch000000001",
+          "wakeAt": null,
+          "waitCheck": false,
+          "woken": false,
+          "proposed": false,
+          "started": false,
+          "parentId": null,
+          "createdAt": "2026-11-20T09:00:00.000Z",
+          "updatedAt": "2026-11-20T09:30:00.000Z",
+          "title": "abe1.m61U_6zrdOjRbyzezdwpjM05r6VSLpDERemhb8fKjokErXnzm4O8I-MHS2yy4sExBOzA",
+          "input": "abe1.S5vqi0Si2RLjKdBxl_q5aLzXBKKs-yGwGBJaMbzHIwYWyzm6Ur5ue0cNS5DIxBFOm2LbGdSVoQW7Kf8"
+        }
+      ],
+      "opened": {
+        "id": "tsk000000002",
+        "workdir": "/home/alice/app",
+        "status": "needs-me",
+        "priority": "normal",
+        "model": null,
+        "effort": null,
+        "requestedLane": null,
+        "autoDone": false,
+        "closed": false,
+        "machine": null,
+        "sessionId": null,
+        "next": "fresh",
+        "head": null,
+        "openQuestion": false,
+        "createdBy": "user",
+        "lane": null,
+        "borrowed": false,
+        "lastActiveAt": null,
+        "runStartedAt": null,
+        "paused": false,
+        "notBefore": null,
+        "scheduleId": "sch000000001",
+        "wakeAt": null,
+        "waitCheck": false,
+        "woken": false,
+        "proposed": false,
+        "started": false,
+        "parentId": null,
+        "createdAt": "2026-11-20T09:00:00.000Z",
+        "updatedAt": "2026-11-20T09:30:00.000Z",
+        "title": "Weekly dependency check",
+        "input": "Look for outdated dependencies.",
+        "agent": null,
+        "unreadable": [],
+        "icon": null,
+        "prs": [],
+        "watches": null,
+        "watchEvents": 0,
+        "watchStops": [],
+        "promptPrState": null,
+        "skillLabels": [],
+        "labels": [],
+        "invalid": []
+      }
+    },
+    {
+      "name": "a fork of another task",
+      "opener": "openBoardTask",
+      "args": [
+        {
+          "id": "tsk000000004",
+          "workdir": null,
+          "pr": null,
+          "prState": null,
+          "status": "needs-me",
+          "priority": "normal",
+          "model": null,
+          "effort": null,
+          "requestedLane": null,
+          "autoDone": false,
+          "closed": false,
+          "machine": null,
+          "sessionId": null,
+          "next": "fresh",
+          "head": null,
+          "openQuestion": false,
+          "createdBy": "user",
+          "lane": null,
+          "borrowed": false,
+          "lastActiveAt": null,
+          "runStartedAt": null,
+          "paused": false,
+          "notBefore": null,
+          "scheduleId": null,
+          "wakeAt": null,
+          "waitCheck": false,
+          "woken": false,
+          "proposed": false,
+          "started": false,
+          "parentId": "tsk000000001",
+          "createdAt": "2026-11-20T09:00:00.000Z",
+          "updatedAt": "2026-11-20T09:30:00.000Z",
+          "title": "abe1.6WPOi0sK4PbdZuW4sODjw3AeunCM5_mLewi_IM1Q7Y83D3dFrz_lZCB4k0pjbQn5DA",
+          "input": "abe1.mf-PiAL1nG_Ga-g2qmJYASeVhASHRCK1soGn_xtwP0E1AL-V4pMyPc95VHNWqcrLQrebHgi3XFZ9IiOQ",
+          "agent": "abe1.Ey7o6t9eDNWwdgZZKM6rs7KFX7SeYBKuud5OgU21pSPrHs0A",
+          "forkOf": "tsk000000001"
+        }
+      ],
+      "opened": {
+        "id": "tsk000000004",
+        "workdir": null,
+        "status": "needs-me",
+        "priority": "normal",
+        "model": null,
+        "effort": null,
+        "requestedLane": null,
+        "autoDone": false,
+        "closed": false,
+        "machine": null,
+        "sessionId": null,
+        "next": "fresh",
+        "head": null,
+        "openQuestion": false,
+        "createdBy": "user",
+        "lane": null,
+        "borrowed": false,
+        "lastActiveAt": null,
+        "runStartedAt": null,
+        "paused": false,
+        "notBefore": null,
+        "scheduleId": null,
+        "wakeAt": null,
+        "waitCheck": false,
+        "woken": false,
+        "proposed": false,
+        "started": false,
+        "parentId": "tsk000000001",
+        "createdAt": "2026-11-20T09:00:00.000Z",
+        "updatedAt": "2026-11-20T09:30:00.000Z",
+        "title": "Try the mobile layout",
+        "input": "Check the mobile layout instead.",
+        "agent": "reviewer",
+        "forkOf": "tsk000000001",
+        "unreadable": [],
+        "icon": null,
+        "prs": [],
+        "watches": null,
+        "watchEvents": 0,
+        "watchStops": [],
+        "promptPrState": null,
+        "skillLabels": [],
+        "labels": [],
+        "invalid": []
+      }
+    },
+    {
+      "name": "a title sealed for another task",
+      "opener": "openBoardTask",
+      "args": [
+        {
+          "id": "tsk000000001",
+          "workdir": null,
+          "pr": null,
+          "prState": null,
+          "status": "needs-me",
+          "priority": "normal",
+          "model": null,
+          "effort": null,
+          "requestedLane": null,
+          "autoDone": false,
+          "closed": false,
+          "machine": null,
+          "sessionId": null,
+          "next": "fresh",
+          "head": null,
+          "openQuestion": false,
+          "createdBy": "user",
+          "lane": null,
+          "borrowed": false,
+          "lastActiveAt": null,
+          "runStartedAt": null,
+          "paused": false,
+          "notBefore": null,
+          "scheduleId": null,
+          "wakeAt": null,
+          "waitCheck": false,
+          "woken": false,
+          "proposed": false,
+          "started": false,
+          "parentId": null,
+          "createdAt": "2026-11-20T09:00:00.000Z",
+          "updatedAt": "2026-11-20T09:30:00.000Z",
+          "title": "abe1.-uDkyXcDSkVfqRKOiyL9ulp0evlJbl4XpP94SrO8VRJG0ZHBbPuOxguc3zRMCVjBd_uF",
+          "input": "abe1.1pi5dHf59H8nWrjMDk8oz-c1TzijgRhLldAy3rzJEHEMuIA"
+        }
+      ],
+      "opened": {
+        "id": "tsk000000001",
+        "workdir": null,
+        "status": "needs-me",
+        "priority": "normal",
+        "model": null,
+        "effort": null,
+        "requestedLane": null,
+        "autoDone": false,
+        "closed": false,
+        "machine": null,
+        "sessionId": null,
+        "next": "fresh",
+        "head": null,
+        "openQuestion": false,
+        "createdBy": "user",
+        "lane": null,
+        "borrowed": false,
+        "lastActiveAt": null,
+        "runStartedAt": null,
+        "paused": false,
+        "notBefore": null,
+        "scheduleId": null,
+        "wakeAt": null,
+        "waitCheck": false,
+        "woken": false,
+        "proposed": false,
+        "started": false,
+        "parentId": null,
+        "createdAt": "2026-11-20T09:00:00.000Z",
+        "updatedAt": "2026-11-20T09:30:00.000Z",
+        "title": "(cannot decrypt this title)",
+        "input": "Fix it.",
+        "agent": null,
+        "unreadable": ["title"],
+        "icon": null,
+        "prs": [],
+        "watches": null,
+        "watchEvents": 0,
+        "watchStops": [],
+        "promptPrState": null,
+        "skillLabels": [],
+        "labels": [],
+        "invalid": []
+      }
+    },
+    {
+      "name": "the cards of a list with a reading and a server event",
+      "opener": "openListedTasks",
+      "args": [
+        [
+          {
+            "id": "tsk000000001",
+            "workdir": "abe1.PDhSXvrddN5c9e1diV4LwpRqKjdk4ARrKHbyUCV04Nj8n9tVQcp1qnUl2g",
+            "pr": null,
+            "prState": null,
+            "status": "running",
+            "priority": "normal",
+            "model": "opus",
+            "effort": "high",
+            "requestedLane": null,
+            "autoDone": false,
+            "closed": false,
+            "machine": "laptop",
+            "sessionId": "0f3a8b1c-5d2e-4c7a-9b6d-1e2f3a4b5c6d",
+            "next": "fresh",
+            "head": null,
+            "openQuestion": false,
+            "createdBy": "user",
+            "lane": "work",
+            "borrowed": false,
+            "lastActiveAt": null,
+            "runStartedAt": null,
+            "paused": false,
+            "notBefore": null,
+            "scheduleId": null,
+            "wakeAt": null,
+            "waitCheck": false,
+            "woken": false,
+            "proposed": false,
+            "started": false,
+            "parentId": null,
+            "createdAt": "2026-11-20T09:00:00.000Z",
+            "updatedAt": "2026-11-20T09:30:00.000Z",
+            "title": "abe1.mk8V6zpnXYK7tkEQVDZ3y-U34WpUnrnj0FXQz4Tjnk5ns01Z0h6vnkXrx-TcKipZjZg",
+            "input": "abe1.HQMIzxOxOS_uTHxM1AAVvpX77VFxu69VisF63XZeFzCuaNiaYv2SBAx25Lv10u5-Gct_QZCECJ7_E9ljPD_akg8",
+            "agent": "abe1.vfuG_mfEnFcnwyv9ejIgih1zZUnjS-9q5sp59wxagAKpL_rN",
+            "icon": "abe1.TUUhG2ms_VT-THWKQoSNFtwozDxSTR1vpfaACi2frf4",
+            "labels": "abe1.LcPJ_n8DSE4keIcdSPWu9r-s8wOmXTiZGpZZwHfom1IZC_ZetpF0mEoY",
+            "prs": [
+              {
+                "id": "pr0000000001",
+                "pr": "abe1.c3qZ9bScUNNPvyoMdF-vtTkf0JIXhESZRPTZ3I8n6roqsMGU2SOxiWrkYRBgLv-hPiEMu5BFxB6PLNlRlMcf",
+                "state": "open"
+              }
+            ],
+            "promptPrState": "merged",
+            "watches": "abe1.5PPxUuDBT6adnNNGoGwWSRVyRvU0X71UB_M5KPSt0SSgWBulfHH-_zIq9013ZKAc_NSlC_z1kx5qT2ihTWQJlTheKzOx92XJKLphGzIsmvbIHxmQGnxR-rfsx0d11U2qNaH7edxTGo8wxG3MJsMOi059qeZUh42O-YY5RRoIjZV8BjBo6-hqdkF0aL5CTZPBoTcNl6LmPHKHYtAUr88Jg1Jqa1n0dbP_rEUelx2iG4pphBMGWxc1SE_B4S1B2Q",
+            "watchStops": ["fedcba9876543210"],
+            "lastNote": {
+              "createdAt": "2026-11-20T09:30:00.000Z",
+              "author": "agent",
+              "kind": "comment",
+              "preview": "abe1.O62e-ljjLgQeckylvY_pYlauEDzdilIswlSmkXYjfrs-3Hlwk8bYeQQGz2VQE3Vz2JmTrrY_Rfa534dd0OTg9w"
+            },
+            "context": {
+              "runId": "run00000001",
+              "seq": 7,
+              "at": "2026-11-20T09:30:00.000Z",
+              "data": "abe1.kkxZ5kmHsMF50S-b4NXs5EKZNHtCxTQv5ECMU_G2xr1CFN5AK1LXuixruJgkdz6-n7QHiV01uMsJ6G33d4zNPgJUUyKh6E1f-zB24r7uoK7Y9Ek_iDe0uSekIbbBbAiuiltZdpk5orHY90XZzxFzN-sBg39-PH7E-sbUBSQLM-Mu6BjEZYvvI_Dq13vwTT3_Z3eVLgePUsIOvYM4209gR3Y"
+            }
+          },
+          {
+            "id": "tsk000000005",
+            "workdir": null,
+            "pr": null,
+            "prState": null,
+            "status": "done",
+            "priority": "normal",
+            "model": null,
+            "effort": null,
+            "requestedLane": null,
+            "autoDone": false,
+            "closed": false,
+            "machine": null,
+            "sessionId": null,
+            "next": "fresh",
+            "head": null,
+            "openQuestion": false,
+            "createdBy": "user",
+            "lane": null,
+            "borrowed": false,
+            "lastActiveAt": null,
+            "runStartedAt": null,
+            "paused": false,
+            "notBefore": null,
+            "scheduleId": null,
+            "wakeAt": null,
+            "waitCheck": false,
+            "woken": false,
+            "proposed": false,
+            "started": false,
+            "parentId": null,
+            "createdAt": "2026-11-20T09:00:00.000Z",
+            "updatedAt": "2026-11-20T09:30:00.000Z",
+            "title": "abe1.d38m-hNzyVZNUkUv6Lru8jcoaKH3scMeOMhS1jCzZSXRslE",
+            "input": "abe1.6ZAW4I6k852fKOE_w3_AmC7WeI_Y_53Hu-qL139r1ts7WOzjs33pdiPiecek",
+            "lastNote": {
+              "createdAt": "2026-11-20T09:30:00.000Z",
+              "author": "server",
+              "kind": "event",
+              "preview": "Marked done."
+            },
+            "context": null
+          }
+        ]
+      ],
+      "opened": [
+        {
+          "id": "tsk000000001",
+          "workdir": "/home/alice/app",
+          "status": "running",
+          "priority": "normal",
+          "model": "opus",
+          "effort": "high",
+          "requestedLane": null,
+          "autoDone": false,
+          "closed": false,
+          "machine": "laptop",
+          "sessionId": "0f3a8b1c-5d2e-4c7a-9b6d-1e2f3a4b5c6d",
+          "next": "fresh",
+          "head": null,
+          "openQuestion": false,
+          "createdBy": "user",
+          "lane": "work",
+          "borrowed": false,
+          "lastActiveAt": null,
+          "runStartedAt": null,
+          "paused": false,
+          "notBefore": null,
+          "scheduleId": null,
+          "wakeAt": null,
+          "waitCheck": false,
+          "woken": false,
+          "proposed": false,
+          "started": false,
+          "parentId": null,
+          "createdAt": "2026-11-20T09:00:00.000Z",
+          "updatedAt": "2026-11-20T09:30:00.000Z",
+          "title": "Fix the login redirect",
+          "input": "/review the redirect after signing in",
+          "agent": "reviewer",
+          "icon": "🐛",
+          "labels": ["bug", "auth"],
+          "promptPrState": "merged",
+          "unreadable": [],
+          "prs": [
+            {
+              "id": "pr0000000001",
+              "url": "https://github.com/acme/app/pull/17",
+              "state": "open"
+            }
+          ],
+          "watches": [
+            {
+              "id": "0123456789abcdef",
+              "name": "ci",
+              "kind": "ci",
+              "label": "CI #116",
+              "status": "4 of 7 passed",
+              "deadline": "2026-11-20T14:20:00.000Z"
+            }
+          ],
+          "watchEvents": 2,
+          "watchStops": ["fedcba9876543210"],
+          "skillLabels": ["review"],
+          "invalid": [],
+          "lastNote": {
+            "kind": "comment",
+            "createdAt": "2026-11-20T09:30:00.000Z",
+            "author": "agent",
+            "text": "The redirect uses the stale session.",
+            "unreadable": false
+          },
+          "context": {
+            "used": 133600,
+            "window": 1000000,
+            "threshold": 80,
+            "model": "opus",
+            "at": "2026-11-20T09:30:00.000Z"
+          }
+        },
+        {
+          "id": "tsk000000005",
+          "workdir": null,
+          "status": "done",
+          "priority": "normal",
+          "model": null,
+          "effort": null,
+          "requestedLane": null,
+          "autoDone": false,
+          "closed": false,
+          "machine": null,
+          "sessionId": null,
+          "next": "fresh",
+          "head": null,
+          "openQuestion": false,
+          "createdBy": "user",
+          "lane": null,
+          "borrowed": false,
+          "lastActiveAt": null,
+          "runStartedAt": null,
+          "paused": false,
+          "notBefore": null,
+          "scheduleId": null,
+          "wakeAt": null,
+          "waitCheck": false,
+          "woken": false,
+          "proposed": false,
+          "started": false,
+          "parentId": null,
+          "createdAt": "2026-11-20T09:00:00.000Z",
+          "updatedAt": "2026-11-20T09:30:00.000Z",
+          "title": "Ship it",
+          "input": "Ship the release.",
+          "agent": null,
+          "unreadable": [],
+          "icon": null,
+          "prs": [],
+          "watches": null,
+          "watchEvents": 0,
+          "watchStops": [],
+          "promptPrState": null,
+          "skillLabels": [],
+          "labels": [],
+          "invalid": [],
+          "lastNote": {
+            "kind": "event",
+            "createdAt": "2026-11-20T09:30:00.000Z",
+            "author": "server",
+            "text": "Marked done.",
+            "unreadable": false
+          },
+          "context": null
+        }
+      ]
+    },
+    {
+      "name": "a task with its thread",
+      "opener": "openTaskDetail",
+      "args": [
+        {
+          "task": {
+            "id": "tsk000000001",
+            "workdir": "abe1.WBa62-pTgXlJqvhHIksE48oDPWzF80XPTEUSTuRpJEZsNLZMQThC6govpw",
+            "pr": null,
+            "prState": null,
+            "status": "running",
+            "priority": "normal",
+            "model": "opus",
+            "effort": "high",
+            "requestedLane": null,
+            "autoDone": false,
+            "closed": false,
+            "machine": "laptop",
+            "sessionId": "0f3a8b1c-5d2e-4c7a-9b6d-1e2f3a4b5c6d",
+            "next": "fresh",
+            "head": null,
+            "openQuestion": false,
+            "createdBy": "user",
+            "lane": "work",
+            "borrowed": false,
+            "lastActiveAt": null,
+            "runStartedAt": null,
+            "paused": false,
+            "notBefore": null,
+            "scheduleId": null,
+            "wakeAt": null,
+            "waitCheck": false,
+            "woken": false,
+            "proposed": false,
+            "started": false,
+            "parentId": null,
+            "createdAt": "2026-11-20T09:00:00.000Z",
+            "updatedAt": "2026-11-20T09:30:00.000Z",
+            "title": "abe1.rX9VYSDBOTmpoCkToWEZeAw_zmpJt0id5h1J8X5_u4WGckcXNEtUPBQUkVCidVAwtlU",
+            "input": "abe1.ESloDXKXYfG3cqG5HqbzuU4t6kjn0pUGIjrpMEhmHf_u42AkfxoteeNV1n3diLZVa4DbOy2hijJeenNAJkQivP4",
+            "agent": "abe1._kSOfvataakdLivN8vXYSCqYCb6bfaLGzKhu8pW-SM0nxKvb",
+            "icon": "abe1.iqr8ACWykczVg630ZELZRXtMU0usbm24AobKD1cNYts",
+            "labels": "abe1.42EXwbAgRsMHhmSQCGxSsq2AV2ynDjpF6E-RxvdjKKXziUlpICE_9On3",
+            "prs": [
+              {
+                "id": "pr0000000001",
+                "pr": "abe1.AwKx7wZOWKCp60jULFjz3uo7W8yASC2OYrQ5Ei-x0OENvZP8hL2tQl--Mpqz3RsiDQaTbCKEU5WmH0M1t_0k",
+                "state": "open"
+              }
+            ],
+            "promptPrState": "merged",
+            "watches": "abe1.5EMdFB9HsXVM6985AirvQbFwmYsTpLr1nJdmaqcIxaDtLnmXQoFXWcxzt5wOF4l7JOEIZeUXOwnRX9ishtEu5Ut2Co89IUuhnLZMVNszJTaJEbE6pNePGwu0avaUpV_GkE3RYPJOPJqgDipbOqMMKi6kq_RN_cHzqKF5PIkW9U5U9v09YrsMPAEw2jtwNkoruGnIDcpoXtVcYGYAmHxzuoFaURToM7x344EJ9j4BU74J87rm9WYbtLOWjvqPew",
+            "watchStops": ["fedcba9876543210"]
+          },
+          "thread": [
+            {
+              "id": "note00000001",
+              "createdAt": "2026-11-20T09:00:00.000Z",
+              "author": "agent",
+              "kind": "comment",
+              "by": null,
+              "preview": "abe1.BGQq9h6IzCClzzY--nQ54gMgakSFFXyoIzOIkFWpW75HKf40yeFL43PtNjGirSzCWJrHziZ8yKznatKohaTwtA",
+              "body": "abe1.fJcXA4G1ebWez4trbLii2Bje5XT0ioRa_uKR30AIsO2a55L43GnTti8yVjgJA1T7GZ3mpNhEjDRsrTt0I5MsSA",
+              "suggestion": "abe1.VBzmyDKKnaZRf_-7lij-f-FMUd4vtdjOtvFjr5VmlRITqIT0EK211hqN5JMPmH27FyVkvtBacljyRrIsrFunO2WtCkQ"
+            },
+            {
+              "id": "note00000002",
+              "createdAt": "2026-11-20T09:00:00.000Z",
+              "author": "agent",
+              "kind": "question",
+              "by": null,
+              "preview": null,
+              "body": "abe1.S2BZj-UjfgQtqvTlt_ZrFp6TrUi3fBjTi9pcWQ",
+              "questions": "abe1.U0Gj5UpYqUdV23UQyTKrPsS-uYfv-7ded2OF3AqepUccfRiIqP5pkRifyJ0jrQ2KDi9Dnz2vBgzwW0ZlzLdKg2xY99KpKt8NzbkyXHIog9HujClLyFiqT-Ht8BEcmykPuzokgZTTPfO-ts5PopjuOyjZDn-VrEhSsvHLAfRAGll4SVhX_VdZn6PnCRCw98Fc8pp5uUorNjN3bOhcW5Aww87CynR3TYqJHZqPc6tdEklhQ0pm7WUl5wizirBy8YH249zVLg96WXcivdjbqbnj7bB9t8ew_9jvQWtF0VYvtjNTM506SXWRQbEpkuCTVU8rkoiMcmSENjfbFBHk4UV7yE-r3xXFsSu5xhhjje4-VSEPS_mvKNpZSRo"
+            },
+            {
+              "id": "note00000003",
+              "createdAt": "2026-11-20T09:30:00.000Z",
+              "author": "user",
+              "kind": "answer",
+              "by": null,
+              "preview": "abe1.8q-x6E9Mk17Gs6F5Wd6AtwiGz3j1v6rVToQpq9_StPiHUiZoll-zhnytXHj4fOmiHZ8hdBc",
+              "body": "abe1.nADH14Txjuu_CACJIg_HVb_-C0TOJUtsm0ciXECSH-8gEFjvGhXVF6edhrw9pWK_Eh5gVRI",
+              "questionNoteId": "note00000002",
+              "answers": "abe1.HNWy1eLfjiYwPmvaEaVgUUSQCYQJne6WHSNq-Ung070CEaLfrgN586ONSEQC2HgEZ_jJbpkqZtr5KMYMAGEjKXwmjNg3g-kufTnqh0548T3CPt0nS7ib3idReSkKWfi6YhtWWlOkS0eGmGXL0bvSbZw5MuBMbOwIee_UregHTQoeMIzQg_SvW00fwRBjIzGjPA3DtS8Vl1X8WEUHxIcU71clg0cRCsva_oS9kucDwZ3-VPRH4rPMQ6agE2DGVmIK_X9ykLH5xus_wpRGO7ngpL2JtjA-ZVkH63AYUI3jvM462-ZZFxvI0Cgid6FxwzgbzHQc5i88QBSFvsBHdICs1gP8pEBNANbij6XwOkXjOUBU90Yi3kUSZpnkZxWv6BsTduvUZ7D26VtzwFiP3IMRk7fRmV7o9nb7Si6JWyXMnomMmBzH5haTOtjqkUvhvoo"
+            },
+            {
+              "id": "note00000004",
+              "createdAt": "2026-11-20T09:30:00.000Z",
+              "author": "server",
+              "kind": "event",
+              "by": null,
+              "preview": null,
+              "body": "Moved from needs-me to todo."
+            },
+            {
+              "id": "note00000005",
+              "createdAt": "2026-11-20T09:30:00.000Z",
+              "author": "user",
+              "kind": "comment",
+              "by": null,
+              "preview": "abe1.G0mGiUl2PHh4AX3b6qPJnbgz_cVyaeI6C-IFPdT_zG-6pdJthGUsgiDznQ",
+              "body": "abe1.YiR794j7k_2P02py7ZBxeb7mIQ9GFpJgzHCWGS_rql2elpeqjosZOHXdHQ",
+              "pending": true
+            },
+            {
+              "id": "note00000006",
+              "createdAt": "2026-11-20T09:30:00.000Z",
+              "author": "user",
+              "kind": "comment",
+              "by": null,
+              "preview": "abe1.G0mGiUl2PHh4AX3b6qPJnbgz_cVyaeI6C-IFPdT_zG-6pdJthGUsgiDznQ",
+              "body": "abe1.YiR794j7k_2P02py7ZBxeb7mIQ9GFpJgzHCWGS_rql2elpeqjosZOHXdHQ",
+              "deliveredAt": "2026-11-20T09:45:00.000Z"
+            },
+            {
+              "id": "note00000007",
+              "createdAt": "2026-11-20T09:30:00.000Z",
+              "author": "agent",
+              "kind": "comment",
+              "by": null,
+              "preview": "abe1.Xr7GPabzHVjYqJTKDxSb1hC7TveOW17IxXBdo7UnFTgYuEvbXy8JTe7Ze3hSZIA",
+              "body": "abe1.UHaHsQjv7El5Zfl4L4sc3_QU1pWgFyquIAE7oQEFPW9xdmofBFN5zeh2aMDzsz8"
+            }
+          ],
+          "followUps": [
+            {
+              "id": "tsk000000004",
+              "workdir": null,
+              "pr": null,
+              "prState": null,
+              "status": "needs-me",
+              "priority": "normal",
+              "model": null,
+              "effort": null,
+              "requestedLane": null,
+              "autoDone": false,
+              "closed": false,
+              "machine": null,
+              "sessionId": null,
+              "next": "fresh",
+              "head": null,
+              "openQuestion": false,
+              "createdBy": "user",
+              "lane": null,
+              "borrowed": false,
+              "lastActiveAt": null,
+              "runStartedAt": null,
+              "paused": false,
+              "notBefore": null,
+              "scheduleId": null,
+              "wakeAt": null,
+              "waitCheck": false,
+              "woken": false,
+              "proposed": false,
+              "started": false,
+              "parentId": "tsk000000001",
+              "createdAt": "2026-11-20T09:00:00.000Z",
+              "updatedAt": "2026-11-20T09:30:00.000Z",
+              "forkOf": "tsk000000001",
+              "title": "abe1.AqCVSHWG2NUQUw2b4qtO1f2duVgo28dfswBQI4ZKtkeoDET2lY7hEC1zmIPqiGd92A",
+              "input": "abe1.rRqeWHvhYbxs0qzIZIjhJLrcYTTdbsk6GqZMtTzuVryQNgZUZVsJMldcd9ziyQQBitMu-9EHRW42FpvL",
+              "agent": "abe1.qljEO905m2ZXEwBtGZq15ZjjWBkCFBCyxq84t_Iq3FZk8BU_"
+            }
+          ],
+          "parent": null
+        }
+      ],
+      "opened": {
+        "task": {
+          "id": "tsk000000001",
+          "workdir": "/home/alice/app",
+          "status": "running",
+          "priority": "normal",
+          "model": "opus",
+          "effort": "high",
+          "requestedLane": null,
+          "autoDone": false,
+          "closed": false,
+          "machine": "laptop",
+          "sessionId": "0f3a8b1c-5d2e-4c7a-9b6d-1e2f3a4b5c6d",
+          "next": "fresh",
+          "head": null,
+          "openQuestion": false,
+          "createdBy": "user",
+          "lane": "work",
+          "borrowed": false,
+          "lastActiveAt": null,
+          "runStartedAt": null,
+          "paused": false,
+          "notBefore": null,
+          "scheduleId": null,
+          "wakeAt": null,
+          "waitCheck": false,
+          "woken": false,
+          "proposed": false,
+          "started": false,
+          "parentId": null,
+          "createdAt": "2026-11-20T09:00:00.000Z",
+          "updatedAt": "2026-11-20T09:30:00.000Z",
+          "title": "Fix the login redirect",
+          "input": "/review the redirect after signing in",
+          "agent": "reviewer",
+          "icon": "🐛",
+          "labels": ["bug", "auth"],
+          "promptPrState": "merged",
+          "unreadable": [],
+          "prs": [
+            {
+              "id": "pr0000000001",
+              "url": "https://github.com/acme/app/pull/17",
+              "state": "open"
+            }
+          ],
+          "watches": [
+            {
+              "id": "0123456789abcdef",
+              "name": "ci",
+              "kind": "ci",
+              "label": "CI #116",
+              "status": "4 of 7 passed",
+              "deadline": "2026-11-20T14:20:00.000Z"
+            }
+          ],
+          "watchEvents": 2,
+          "watchStops": ["fedcba9876543210"],
+          "skillLabels": ["review"],
+          "invalid": []
+        },
+        "thread": [
+          {
+            "id": "note00000001",
+            "createdAt": "2026-11-20T09:00:00.000Z",
+            "kind": "comment",
+            "by": null,
+            "text": "The redirect uses the stale session.",
+            "author": "agent",
+            "unreadable": false,
+            "suggestion": "Please restart the dev server and retry."
+          },
+          {
+            "id": "note00000002",
+            "createdAt": "2026-11-20T09:00:00.000Z",
+            "kind": "question",
+            "by": null,
+            "text": "",
+            "author": "agent",
+            "unreadable": false,
+            "questions": [
+              {
+                "header": "Scope",
+                "question": "Which redirect should change?",
+                "multiSelect": false,
+                "options": [
+                  {
+                    "label": "Login only",
+                    "description": "Leave the logout redirect alone.",
+                    "recommended": true
+                  },
+                  {
+                    "label": "Both",
+                    "description": "Change login and logout together."
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "note00000003",
+            "createdAt": "2026-11-20T09:30:00.000Z",
+            "kind": "answer",
+            "by": null,
+            "text": "Go with the first option.",
+            "author": "user",
+            "unreadable": false,
+            "questions": [
+              {
+                "header": "Scope",
+                "question": "Which redirect should change?",
+                "multiSelect": false,
+                "options": [
+                  {
+                    "label": "Login only",
+                    "description": "Leave the logout redirect alone.",
+                    "recommended": true
+                  },
+                  {
+                    "label": "Both",
+                    "description": "Change login and logout together."
+                  }
+                ]
+              }
+            ],
+            "answers": [
+              {
+                "selected": ["Login only"]
+              }
+            ],
+            "questionNoteId": "note00000002"
+          },
+          {
+            "id": "note00000004",
+            "createdAt": "2026-11-20T09:30:00.000Z",
+            "kind": "event",
+            "by": null,
+            "text": "Moved from needs-me to todo.",
+            "author": "server",
+            "unreadable": false
+          },
+          {
+            "id": "note00000005",
+            "createdAt": "2026-11-20T09:30:00.000Z",
+            "kind": "comment",
+            "by": null,
+            "text": "One more thing.",
+            "author": "user",
+            "unreadable": false,
+            "pending": true
+          },
+          {
+            "id": "note00000006",
+            "createdAt": "2026-11-20T09:30:00.000Z",
+            "kind": "comment",
+            "by": null,
+            "text": "One more thing.",
+            "author": "user",
+            "unreadable": false,
+            "deliveredAt": "2026-11-20T09:45:00.000Z"
+          },
+          {
+            "id": "note00000007",
+            "createdAt": "2026-11-20T09:30:00.000Z",
+            "kind": "comment",
+            "by": null,
+            "text": "",
+            "author": "agent",
+            "unreadable": true
+          }
+        ],
+        "followUps": [
+          {
+            "id": "tsk000000004",
+            "workdir": null,
+            "status": "needs-me",
+            "priority": "normal",
+            "model": null,
+            "effort": null,
+            "requestedLane": null,
+            "autoDone": false,
+            "closed": false,
+            "machine": null,
+            "sessionId": null,
+            "next": "fresh",
+            "head": null,
+            "openQuestion": false,
+            "createdBy": "user",
+            "lane": null,
+            "borrowed": false,
+            "lastActiveAt": null,
+            "runStartedAt": null,
+            "paused": false,
+            "notBefore": null,
+            "scheduleId": null,
+            "wakeAt": null,
+            "waitCheck": false,
+            "woken": false,
+            "proposed": false,
+            "started": false,
+            "parentId": "tsk000000001",
+            "createdAt": "2026-11-20T09:00:00.000Z",
+            "updatedAt": "2026-11-20T09:30:00.000Z",
+            "forkOf": "tsk000000001",
+            "title": "Try the mobile layout",
+            "input": "Check the mobile layout instead.",
+            "agent": "reviewer",
+            "unreadable": [],
+            "icon": null,
+            "prs": [],
+            "watches": null,
+            "watchEvents": 0,
+            "watchStops": [],
+            "promptPrState": null,
+            "skillLabels": [],
+            "labels": [],
+            "invalid": []
+          }
+        ],
+        "parent": null
+      }
+    },
+    {
+      "name": "a schedule",
+      "opener": "openSchedule",
+      "args": [
+        {
+          "id": "sch000000001",
+          "title": "abe1.pTyoEptjxrp5S3Wp8HTK1zgE0fysaastIPvfAfS1DgqL7iGqciIEbXZX39P-Z_REM9jJ",
+          "input": "abe1.npFvyl3frYXChBGAXEiHiheTBUCRb6Yc0woDqCcsHda66g5IqFkANLzcLy8tdO2E1gtlb7Iuv0gbeI8",
+          "workdir": "abe1.LekWgAnKVxNtms_xMsYdyEXA1qAfwFZHEp8XjrXH_dKw4EijjvUGISIdQQ",
+          "agent": "abe1.Lp8zO6qrt-wz57dFT2XPOh4qekMM92GS1NDC9bwwQ3qraSfx",
+          "icon": "abe1.sud6oTj28NDmVj4rokVSkVInXKlQQzRnP32v_K6Gdd0",
+          "labels": "abe1.DeaLY48FLC2uKk4VHh6eDFObbSQ4bx-tZwxsXdE7ZHpuuLRt",
+          "priority": "normal",
+          "model": null,
+          "effort": null,
+          "requestedLane": null,
+          "autoDone": false,
+          "machine": "laptop",
+          "everyMs": 604800000,
+          "cron": null,
+          "moreCrons": [],
+          "timezone": null,
+          "after": null,
+          "maxConcurrent": 1,
+          "anchorAt": "2026-11-20T09:00:00.000Z",
+          "nextRunAt": "2026-11-27T09:00:00.000Z",
+          "remaining": null,
+          "until": null,
+          "paused": false,
+          "ended": false,
+          "occurrenceTaskId": "tsk000000002",
+          "createdAt": "2026-11-20T09:00:00.000Z"
+        }
+      ],
+      "opened": {
+        "id": "sch000000001",
+        "title": "Weekly dependency check",
+        "input": "Look for outdated dependencies.",
+        "workdir": "/home/alice/app",
+        "agent": "reviewer",
+        "icon": "📦",
+        "labels": ["deps"],
+        "priority": "normal",
+        "model": null,
+        "effort": null,
+        "requestedLane": null,
+        "autoDone": false,
+        "machine": "laptop",
+        "everyMs": 604800000,
+        "cron": null,
+        "moreCrons": [],
+        "timezone": null,
+        "after": null,
+        "maxConcurrent": 1,
+        "anchorAt": "2026-11-20T09:00:00.000Z",
+        "nextRunAt": "2026-11-27T09:00:00.000Z",
+        "remaining": null,
+        "until": null,
+        "paused": false,
+        "ended": false,
+        "occurrenceTaskId": "tsk000000002",
+        "createdAt": "2026-11-20T09:00:00.000Z",
+        "unreadable": [],
+        "invalid": []
+      }
+    },
+    {
+      "name": "machines with a listing and a status, and one listing sealed for another machine",
+      "opener": "openMachines",
+      "args": [
+        [
+          {
+            "name": "laptop",
+            "createdAt": "2026-11-20T09:00:00.000Z",
+            "lastSeenAt": "2026-11-20T09:30:00.000Z",
+            "revokedAt": null,
+            "clientVersion": "0.8.0",
+            "clientStatus": "current",
+            "dirs": "abe1.VdRjSWVgBYaDOG4f-4fCJ5q3EK1mXYnuaCjChuiOUcBtlqp-qGWFBFvKwmZVl2oBWdhSt_7W24YcCChuVUme5U1F4ufblSDOSVvINo4--ZIeOQj_iA83Ij8zJs-fNjKQCoZpr8LbpiPazXECihtNtnMznuJY14DM5-eYrfVH",
+            "dirsUpdatedAt": "2026-11-20T09:30:00.000Z",
+            "usage": "abe1.AwlYVE2VHKl6Rj_7wk_QqzuLbmZfRdQ6nPSQFKpt4n0LzRSZURpNDE2ywP91kZWccQcnvliuq_2PC3oI-hajJH0mSgoJxWhUkPnB2N6BzGre8Lq51ZlIwBW-W1xGoongvfwqI9s9g4Kdba7owIXJtx-u8fzTxeRH87_868_o57mnPozCrB2PSBa9oR4Ep3fxZxn4vqgzkjupryX4DSNrsidMfMrzHYbc4KisovaW4EeMtLZ0PEmhR0hUK3VhRoy1MtP_3Om-sy_FtNQZXteOfhMWElvAfWNlXIeZlSO82d-KM-h8lr76-7Rex55cr9ZZCDY5",
+            "usageUpdatedAt": "2026-11-20T09:30:00.000Z"
+          },
+          {
+            "name": "desktop",
+            "createdAt": "2026-11-20T09:00:00.000Z",
+            "lastSeenAt": "2026-11-20T09:30:00.000Z",
+            "revokedAt": null,
+            "clientVersion": "0.8.0",
+            "clientStatus": "current",
+            "dirs": "abe1.S_4V6jTGytF31PSsqtrB04cLbyeMAXs14LOTXuwAsfeB0kf9zRNmbpk3k2idPMRfaWEoOzqjDdWfAzPWzHFPqneMXVyQBQda5EVW1X706KUa4epoT94eREKMT7v90x9PYtalM44K42wLXhPQFCSnNh7o_fVioSf_tjte-0Ic",
+            "dirsUpdatedAt": "2026-11-20T09:30:00.000Z",
+            "usage": null,
+            "usageUpdatedAt": null
+          }
+        ]
+      ],
+      "opened": [
+        {
+          "name": "laptop",
+          "createdAt": "2026-11-20T09:00:00.000Z",
+          "lastSeenAt": "2026-11-20T09:30:00.000Z",
+          "revokedAt": null,
+          "clientVersion": "0.8.0",
+          "clientStatus": "current",
+          "dirsUpdatedAt": "2026-11-20T09:30:00.000Z",
+          "usageUpdatedAt": "2026-11-20T09:30:00.000Z",
+          "shown": "laptop",
+          "dirs": [
+            {
+              "path": "/home/alice/app",
+              "label": "App"
+            },
+            {
+              "path": "/home/alice/infra"
+            }
+          ],
+          "dirsUnreadable": false,
+          "usage": {
+            "limits": {
+              "fiveHour": 80,
+              "priority": "urgent"
+            },
+            "windows": {
+              "fiveHour": {
+                "percent": 85,
+                "resetsAt": "2026-11-20T14:05:00.000Z",
+                "seenAt": "2026-11-20T09:30:00.000Z"
+              }
+            },
+            "reached": ["fiveHour"],
+            "held": ["tsk000000001"],
+            "open": []
+          },
+          "usageUnreadable": false
+        },
+        {
+          "name": "desktop",
+          "createdAt": "2026-11-20T09:00:00.000Z",
+          "lastSeenAt": "2026-11-20T09:30:00.000Z",
+          "revokedAt": null,
+          "clientVersion": "0.8.0",
+          "clientStatus": "current",
+          "dirsUpdatedAt": "2026-11-20T09:30:00.000Z",
+          "usageUpdatedAt": null,
+          "shown": "desktop",
+          "dirs": null,
+          "dirsUnreadable": true,
+          "usage": null,
+          "usageUnreadable": false
+        }
+      ]
+    },
+    {
+      "name": "the catalogue of a machine",
+      "opener": "openCatalogs",
+      "args": [
+        [
+          {
+            "name": "laptop",
+            "catalog": "abe1.0MefJ_W4UvgsNZ2NJv3shc2EfROgk4TF3Jw8R8dxrQhIYn_i5ocFt9HDzpWIkdN5gO535lMJfOcLxTPoS4wR3rPhsiXglVHW4Vg4bUi2vGR4Oj6kvd2Fw8sHRq-lkm_ilLRt9-3I5VXiy32ikz0U2YX8JSdteHf6V1V3xXgp1iEo3W_Kagr4t1z8zoQIHZWph_5Nty8T4HmeKsVmLuma3YeHx5JKp9VSjwwoG_iY7ErjWpnY5ly3BH21qijBkDctwUHsBtzL4y1Yz-gzG14cMBfnHYRdzupOe6x4H_hp",
+            "catalogUpdatedAt": "2026-11-20T09:30:00.000Z"
+          }
+        ]
+      ],
+      "opened": [
+        {
+          "name": "laptop",
+          "catalog": {
+            "claude": "2.1.326",
+            "models": [
+              {
+                "value": "opus",
+                "label": "Opus"
+              }
+            ],
+            "skills": [
+              {
+                "name": "review",
+                "description": "Reviews a change",
+                "argumentHint": "<pr>"
+              }
+            ],
+            "dirs": {
+              "/home/alice/app": [
+                {
+                  "name": "deploy"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "the shared agents",
+      "opener": "openBoardAgents",
+      "args": [
+        {
+          "version": 2,
+          "pushedAt": "2026-11-20T09:30:00.000Z",
+          "document": "abe1.Mm-J2_koUs_AfxbvxOuazv2cUQLR-vxc7Ng9ssIUqoOogQTlghRMjvlHTNaFN93zuSWA9yb_lpo3mWsbsubHsNPJNJ2gwP5r_lhsz8SoWC5pv_7TOnxNp953EbLoc9fuj2CasC8E3L7NEIHDyRA1ZRuE5P4KKMXKwwJvG7EVIFUQOOCkjeK8XBXoSuduaFE"
+        }
+      ],
+      "opened": {
+        "version": 2,
+        "pushedAt": "2026-11-20T09:30:00.000Z",
+        "agents": [
+          {
+            "name": "reviewer",
+            "tools": ["Read", "Grep"],
+            "allowedTools": [],
+            "disallowedTools": [],
+            "env": [],
+            "mcpServers": [],
+            "description": "Reviews a pull request",
+            "prompt": null,
+            "model": "opus",
+            "version": null,
+            "source": null,
+            "hash": "b5acebc7eea299d4e4e7e51748eb97970d00d60a72a7603c6fc6e60f8e60c73b",
+            "flags": {
+              "broad": [],
+              "secrets": [],
+              "emptyDenyList": true,
+              "deadTools": []
+            },
+            "problems": [],
+            "definition": "{\n  \"description\": \"Reviews a pull request\",\n  \"tools\": [\n    \"Read\",\n    \"Grep\"\n  ],\n  \"model\": \"opus\"\n}"
+          }
+        ]
+      }
+    },
+    {
+      "name": "the link rules",
+      "opener": "openBoardLinks",
+      "args": [
+        {
+          "version": 3,
+          "updatedAt": "2026-11-20T09:30:00.000Z",
+          "document": "abe1.W6QjkTPhQgOB5NWGULsvM_NyeMBdqhmNt2iBhGypAVwR3L_uD5XNxfrZXoaRB_EuGQn3Io-Zw39IQPOauLwxRZm3aWprcEzjNDHeTtyKQNs57jKWnL27OphWkufPhCyfIa9PLA51URUQtMhSH0X1hpCKSpiQBo2-llc"
+        }
+      ],
+      "opened": {
+        "version": 3,
+        "updatedAt": "2026-11-20T09:30:00.000Z",
+        "rules": [
+          {
+            "pattern": "ABC-(\\d+)",
+            "url": "https://tracker.example/issues/ABC-$1"
+          }
+        ]
+      }
+    },
+    {
+      "name": "the title rules",
+      "opener": "openBoardTitleRules",
+      "args": [
+        {
+          "version": 4,
+          "updatedAt": "2026-11-20T09:30:00.000Z",
+          "document": "abe1.axwi88tCxykXW2mcDzgzOLK92EZNWkk0XDfTTvA_4FyinUbKdV9ZTVW_00DsBcwvPXAMVPK9RRO97YxgBuzNLH82plCpSUxg6vSMoNvtotaVL0_A9q_CXIFtrUxadcmZN_x5Lsrn7mhmcFMCEDa9i_8g2ADOvezueDLakHAvnXXiV4xhuUIkZA_mSA8g2yDwHRAeQ7tcFw"
+        }
+      ],
+      "opened": {
+        "version": 4,
+        "updatedAt": "2026-11-20T09:30:00.000Z",
+        "rules": [
+          {
+            "pattern": "^fix\\b",
+            "flags": "i",
+            "icon": "🐛",
+            "labels": ["bug"],
+            "instruction": "Start with a verb."
+          }
+        ]
+      }
+    },
+    {
+      "name": "a result event",
+      "opener": "openEvent",
+      "args": [
+        {
+          "taskId": "tsk000000001",
+          "runId": "run00000001"
+        },
+        {
+          "seq": 3,
+          "at": "2026-11-20T09:30:00.000Z",
+          "kind": "result",
+          "parent": null,
+          "outputSize": null,
+          "data": "abe1.c5f2r_zPboPxoea-E9PFUmMsOdI9vQWR0w9XtT0xE9uPG-nZMRiAMhdSgSv5gDRyAQ8gPTBSYYc64IW87YyerF0DEHVWcXRNB1SnlH6X_B82ppt8uP6v_Y0uuLYsmbBjCIBYUdmvlHC72ehxXa2-JTKflENEePsggzkSROqmBEpA"
+        }
+      ],
+      "opened": {
+        "seq": 3,
+        "at": "2026-11-20T09:30:00.000Z",
+        "parent": null,
+        "kind": "result",
+        "text": "done",
+        "isError": false,
+        "turns": null,
+        "durationMs": null,
+        "costUsd": null,
+        "denials": [],
+        "outputSize": null
+      }
+    },
+    {
+      "name": "an event sealed under another position",
+      "opener": "openEvent",
+      "args": [
+        {
+          "taskId": "tsk000000001",
+          "runId": "run00000001"
+        },
+        {
+          "seq": 4,
+          "at": "2026-11-20T09:30:00.000Z",
+          "kind": "result",
+          "parent": null,
+          "outputSize": null,
+          "data": "abe1.16HaR5_TBSegXD1vdcEEM5fTI-0GTgUhlQ5O7Sv6fb3OxJRQVOC0Ez0g6Jqnnl8yTRdyDDMGybpCe7DuG_L4vM3m1dvDgjnsUxmUenFQiSUJXYEuNB_dL4ghQ1XA5OiGAa2TBHB7MZTVIcMuAINjHAXUoVD9AjRo_ruj-vBdFiTu"
+        }
+      ],
+      "opened": {
+        "seq": 4,
+        "at": "2026-11-20T09:30:00.000Z",
+        "parent": null,
+        "kind": "note",
+        "text": "(cannot decrypt this text)",
+        "outputSize": null
+      }
+    },
+    {
+      "name": "the output of a tool result",
+      "opener": "openOutput",
+      "args": [
+        {
+          "taskId": "tsk000000001",
+          "runId": "run00000001"
+        },
+        3,
+        "abe1.Y_HcHOWS5kCbe40nPbp8SihyDcga_TffJNb4PBuh23AwdzzQHcweSetnaJ8gz_ud8cnRC-FjNOag3A44N9st9lpDR7s"
+      ],
+      "opened": "total 8\ndrwxr-xr-x  2 alice  staff  64 ."
+    },
+    {
+      "name": "the feeds of a machine",
+      "opener": "openFeeds",
+      "args": [
+        [
+          {
+            "name": "laptop",
+            "feeds": "abe1.SNfUDa_M44UJR5o4bAgDU2EnV4MV0LvZoQn6YeAJkcx_p9gFVD_ZMUGzdm9ArDgJ0t6sSRF86LdI23_C19O2uV7OYv6DpiOutTKcbW259ZfzLZ1ARKAkS8ok6iZ5kIKU17pa_7_HksFWHJs96wf0CPuMVBIIZ_6vlRZJo9AH5_ZJfLdVngUmnXQSnXcrrkQu",
+            "feedsUpdatedAt": "2026-11-20T09:30:00.000Z",
+            "feedRequests": ["pause:0123456789abcdef", "delete:0123456789abcdef"],
+            "lastSeenAt": "2026-11-20T09:30:00.000Z"
+          }
+        ]
+      ],
+      "opened": [
+        {
+          "machine": "laptop",
+          "feeds": [
+            {
+              "id": "0123456789abcdef",
+              "name": "reviews",
+              "everyMs": 600000,
+              "paused": false,
+              "runAsked": false,
+              "history": []
+            }
+          ],
+          "updatedAt": "2026-11-20T09:30:00.000Z",
+          "lastSeenAt": "2026-11-20T09:30:00.000Z",
+          "requests": ["pause:0123456789abcdef"]
+        }
+      ]
+    },
+    {
+      "name": "the context reading of a task",
+      "opener": "openContext",
+      "args": [
+        "tsk000000001",
+        {
+          "runId": "run00000001",
+          "seq": 7,
+          "at": "2026-11-20T09:30:00.000Z",
+          "data": "abe1.kkxZ5kmHsMF50S-b4NXs5EKZNHtCxTQv5ECMU_G2xr1CFN5AK1LXuixruJgkdz6-n7QHiV01uMsJ6G33d4zNPgJUUyKh6E1f-zB24r7uoK7Y9Ek_iDe0uSekIbbBbAiuiltZdpk5orHY90XZzxFzN-sBg39-PH7E-sbUBSQLM-Mu6BjEZYvvI_Dq13vwTT3_Z3eVLgePUsIOvYM4209gR3Y"
+        }
+      ],
+      "opened": {
+        "used": 133600,
+        "window": 1000000,
+        "threshold": 80,
+        "model": "opus",
+        "at": "2026-11-20T09:30:00.000Z"
+      }
+    },
+    {
+      "name": "the runs of a task",
+      "opener": "openRuns",
+      "args": [
+        [
+          {
+            "id": "run00000001",
+            "machine": "laptop",
+            "sessionId": "0f3a8b1c-5d2e-4c7a-9b6d-1e2f3a4b5c6d",
+            "eventCount": 12,
+            "startedAt": "2026-11-20T09:00:00.000Z"
+          }
+        ]
+      ],
+      "opened": [
+        {
+          "id": "run00000001",
+          "machine": "laptop",
+          "sessionId": "0f3a8b1c-5d2e-4c7a-9b6d-1e2f3a4b5c6d",
+          "eventCount": 12,
+          "startedAt": "2026-11-20T09:00:00.000Z"
+        }
+      ]
+    }
+  ]
+}

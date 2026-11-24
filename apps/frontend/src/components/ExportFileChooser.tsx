@@ -1,7 +1,7 @@
 import type { ExportHeader } from '@agent-board/shared';
 import { FileInput, Stack, Text } from '@mantine/core';
 import { useState } from 'react';
-import { readExportHeader } from '../lib/boardImport';
+import { readExportHeader } from '@agent-board/shared/ui';
 import { errorMessage } from '../lib/trpc';
 
 export interface ChosenExport {

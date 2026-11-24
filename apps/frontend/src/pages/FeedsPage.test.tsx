@@ -5,8 +5,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { sealerFor } from '../lib/contexts';
-import { openFeeds } from '../lib/opening';
+import { sealerFor } from '@agent-board/shared/ui';
+import { openFeeds } from '@agent-board/shared/ui';
 import { FeedsPage } from './FeedsPage';
 
 const keys = vi.hoisted(() => ({ current: null as unknown }));

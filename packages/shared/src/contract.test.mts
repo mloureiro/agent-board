@@ -18,6 +18,7 @@ import {
   compareVersions,
   parseClientApi,
   parseClientVersion,
+  parseListMachines,
   parseVersion,
   parseVersionCli,
   parseVersionIdentity,
@@ -1395,4 +1396,13 @@ test('an edit-schedule body refuses what the tRPC update refuses', () => {
   refuse({ lane: 3 }, /lane is not a safe name/);
   refuse({ maxConcurrent: 0 }, /maxConcurrent must be a positive integer/);
   refuse({ maxConcurrent: 101 }, /maxConcurrent must be at most 100/);
+});
+
+test('list-machines answers are shape-checked', () => {
+  const entry = { name: 'laptop', lastSeenAt: '2026-11-24T10:00:00.000Z', current: true };
+  assert.deepEqual(parseListMachines({ machines: [entry, { ...entry, name: 'desk', lastSeenAt: null }] }), {
+    machines: [entry, { name: 'desk', lastSeenAt: null, current: true }],
+  });
+  assert.throws(() => parseListMachines({ machines: [{ ...entry, name: 'a b' }] }), /machine name/);
+  assert.throws(() => parseListMachines({ machines: [{ ...entry, lastSeenAt: 'yesterday' }] }), /lastSeenAt/);
 });

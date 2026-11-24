@@ -9,6 +9,7 @@ interface Props {
   onChange: (value: string) => void;
   placeholder?: string;
   minRows?: number;
+  maxRows?: number;
   /** ⌘/Ctrl+Enter. */
   onSubmit?: () => void;
   autoFocus?: boolean;
@@ -25,6 +26,7 @@ export function MarkdownEditor({
   onChange,
   placeholder,
   minRows = 3,
+  maxRows = 18,
   onSubmit,
   autoFocus,
   label,
@@ -138,7 +140,7 @@ export function MarkdownEditor({
                 placeholder={value === '' ? (suggestion ?? placeholder) : placeholder}
                 autosize
                 minRows={minRows}
-                maxRows={18}
+                maxRows={maxRows}
                 onKeyDown={onKeyDown}
                 onKeyUp={readCaret}
                 onSelect={readCaret}

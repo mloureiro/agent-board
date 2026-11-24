@@ -1,6 +1,5 @@
-import { KDF_LIMITS } from '@agent-board/shared';
-import { argon2id } from 'hash-wasm';
-import { normalizePassphrase } from './passphrase';
+import { KDF_LIMITS } from '../keys.mts';
+import { normalizePassphrase } from './passphrase.mts';
 
 /** Argon2id cost: memory in KiB, passes, lanes. */
 export interface KdfParams {
@@ -8,6 +7,16 @@ export interface KdfParams {
   t: number;
   p: number;
 }
+
+/** The Argon2id hash each UI supplies: shared holds no implementation of it. */
+export type Argon2id = (options: {
+  password: string;
+  salt: Uint8Array;
+  parallelism: number;
+  iterations: number;
+  memorySize: number;
+  hashLength: number;
+}) => Promise<Uint8Array>;
 
 export const PRODUCTION_KDF: KdfParams = { m: 65_536, t: 3, p: 1 };
 export const SALT_BYTES = 16;
@@ -32,6 +41,7 @@ export async function derivePassphraseKey(
   passphrase: string,
   salt: Uint8Array,
   params: KdfParams,
+  argon2id: Argon2id,
 ): Promise<Uint8Array> {
   assertWithinLimits(params);
   return argon2id({
@@ -41,6 +51,5 @@ export async function derivePassphraseKey(
     iterations: params.t,
     memorySize: params.m,
     hashLength: KEY_BYTES,
-    outputType: 'binary',
   });
 }

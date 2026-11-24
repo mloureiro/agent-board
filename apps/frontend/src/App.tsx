@@ -1,5 +1,6 @@
-import { Badge, Center, Loader, Text } from '@mantine/core';
+import { Alert, Center, Loader, Text } from '@mantine/core';
 import { modals } from '@mantine/modals';
+import { IconPlugConnectedX } from '@tabler/icons-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
@@ -71,16 +72,16 @@ function SignedInApp() {
   return (
     <>
       {me.error && (
-        <Badge
+        <Alert
           color="red"
           variant="filled"
-          pos="fixed"
-          bottom={16}
-          left="50%"
-          style={{ zIndex: 1000, transform: 'translateX(-50%)' }}
+          className="unreachable-callout"
+          icon={<IconPlugConnectedX size={16} />}
+          py={6}
+          px="sm"
         >
           Board unreachable, retrying
-        </Badge>
+        </Alert>
       )}
       <KeyGate me={me.data}>
         {/* Inside the gate, so that a crash anywhere in the app still offers Lock. */}

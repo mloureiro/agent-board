@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-quer
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createKeySetup } from '../crypto/keySlots';
+import { createKeySetup } from '../crypto/unlocker';
 import { KeyProvider } from '../crypto/KeyProvider';
 import { createMemoryKeyStore } from '../test/memoryKeyStore';
 import { AccountDeletedProvider } from './AccountDeletedProvider';

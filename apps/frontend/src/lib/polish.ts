@@ -5,7 +5,7 @@ import {
   type Status,
   type Polish,
 } from '@agent-board/shared';
-import type { NewTask } from './sealing';
+import type { NewTask } from '@agent-board/shared/ui';
 import type { BoardTask, ThreadNote } from './trpc';
 
 /** Where a polished prompt can be applied: a task that waits for you. */
