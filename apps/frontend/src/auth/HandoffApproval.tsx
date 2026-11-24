@@ -52,9 +52,9 @@ function Approval({ flow, username }: { flow: string; username: string }) {
             <Text size="sm" c="dimmed">
               Code
             </Text>
-            <Title order={2} ff="monospace" data-testid="handoff-code">
+            <Text size="xl" fw={700} ff="monospace" data-testid="handoff-code">
               {described.data.code}
-            </Title>
+            </Text>
           </Stack>
           <Text size="sm">
             Approving signs in an Agent Board window as <strong>{username}</strong>. Approve only if you started this

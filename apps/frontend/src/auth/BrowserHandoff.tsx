@@ -1,4 +1,4 @@
-import { Anchor, Button, CopyButton, Group, Loader, Stack, Text, Title } from '@mantine/core';
+import { Anchor, Button, CopyButton, Group, Loader, Stack, Text } from '@mantine/core';
 import { IconCheck, IconCopy, IconExternalLink } from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRawTRPCClient } from '../lib/trpc';
@@ -138,9 +138,9 @@ export function BrowserHandoff({ onCancel }: Props) {
         <Text size="sm" c="dimmed">
           Your code
         </Text>
-        <Title order={2} ff="monospace" data-testid="handoff-code">
+        <Text size="xl" fw={700} ff="monospace" data-testid="handoff-code">
           {phase.code}
-        </Title>
+        </Text>
       </Stack>
       <Text size="sm">Open this page in your browser, sign in there and check that it shows the same code.</Text>
       <Button component="a" href={url} target="_blank" rel="noopener" leftSection={<IconExternalLink size={16} />}>
@@ -154,6 +154,7 @@ export function BrowserHandoff({ onCancel }: Props) {
           {({ copied, copy }) => (
             <Button
               size="compact-xs"
+              style={{ flexShrink: 0 }}
               variant="default"
               leftSection={copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
               onClick={copy}
