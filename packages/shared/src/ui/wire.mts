@@ -429,6 +429,10 @@ export interface UiInputs {
   'account.summary': void;
   'agents.shared': void;
   'auth.config': void;
+  'auth.handoff.approve': { flow: string };
+  'auth.handoff.describe': { flow: string };
+  'auth.handoff.finish': { flow: string; verifier: string };
+  'auth.handoff.start': { challenge: string };
   'auth.logout': void;
   'auth.oidc.finish': { code: string; state: string; verifier: string; iss?: string };
   'auth.oidc.start': { challenge: string };
@@ -499,6 +503,10 @@ export interface UiOutputs {
   'account.summary': UiAccountSummary;
   'agents.shared': UiSharedAgents | null;
   'auth.config': UiAuthConfig;
+  'auth.handoff.approve': { ok: true };
+  'auth.handoff.describe': { code: string };
+  'auth.handoff.finish': { status: 'pending' } | { status: 'signed-in' };
+  'auth.handoff.start': { flow: string; code: string };
   'auth.logout': void;
   'auth.oidc.finish': { ok: true };
   'auth.oidc.start': { url: string };

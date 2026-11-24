@@ -30,7 +30,7 @@ A client declares its version in the `x-board-ui-api` request header, a positive
 A client calls `ui.version` first. It is public, so it answers without a session:
 
 ```json
-{ "api": 1, "minClient": 1, "features": ["events"] }
+{ "api": 1, "minClient": 1, "features": ["events", "handoff"] }
 ```
 
 The client stops when `api` is below its own `MIN_UI_SERVER`.
@@ -41,7 +41,7 @@ A request whose header is below `MIN_UI_CLIENT` is refused before any board data
 
 ## Feature names
 
-An additive change to the API adds a feature name to `ui.version`'s `features` and bumps no number. A client checks for the one name it needs and disables only that part when it is missing. `UI_FEATURE_LABELS` holds the phrase a client shows for each. Today the list is `events`: the live-update stream.
+An additive change to the API adds a feature name to `ui.version`'s `features` and bumps no number. A client checks for the one name it needs and disables only that part when it is missing. `UI_FEATURE_LABELS` holds the phrase a client shows for each. Today the list is `events` (the live-update stream) and `handoff` (signing in a window through another browser).
 
 ## Live updates
 
@@ -77,6 +77,10 @@ Every procedure of the router, with its kind. A test fails when the router and t
 ### `auth`
 
 - `auth.config` (query)
+- `auth.handoff.approve` (mutation)
+- `auth.handoff.describe` (query)
+- `auth.handoff.finish` (mutation)
+- `auth.handoff.start` (mutation)
 - `auth.logout` (mutation)
 - `auth.oidc.finish` (mutation)
 - `auth.oidc.start` (mutation)
@@ -318,6 +322,10 @@ The `auth.*` procedures are public. A successful sign-in answers `{ ok: true }` 
 | `auth.logout`                | none                                                | none                                                                                                        |
 | `auth.oidc.start`            | `{ challenge }`                                     | `{ url }`                                                                                                   |
 | `auth.oidc.finish`           | `{ code, state, verifier, iss? }`                   | `{ ok: true }`                                                                                              |
+| `auth.handoff.start`         | `{ challenge }`                                     | `{ flow, code }`                                                                                            |
+| `auth.handoff.describe`      | `{ flow }`: needs a session                         | `{ code }`                                                                                                  |
+| `auth.handoff.approve`       | `{ flow }`: needs a session                         | `{ ok: true }`                                                                                              |
+| `auth.handoff.finish`        | `{ flow, verifier }`                                | `{ status: 'pending' }` or `{ status: 'signed-in' }`: the session cookie is set on `signed-in`              |
 | `auth.saml.start`            | `{ challenge }`                                     | `{ url }`                                                                                                   |
 | `auth.saml.finish`           | `{ flow, verifier }`                                | `{ ok: true }`                                                                                              |
 | `auth.passkey.loginOptions`  | none                                                | `{ options: UiPasskeyRequestOptions, flow }`                                                                |

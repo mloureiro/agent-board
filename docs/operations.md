@@ -224,7 +224,7 @@ A window that cannot run the sign-in method itself, such as a desktop app's webv
 
 The hand-off lives ten minutes and works once. Nothing is signed in until someone approves, and the window redeems the approval only with the secret it kept from the start, so a flow id alone is of no use. The window's session takes the method of the session that approved it, and it is an ordinary session in every other respect: it appears wherever sessions are listed and ends the same way.
 
-The code check is a phishing mitigation, not a guarantee. Someone who sends a victim both the link and the code can get the victim to approve a sign-in as themselves, so approve only a sign-in you started. The approval page names the account it signs in.
+The code check is a phishing mitigation, not a guarantee. Someone who sends a victim both the link and the code can get the victim to approve a sign-in as the victim, so approve only a sign-in you started. The approval page names the account it signs in.
 
 The endpoints behind it (`auth.handoff.start`, `describe`, `approve`, `finish`) have no rate limit of their own, like the other sign-in endpoints. Limit them at the ingress.
 
