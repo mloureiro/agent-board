@@ -534,6 +534,7 @@ const VIEW_SILENT_COMMANDS = new Set([
   'get-agents',
   'read-notes',
   'list-schedules',
+  'list-machines',
   'heartbeat',
   'run-inbox',
 ]);

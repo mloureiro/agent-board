@@ -245,7 +245,7 @@ A failed or rolled back call sends nothing.
 - `heartbeat` and `transcript`, which every running task sends every 15 seconds.
 - `set-dirs`, `set-catalog`, `set-usage`, `set-feeds` and `ack-feed-requests`, which change no dispatch decision.
 - `set-pr-states` and `set-pr-state`, `run-inbox` and `ack-messages`.
-- The reads: `version`, `list-tasks`, `get-task`, `attach-session`, `read-notes`, `list-schedules`, `get-agents` and `get-title-rules`.
+- The reads: `version`, `list-tasks`, `get-task`, `attach-session`, `read-notes`, `list-schedules`, `list-machines`, `get-agents` and `get-title-rules`.
 - The UI's changes to machines and keys.
 - The hourly cleanup that closes old Done tasks and deletes old transcripts. The 2-minute timer covers those.
 
