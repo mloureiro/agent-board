@@ -2,7 +2,7 @@ import { MantineProvider } from '@mantine/core';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PrState, TaskWatch } from '@agent-board/shared';
 import type { ListedTask } from '../lib/trpc';
 import { clock } from '../lib/time';
@@ -70,6 +70,15 @@ const pr = (n: number, state: PrState | null = null) => ({
   id: `r${n}`,
   url: `https://github.com/acme/app/pull/${n}`,
   state,
+});
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-03-01T10:00:00.000Z'));
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe('TaskCard pull request icon', () => {
@@ -148,7 +157,7 @@ describe('TaskCard watches', () => {
   });
 
   it('replaces the checking countdown of a waiting task and keeps it in the tooltip', () => {
-    const wakeAt = new Date(Date.now() + 20 * 60_000 + 30_000).toISOString();
+    const wakeAt = new Date(Date.now() + 20 * 60_000 + 10_000).toISOString();
     renderCard({ status: 'waiting', wakeAt, waitCheck: true, machine: 'laptop', watches: [watch()] });
     const badge = screen.getByText('Watching CI #116 · 4/7');
     expect(badge.closest('[title]')?.getAttribute('title')).toContain('Checking · up to 20m');
@@ -161,7 +170,7 @@ describe('TaskCard watches', () => {
   });
 
   it('keeps the existing badge when the watches are unreadable, and shows nothing off Running and Waiting', () => {
-    const wakeAt = new Date(Date.now() + 20 * 60_000 + 30_000).toISOString();
+    const wakeAt = new Date(Date.now() + 20 * 60_000 + 10_000).toISOString();
     const { unmount } = renderCard({ status: 'waiting', wakeAt, waitCheck: true, watches: null });
     expect(screen.getByText('Checking · up to 20m')).toBeInTheDocument();
     unmount();
