@@ -119,11 +119,10 @@ describe('hand-off sign-in', () => {
     expect(described.message).toBe(EXPIRED);
   });
 
-  it('refuses describe, approve and finish once the flow has expired', async () => {
+  it('refuses describe, approve and finish once an unapproved flow has expired', async () => {
     const app = await serve();
     const token = await browserOf('alice');
     const { flow, verifier } = await startFlow(app);
-    await rpc(app, 'auth.handoff.approve', { flow }, { token });
     await expire(flow);
     const answers = [
       await rpc(app, 'auth.handoff.describe', { flow }, { token, type: 'query' }),
@@ -131,6 +130,17 @@ describe('hand-off sign-in', () => {
       await rpc(app, 'auth.handoff.finish', { flow, verifier }),
     ];
     expect(answers.map((answer) => answer.message)).toEqual([EXPIRED, EXPIRED, EXPIRED]);
+  });
+
+  it('refuses finish once an approved flow has expired', async () => {
+    const app = await serve();
+    const token = await browserOf('alice');
+    const { flow, verifier } = await startFlow(app);
+    await rpc(app, 'auth.handoff.approve', { flow }, { token });
+    await expire(flow);
+    const done = await rpc(app, 'auth.handoff.finish', { flow, verifier });
+    expect(done.message).toBe(EXPIRED);
+    expect(done.setCookies).toEqual([]);
   });
 
   it('refuses to approve or describe a flow of another kind', async () => {
