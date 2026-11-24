@@ -42,6 +42,7 @@ import {
   parseWireTranscriptBatch,
   parseWireUsage,
   parseWireFeeds,
+  rejectUnknownKeys,
   parseWireFeedRequestAck,
   parseWireWait,
   TranscriptError,
@@ -63,6 +64,7 @@ import {
   machineForToken,
   machineUsageIndex,
   machineFeedsState,
+  listActiveMachines,
   ackFeedRequests,
   recordClient,
   setMachineCatalog,
@@ -383,6 +385,9 @@ async function handleMachineCall(
       const change = parsed(() => parseWireTitleRuleApply(body['body']));
       return applyTitleRule(db, idOf(body, 'task'), change, run);
     }
+    case 'list-machines':
+      parsed(() => rejectUnknownKeys(body, [], 'list-machines'));
+      return { machines: await listActiveMachines(db, machine) };
     case 'get-agents':
       return getSharedAgents(db);
     case 'set-agents':
@@ -529,6 +534,7 @@ const VIEW_SILENT_COMMANDS = new Set([
   'get-agents',
   'read-notes',
   'list-schedules',
+  'list-machines',
   'heartbeat',
   'run-inbox',
 ]);

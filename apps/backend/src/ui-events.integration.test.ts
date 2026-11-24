@@ -125,6 +125,7 @@ describe('GET /api/ui/events', () => {
     await calls('list-tasks');
     await calls('get-task', { id });
     await calls('version');
+    await calls('list-machines');
     await sleep(QUIET_MS);
     expect(stream.events()).toBe(0);
 

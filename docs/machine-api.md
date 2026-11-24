@@ -131,6 +131,7 @@ Capabilities and vocabulary have names. An additive change then needs no version
 | `machine.catalog`         | The `set-catalog` command and `catalogIndex` in the `version` answer.                                                                           |          |
 | `machine.usage`           | The `set-usage` command and `usageIndex` in the `version` answer.                                                                               |          |
 | `machine.feeds`           | The `set-feeds` and `ack-feed-requests` commands, and `feedsIndex` and `feedRequests` in the `version` answer.                                  |          |
+| `machine.list`            | The `list-machines` command.                                                                                                                    |          |
 | `transcript.context`      | The `context` event kind in `transcript`, see [`transcript`](#transcript).                                                                      |          |
 | `task.agent`              | The sealed `agent` key of `add-task` and `add-schedule`, and of a task and a schedule.                                                          |          |
 | `task.run`                | The task's `run` field and the `run` key of a request, see [Runs](#runs).                                                                       |          |
@@ -244,7 +245,7 @@ A failed or rolled back call sends nothing.
 - `heartbeat` and `transcript`, which every running task sends every 15 seconds.
 - `set-dirs`, `set-catalog`, `set-usage`, `set-feeds` and `ack-feed-requests`, which change no dispatch decision.
 - `set-pr-states` and `set-pr-state`, `run-inbox` and `ack-messages`.
-- The reads: `version`, `list-tasks`, `get-task`, `attach-session`, `read-notes`, `list-schedules`, `get-agents` and `get-title-rules`.
+- The reads: `version`, `list-tasks`, `get-task`, `attach-session`, `read-notes`, `list-schedules`, `list-machines`, `get-agents` and `get-title-rules`.
 - The UI's changes to machines and keys.
 - The hourly cleanup that closes old Done tasks and deletes old transcripts. The 2-minute timer covers those.
 
@@ -681,6 +682,7 @@ A resume prompt is built from the `user` notes after the last `agent` note. Two 
 | `set-usage`         | `body`: `{"usage", "index"}`                                                                                                                                                                                                                  | `null`                                                                                                  |
 | `set-feeds`         | `body`: `{"feeds", "index"}`                                                                                                                                                                                                                  | `null`                                                                                                  |
 | `ack-feed-requests` | `body`: `{"requests"}`, at most 150                                                                                                                                                                                                           | `null`                                                                                                  |
+| `list-machines`     | -                                                                                                                                                                                                                                             | `{"machines": [{"name", "lastSeenAt", "current"}, ...]}`, by name                                       |
 | `get-agents`        | -                                                                                                                                                                                                                                             | `{"version", "document"}`, or `null`                                                                    |
 | `set-agents`        | `body`: `{"document", "version", "expectedVersion"}`                                                                                                                                                                                          | `null`, or 409                                                                                          |
 | `get-title-rules`   | -                                                                                                                                                                                                                                             | `{"version", "document"}`, or `null`                                                                    |
@@ -1105,6 +1107,10 @@ The dispatch tick sends the feeds when they changed, and the watch unit after ev
 **Requests.** The browser's `feeds.request` (a machine name, an `action` of `pause`, `resume` or `run`, and a feed `id`) adds `<action>:<id>` to the machine's pending requests and sends a `tasks` event, so the listener runs a dispatch tick. A request that already waits changes nothing. A pause and a resume of one feed replace each other. At most 150 wait per machine. The `version` answer lists them in `feedRequests`. The tick applies each one to its state file (a run happens on the watch unit's next look), answers `ack-feed-requests` with all it read, including those for a feed it does not have, and sends the feeds again. Revoking the machine clears them.
 
 The browser reads feeds with `feeds.list`: for each machine that sent feeds and is not revoked, its `name`, the sealed `feeds`, `feedsUpdatedAt`, `feedRequests` and `lastSeenAt`.
+
+### `list-machines`
+
+No body; an unknown key is a 400. The answer is `{"machines": [{"name": "laptop", "lastSeenAt": "2026-11-24T10:00:00.000Z", "current": true}]}`: every machine of the user whose token is not revoked, ordered by name. `lastSeenAt` is the last time the machine's token was used, or `null` when it never was. `current` is true for the machine that asked. Nothing sealed and no client version is returned. A client parses the answer with `parseListMachines`.
 
 ### Shared agents
 

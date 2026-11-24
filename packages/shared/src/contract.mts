@@ -1763,6 +1763,33 @@ export function parseVersionIdentity(value: unknown): { owner: string; keyId: st
   return { owner, keyId };
 }
 
+export interface ListedMachine {
+  name: string;
+  lastSeenAt: string | null;
+  current: boolean;
+}
+
+/** The answer of `list-machines`: the machines of the board whose token works, as the server names them. */
+export function parseListMachines(raw: unknown): { machines: ListedMachine[] } {
+  const obj = record(raw, 'list-machines');
+  const list = obj['machines'];
+  if (!Array.isArray(list)) throw new ContractError('list-machines.machines must be a list');
+  return {
+    machines: list.map((entry): ListedMachine => {
+      const item = record(entry, 'list-machines entry');
+      const name = item['name'];
+      if (typeof name !== 'string' || !isSafeMachineName(name))
+        throw new ContractError('list-machines entry name is not a machine name');
+      const seen = item['lastSeenAt'];
+      if (seen !== null && (typeof seen !== 'string' || Number.isNaN(Date.parse(seen))))
+        throw new ContractError('list-machines entry lastSeenAt must be a date or null');
+      const current = item['current'];
+      if (typeof current !== 'boolean') throw new ContractError('list-machines entry current must be a boolean');
+      return { name, lastSeenAt: seen, current };
+    }),
+  };
+}
+
 /** The headers every machine API request carries: the CLI's version and the API level it speaks. */
 export const CLIENT_VERSION_HEADER = 'x-board-client';
 export const CLIENT_API_HEADER = 'x-board-client-api';
