@@ -1,6 +1,6 @@
 import { MantineProvider } from '@mantine/core';
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clock, stamp } from '../lib/time';
 import type { BoardTask } from '../lib/trpc';
 import type { TaskHold } from '../lib/usageHold';
@@ -35,6 +35,15 @@ const renderBadges = (overrides: Partial<BoardTask>) =>
       <TaskBadges task={task(overrides)} />
     </MantineProvider>,
   );
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-03-01T10:00:00.000Z'));
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe('TaskBadges', () => {
   it('shows Stopping… on a running task with a stop request, and not otherwise', () => {
@@ -76,14 +85,14 @@ describe('TaskBadges', () => {
   });
 
   it('shows when a waiting task starts, with the exact time as its title', () => {
-    const notBefore = new Date(Date.now() + 4 * 3_600_000 + 30_000).toISOString();
+    const notBefore = new Date(Date.now() + 4 * 3_600_000 + 10_000).toISOString();
     renderBadges({ notBefore });
     const badge = screen.getByText('Starts in 4h');
     expect(badge.closest('[title]')).toHaveAttribute('title', stamp(notBefore));
   });
 
   it('shows when a timer wakes a waiting task, and how long a check may take', () => {
-    const wakeAt = new Date(Date.now() + 20 * 60_000 + 30_000).toISOString();
+    const wakeAt = new Date(Date.now() + 20 * 60_000 + 10_000).toISOString();
     const { unmount } = renderBadges({ status: 'waiting', wakeAt });
     expect(screen.getByText('Wakes in 20m').closest('[title]')).toHaveAttribute('title', `Wakes ${stamp(wakeAt)}`);
     unmount();
