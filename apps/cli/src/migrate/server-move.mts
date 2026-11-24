@@ -107,7 +107,7 @@ function resetServerDerivedState(deps: ServerMoveDeps, target: ServerIdentity): 
   ];
 }
 
-function stageWebJson(path: string, url: string): string {
+function movedWebJson(path: string, url: string): { text: string; mode: number } {
   const info = lstatSync(path, { throwIfNoEntry: false });
   if (info === undefined || !info.isFile())
     throw refuse(`${path} is not a regular file, and a symlink is not replaced; edit its url by hand`);
@@ -118,11 +118,7 @@ function stageWebJson(path: string, url: string): string {
     throw refuse(`${path} is not valid JSON (${errorText(error)})`);
   }
   if (!isRecord(raw)) throw refuse(`${path} is not a JSON object`);
-  try {
-    return stageFile(path, `${JSON.stringify({ ...raw, url }, null, 2)}\n`, info.mode & 0o777, 'move');
-  } catch (error) {
-    throw refuse(`cannot write beside ${path} (${errorText(error)})`);
-  }
+  return { text: `${JSON.stringify({ ...raw, url }, null, 2)}\n`, mode: info.mode & 0o777 };
 }
 
 export async function moveServer(deps: ServerMoveDeps, rawUrl: string): Promise<'moved' | 'declined' | 'unchanged'> {
@@ -190,7 +186,7 @@ export async function moveServer(deps: ServerMoveDeps, rawUrl: string): Promise<
     if (readJournal(stateDir) !== undefined)
       throw refuse('a migration is unfinished; run "board self-update --resume" first');
     const webPath = join(configDir, 'web.json');
-    staged = stageWebJson(webPath, target);
+    const moved = movedWebJson(webPath, target);
     let backupDir: string;
     try {
       backupDir = createBackup({
@@ -206,6 +202,11 @@ export async function moveServer(deps: ServerMoveDeps, rawUrl: string): Promise<
       }).dir;
     } catch (error) {
       throw refuse(`cannot back up this machine (${errorText(error)})`);
+    }
+    try {
+      staged = stageFile(webPath, moved.text, moved.mode, 'move');
+    } catch (error) {
+      throw refuse(`cannot write beside ${webPath} (${errorText(error)}); the backup is at ${backupDir}`);
     }
     try {
       renameSync(staged, webPath);

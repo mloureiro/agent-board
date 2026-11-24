@@ -120,6 +120,14 @@ test('a move writes the new url and keeps every other key and the mode, backs up
     const backup = s.backups()[0];
     assert.equal(backup?.manifest.kind, 'server');
     assert.match(text(join(backup?.dir ?? '', 'config', 'web.json')), /old\.example\.com/);
+    assert.deepEqual(
+      backup?.manifest.files
+        .map((file) => file.path)
+        .filter((path) => path.startsWith('config/'))
+        .sort(),
+      ['config/env', 'config/web.json'],
+      'the backup holds the config as it was, without the staged web.json',
+    );
     assert.equal(s.calls.restarts, 1);
     assert.deepEqual(s.calls.list, [SOURCE]);
     assert.deepEqual(

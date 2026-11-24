@@ -327,6 +327,8 @@ What the state directory keeps across the move:
 
 `board self-update --rollback` does not undo a move: it refuses a backup of kind `server`, names its directory and prints the command that goes back. To return, run `board self-update --server <the old url>`: the old board still accepts the token. Server data is never moved or deleted by the CLI.
 
+A rollback reads only the newest backup, so after a move it no longer reaches the backup of an update made before it. That older backup also holds the `web.json` of the board you left, and restoring it would point the machine back there. Roll an update back before you move; after the move, its files stay in the backup directory to restore by hand.
+
 ### Releases come from mloureiro/agent-board (CLI 0.35.0)
 
 `board self-update`, the dispatcher's `autoUpdate` and `install.sh` download `cli-v*` releases from `mloureiro/agent-board`. The CLI alone changes, from 0.35.0 on.
