@@ -64,6 +64,8 @@ Setup:
                              tools and units
   setup                      install the dispatch timer and the listener:
                              systemd user units, or launchd agents on macOS
+  uninstall                  remove the worker units and the installed board
+                             from this machine
   restart [unit...]          restart the dispatch timer, the listener and the
                              watch unit
   logs [target]              show the log of a unit or a task on this machine
@@ -1484,6 +1486,39 @@ Examples:
   board setup
   board setup --print
   board setup --enable
+```
+
+### board uninstall
+
+```
+Usage: board uninstall [options]
+
+Undo `board setup` and the install: stop, disable and delete the dispatch timer,
+the listener and the watch unit (on macOS: boot out and delete the three launchd
+agents), and delete the installed board (~/.local/bin/board or
+$BOARD_INSTALL_DIR/board: the binary, or the link a checkout install made). A
+unit that is not installed or not running is skipped; one that fails to stop
+keeps its file, and the installed board stays so the command can be run again;
+the command exits 1. With --include-optional, a directory that is the home
+directory or holds it is refused. Workers that run keep running until they end.
+A checkout itself is never touched.
+
+The config directory (web.json, config.json, and env with the token and the data
+key), the state directory (task logs, sessions, watches) and the run directory
+are kept, so `install.sh` and `board setup --enable` bring the machine back as
+it was. --include-optional removes them too; keep a copy of the data key first
+if this machine may need it again. --dry-run prints what would be stopped and
+removed and changes nothing. Not available inside a board run.
+
+Options:
+  --include-optional  also remove the config, state and run directories
+  --dry-run           read everything, print every write instead of doing it
+  -h, --help          display help for command
+
+Examples:
+  board uninstall --dry-run
+  board uninstall
+  board uninstall --include-optional
 ```
 
 ### board restart

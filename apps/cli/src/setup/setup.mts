@@ -224,6 +224,10 @@ export interface SetupDeps {
   print: (line: string) => void;
 }
 
+export function installedBoardPath(env: Record<string, string | undefined>): string {
+  return join(env['BOARD_INSTALL_DIR'] || join(homedir(), '.local', 'bin'), 'board');
+}
+
 // The checkout that runs setup against the one `~/.local/bin/board` resolves to: a worktree or scratch copy must not take over the live timers.
 export function treeProblem(
   env: Record<string, string | undefined>,
@@ -242,7 +246,7 @@ export function treeProblem(
       ? `this board runs from ${real}, in the temp directory; install it (scripts/install.sh) and run board setup from there`
       : undefined;
   }
-  const installed = join(env['BOARD_INSTALL_DIR'] || join(homedir(), '.local', 'bin'), 'board');
+  const installed = installedBoardPath(env);
   if (!existsSync(installed)) return undefined;
   const installedTree = dirname(dirname(realpathSync(installed)));
   const thisTree = realpathSync(fileURLToPath(new URL('../..', import.meta.url)));

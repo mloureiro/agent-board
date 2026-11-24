@@ -172,6 +172,22 @@ On macOS 13 and later, System Settings, General, Login Items lets you switch bac
 
 `board self-update` replaces the binary by a rename, because a write in place would invalidate the code signature of a running file. It restarts the listener with `launchctl kickstart -k` when launchd has it loaded.
 
+## Uninstall
+
+`board uninstall` undoes `board setup` and the install:
+
+- It stops, disables and deletes the dispatch timer, the listener and the watch unit. On macOS it boots out and deletes the three launchd agents. A unit that is not installed or not running is skipped. A unit that fails to stop keeps its file, is named in the output, and makes the command exit 1. The installed `board` stays too; stop the unit by hand and run the command again.
+- It deletes the installed `board`: `~/.local/bin/board`, or `$BOARD_INSTALL_DIR/board`. For a checkout install that is the link `install.sh` made; the checkout itself stays.
+- Workers that are running keep running until they end.
+
+It keeps the config directory, the state directory and the run directory (see [Files](#files)). `install.sh` and `board setup --enable` then bring the machine back as it was. `--include-optional` removes them too, and refuses a directory that is the home directory or holds it (exit 1). The config directory's `env` holds the data key, so keep a copy of it first if the machine may need it again.
+
+```sh
+board uninstall --dry-run            # print what would be stopped and removed, change nothing
+board uninstall                      # units and binary; config and state stay
+board uninstall --include-optional   # also the config, state and run directories
+```
+
 ## Upgrading
 
 The CLI checks the server's API range once per process (see [Version handshake](machine-api.md#version-handshake)). Two kinds of change follow from that:
