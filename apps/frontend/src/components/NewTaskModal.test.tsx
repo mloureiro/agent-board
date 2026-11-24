@@ -9,6 +9,8 @@ import { LAST_DIRECTORY_KEY } from '../lib/lastDirectory';
 import type { Machine } from '../lib/opening';
 import { NewTaskModal } from './NewTaskModal';
 
+const user = userEvent.setup({ delay: null });
+
 const create = vi.hoisted(() => vi.fn(async (_: unknown) => ({ id: 'new1' })));
 
 const listed = vi.hoisted(() => ({
@@ -74,11 +76,15 @@ async function open(when?: string) {
       </MantineProvider>
     </MemoryRouter>,
   );
-  await userEvent.type(screen.getByLabelText('Prompt'), '/sweep');
+  enter(screen.getByLabelText('Prompt'), '/sweep');
   if (when !== undefined) {
-    await userEvent.click(screen.getByRole('combobox', { name: 'When' }));
-    await userEvent.click(await screen.findByRole('option', { name: when, hidden: true }));
+    await user.click(screen.getByRole('combobox', { name: 'When' }));
+    await user.click(await screen.findByRole('option', { name: when, hidden: true }));
   }
+}
+
+function enter(field: HTMLElement, text: string) {
+  fireEvent.change(field, { target: { value: text } });
 }
 
 const createButton = () => screen.getByRole('button', { name: 'Create' });
@@ -96,31 +102,31 @@ beforeEach(() => {
 describe('NewTaskModal Agent', () => {
   it('sends none when the field is empty', async () => {
     await open();
-    await userEvent.click(createButton());
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect(sent()).not.toHaveProperty('agent');
   });
 
   it('sends the agent as typed, trimmed', async () => {
     await open();
-    await userEvent.type(screen.getByLabelText('Agent'), ' reviewer ');
-    await userEvent.click(createButton());
+    enter(screen.getByLabelText('Agent'), ' reviewer ');
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect(sent()).toMatchObject({ input: '/sweep', agent: 'reviewer' });
   });
 
   it('holds back a name that is not an agent name', async () => {
     await open();
-    await userEvent.type(screen.getByLabelText('Agent'), 'Not An Agent');
+    enter(screen.getByLabelText('Agent'), 'Not An Agent');
     expect(await screen.findByText(/Use lowercase letters, digits and dashes/)).toBeInTheDocument();
     expect(createButton()).toBeDisabled();
   });
 
   it('sends the agent of a repeating task too', async () => {
     await open('Repeating');
-    await userEvent.type(screen.getByLabelText(/Repeat/), '2h');
-    await userEvent.type(screen.getByLabelText('Agent'), 'sweeper');
-    await userEvent.click(createButton());
+    enter(screen.getByLabelText(/Repeat/), '2h');
+    enter(screen.getByLabelText('Agent'), 'sweeper');
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect(sent()).toMatchObject({ agent: 'sweeper', when: { every: 2 * 3_600_000 } });
   });
@@ -133,14 +139,14 @@ describe('NewTaskModal When', () => {
     ['Needs me', 'hold'],
   ])('sends %s as the plain keyword', async (label, when) => {
     await open(label);
-    await userEvent.click(createButton());
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect(sent()).toMatchObject({ input: '/sweep', when });
   });
 
   it('starts the next task at Now again', async () => {
     await open('Backlog');
-    await userEvent.click(createButton());
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     await waitFor(() => expect(screen.getByRole('combobox', { name: 'When' })).toHaveValue('Now'));
   });
@@ -149,7 +155,7 @@ describe('NewTaskModal When', () => {
     await open('Later');
     expect(createButton()).toBeDisabled();
     fireEvent.change(screen.getByLabelText('Start time'), { target: { value: FUTURE } });
-    await userEvent.click(createButton());
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect(sent()).toMatchObject({ when: { at: new Date(FUTURE) } });
   });
@@ -164,18 +170,18 @@ describe('NewTaskModal When', () => {
   it('sends a repeating interval with its first run and number of runs', async () => {
     await open('Repeating');
     expect(createButton()).toBeDisabled();
-    await userEvent.type(screen.getByLabelText(/Repeat/), '2h');
+    enter(screen.getByLabelText(/Repeat/), '2h');
     fireEvent.change(screen.getByLabelText('First run'), { target: { value: FUTURE } });
-    await userEvent.type(screen.getByLabelText('Number of runs'), '3');
-    await userEvent.click(createButton());
+    enter(screen.getByLabelText('Number of runs'), '3');
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect(sent()).toMatchObject({ when: { every: 2 * 3_600_000, at: new Date(FUTURE), times: 3 } });
   });
 
   it('sends a repeating cron rule in the local time zone, starting now by default', async () => {
     await open('Repeating');
-    await userEvent.type(screen.getByLabelText(/Repeat/), '0 9 * * 1-5');
-    await userEvent.click(createButton());
+    enter(screen.getByLabelText(/Repeat/), '0 9 * * 1-5');
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     const { when } = sent() as { when: Record<string, unknown> };
     expect(when).toEqual({ cron: '0 9 * * 1-5', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone });
@@ -183,12 +189,12 @@ describe('NewTaskModal When', () => {
 
   it('refuses a past first run and a number of runs below 1', async () => {
     await open('Repeating');
-    await userEvent.type(screen.getByLabelText(/Repeat/), '2h');
+    enter(screen.getByLabelText(/Repeat/), '2h');
     fireEvent.change(screen.getByLabelText('First run'), { target: { value: '2020-01-01T10:00' } });
     expect(await screen.findByText('Pick a time in the future')).toBeInTheDocument();
     expect(createButton()).toBeDisabled();
     fireEvent.change(screen.getByLabelText('First run'), { target: { value: '' } });
-    await userEvent.type(screen.getByLabelText('Number of runs'), '0');
+    enter(screen.getByLabelText('Number of runs'), '0');
     expect(await screen.findByText('A whole number, 1 or more')).toBeInTheDocument();
     expect(createButton()).toBeDisabled();
     expect(create).not.toHaveBeenCalled();
@@ -201,13 +207,13 @@ describe('NewTaskModal repeating with several cron expressions', () => {
   it('offers more rows only for a cron expression, and sends the first as the rule and the others as more', async () => {
     await open('Repeating');
     expect(screen.queryByRole('button', { name: 'Add cron expression' })).not.toBeInTheDocument();
-    await userEvent.type(screen.getByLabelText(/Repeat/), '2h');
+    enter(screen.getByLabelText(/Repeat/), '2h');
     expect(screen.queryByRole('button', { name: 'Add cron expression' })).not.toBeInTheDocument();
-    await userEvent.clear(screen.getByLabelText(/Repeat/));
-    await userEvent.type(screen.getByLabelText(/Repeat/), '0 9 * * 5#1');
-    await userEvent.click(screen.getByRole('button', { name: 'Add cron expression' }));
-    await userEvent.type(screen.getByLabelText('Cron expression 2'), '0 9 * * 5#3');
-    await userEvent.click(createButton());
+    await user.clear(screen.getByLabelText(/Repeat/));
+    enter(screen.getByLabelText(/Repeat/), '0 9 * * 5#1');
+    await user.click(screen.getByRole('button', { name: 'Add cron expression' }));
+    enter(screen.getByLabelText('Cron expression 2'), '0 9 * * 5#3');
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect((sent() as { when: unknown }).when).toEqual({
       cron: '0 9 * * 5#1',
@@ -218,34 +224,33 @@ describe('NewTaskModal repeating with several cron expressions', () => {
 
   it('removes a row, and sends a single expression without more', async () => {
     await open('Repeating');
-    await userEvent.type(screen.getByLabelText(/Repeat/), '0 9 * * 5#1');
-    await userEvent.click(screen.getByRole('button', { name: 'Add cron expression' }));
-    await userEvent.type(screen.getByLabelText('Cron expression 2'), '0 9 * * 5#3');
-    await userEvent.click(screen.getByRole('button', { name: 'Remove cron expression 2' }));
+    enter(screen.getByLabelText(/Repeat/), '0 9 * * 5#1');
+    await user.click(screen.getByRole('button', { name: 'Add cron expression' }));
+    enter(screen.getByLabelText('Cron expression 2'), '0 9 * * 5#3');
+    await user.click(screen.getByRole('button', { name: 'Remove cron expression 2' }));
     expect(screen.queryByLabelText('Cron expression 2')).not.toBeInTheDocument();
-    await userEvent.click(createButton());
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect((sent() as { when: unknown }).when).toEqual({ cron: '0 9 * * 5#1', timezone: cronZone() });
   });
 
   it('stops offering rows at ten', async () => {
     await open('Repeating');
-    await userEvent.type(screen.getByLabelText(/Repeat/), '0 0 * * *');
-    for (let row = 1; row < 10; row += 1)
-      await userEvent.click(screen.getByRole('button', { name: 'Add cron expression' }));
+    enter(screen.getByLabelText(/Repeat/), '0 0 * * *');
+    for (let row = 1; row < 10; row += 1) await user.click(screen.getByRole('button', { name: 'Add cron expression' }));
     expect(screen.getByLabelText('Cron expression 10')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add cron expression' })).not.toBeInTheDocument();
   });
 
   it('holds back a repeated expression and a row that is not cron', async () => {
     await open('Repeating');
-    await userEvent.type(screen.getByLabelText(/Repeat/), '0 9 * * *');
-    await userEvent.click(screen.getByRole('button', { name: 'Add cron expression' }));
-    await userEvent.type(screen.getByLabelText('Cron expression 2'), '0 9 * * *');
+    enter(screen.getByLabelText(/Repeat/), '0 9 * * *');
+    await user.click(screen.getByRole('button', { name: 'Add cron expression' }));
+    enter(screen.getByLabelText('Cron expression 2'), '0 9 * * *');
     expect(await screen.findByText('A cron expression is given twice')).toBeInTheDocument();
     expect(createButton()).toBeDisabled();
-    await userEvent.clear(screen.getByLabelText('Cron expression 2'));
-    await userEvent.type(screen.getByLabelText('Cron expression 2'), 'often');
+    await user.clear(screen.getByLabelText('Cron expression 2'));
+    enter(screen.getByLabelText('Cron expression 2'), 'often');
     expect(await screen.findByText(/does not have 5 cron fields/)).toBeInTheDocument();
     expect(createButton()).toBeDisabled();
   });
@@ -254,24 +259,24 @@ describe('NewTaskModal repeating with several cron expressions', () => {
 describe('NewTaskModal repeating with a limit', () => {
   it('sends no limit by default', async () => {
     await open('Repeating');
-    await userEvent.type(screen.getByLabelText(/Repeat/), '2h');
-    await userEvent.click(createButton());
+    enter(screen.getByLabelText(/Repeat/), '2h');
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect((sent() as { when: object }).when).not.toHaveProperty('maxConcurrent');
   });
 
   it('sends the number given as maxConcurrent', async () => {
     await open('Repeating');
-    await userEvent.type(screen.getByLabelText(/Repeat/), '2h');
-    await userEvent.type(screen.getByLabelText('At most at once'), '2');
-    await userEvent.click(createButton());
+    enter(screen.getByLabelText(/Repeat/), '2h');
+    enter(screen.getByLabelText('At most at once'), '2');
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect(sent()).toMatchObject({ when: { every: 7_200_000, maxConcurrent: 2 } });
   });
 
   it('refuses a limit above 100', async () => {
     await open('Repeating');
-    await userEvent.type(screen.getByLabelText(/Repeat/), '2h');
+    enter(screen.getByLabelText(/Repeat/), '2h');
     fireEvent.change(screen.getByLabelText('At most at once'), { target: { value: '101' } });
     await waitFor(() => expect(createButton()).toBeDisabled());
   });
@@ -280,22 +285,22 @@ describe('NewTaskModal repeating with a limit', () => {
 describe('NewTaskModal repeating after another schedule', () => {
   const upstream = (id: string, title: string, ended = false) => ({ id, title, ended });
   const chooseAfter = async (title: string) => {
-    await userEvent.click(screen.getByRole('combobox', { name: 'Run after' }));
-    await userEvent.click(await screen.findByRole('option', { name: title, hidden: true }));
+    await user.click(screen.getByRole('combobox', { name: 'Run after' }));
+    await user.click(await screen.findByRole('option', { name: title, hidden: true }));
   };
 
   it('offers the schedules that have not ended, by title, and sends the choice with its delay', async () => {
     listed.schedules = [upstream('up1', 'Build'), upstream('up2', 'Old', true)];
     await open('Repeating');
-    await userEvent.click(screen.getByRole('combobox', { name: 'Run after' }));
+    await user.click(screen.getByRole('combobox', { name: 'Run after' }));
     expect(await screen.findByRole('option', { name: 'Build', hidden: true })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'Old', hidden: true })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('option', { name: 'Build', hidden: true }));
+    await user.click(screen.getByRole('option', { name: 'Build', hidden: true }));
     expect(screen.queryByLabelText(/^Repeat/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText('First run')).not.toBeInTheDocument();
-    await userEvent.type(screen.getByLabelText('Delay'), '10m');
-    await userEvent.type(screen.getByLabelText('Number of runs'), '3');
-    await userEvent.click(createButton());
+    enter(screen.getByLabelText('Delay'), '10m');
+    enter(screen.getByLabelText('Number of runs'), '3');
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect((sent() as { when: unknown }).when).toEqual({ after: { scheduleId: 'up1', delayMs: 600_000 }, times: 3 });
   });
@@ -303,12 +308,12 @@ describe('NewTaskModal repeating after another schedule', () => {
   it('is not held back by a past first run that the choice hid', async () => {
     listed.schedules = [upstream('up1', 'Build')];
     await open('Repeating');
-    await userEvent.type(screen.getByLabelText(/Repeat/), '2h');
+    enter(screen.getByLabelText(/Repeat/), '2h');
     fireEvent.change(screen.getByLabelText('First run'), { target: { value: '2020-01-01T10:00' } });
     expect(createButton()).toBeDisabled();
     await chooseAfter('Build');
     await waitFor(() => expect(createButton()).toBeEnabled());
-    await userEvent.click(createButton());
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect((sent() as { when: unknown }).when).toEqual({ after: { scheduleId: 'up1', delayMs: 0 } });
   });
@@ -318,11 +323,11 @@ describe('NewTaskModal repeating after another schedule', () => {
     create.mockResolvedValueOnce(null as never);
     await open('Repeating');
     await chooseAfter('Build');
-    await userEvent.type(screen.getByLabelText('Delay'), 'soon');
+    enter(screen.getByLabelText('Delay'), 'soon');
     expect(await screen.findByText(/A duration such as 10m/)).toBeInTheDocument();
     expect(createButton()).toBeDisabled();
-    await userEvent.clear(screen.getByLabelText('Delay'));
-    await userEvent.click(createButton());
+    await user.clear(screen.getByLabelText('Delay'));
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect((sent() as { when: unknown }).when).toEqual({ after: { scheduleId: 'up1', delayMs: 0 } });
     await waitFor(() => expect(screen.getByLabelText('Path')).toHaveTextContent('/schedules'));
@@ -332,16 +337,16 @@ describe('NewTaskModal repeating after another schedule', () => {
 describe('NewTaskModal model', () => {
   it('sends no model by default', async () => {
     await open();
-    await userEvent.click(createButton());
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect(sent()).not.toHaveProperty('model');
   });
 
   it('sends the chosen alias', async () => {
     await open();
-    await userEvent.click(screen.getByRole('combobox', { name: 'Model' }));
-    await userEvent.click(await screen.findByRole('option', { name: 'Opus', hidden: true }));
-    await userEvent.click(createButton());
+    await user.click(screen.getByRole('combobox', { name: 'Model' }));
+    await user.click(await screen.findByRole('option', { name: 'Opus', hidden: true }));
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect(sent()).toMatchObject({ model: 'opus', when: 'now' });
   });
@@ -350,16 +355,16 @@ describe('NewTaskModal model', () => {
 describe('NewTaskModal effort', () => {
   it('sends no effort by default', async () => {
     await open();
-    await userEvent.click(createButton());
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect(sent()).not.toHaveProperty('effort');
   });
 
   it('sends the chosen level', async () => {
     await open();
-    await userEvent.click(screen.getByRole('combobox', { name: 'Effort' }));
-    await userEvent.click(await screen.findByRole('option', { name: 'Extra high', hidden: true }));
-    await userEvent.click(createButton());
+    await user.click(screen.getByRole('combobox', { name: 'Effort' }));
+    await user.click(await screen.findByRole('option', { name: 'Extra high', hidden: true }));
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect(sent()).toMatchObject({ effort: 'xhigh', when: 'now' });
   });
@@ -370,7 +375,7 @@ describe('NewTaskModal lane', () => {
     await open();
     expect(screen.queryByText(/picks the lane/)).not.toBeInTheDocument();
     expect(screen.getByText(/The Lane field below sets the lane it runs in/)).toBeInTheDocument();
-    await userEvent.click(createButton());
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect(sent()).not.toHaveProperty('lane');
   });
@@ -381,11 +386,11 @@ describe('NewTaskModal lane', () => {
       { name: 'desktop', catalog: { models: [], skills: [], dirs: {}, lanes: ['general', 'docs'] } },
     ];
     await open();
-    await userEvent.click(screen.getByRole('combobox', { name: 'Lane' }));
+    await user.click(screen.getByRole('combobox', { name: 'Lane' }));
     expect(await screen.findByRole('option', { name: 'Default lane', hidden: true })).toBeInTheDocument();
     expect(screen.getAllByRole('option', { name: 'general', hidden: true })).toHaveLength(1);
-    await userEvent.click(screen.getByRole('option', { name: 'docs', hidden: true }));
-    await userEvent.click(createButton());
+    await user.click(screen.getByRole('option', { name: 'docs', hidden: true }));
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect(sent()).toMatchObject({ lane: 'docs', when: 'now' });
   });
@@ -394,15 +399,15 @@ describe('NewTaskModal lane', () => {
 describe('NewTaskModal auto-done', () => {
   it('sends no setting by default', async () => {
     await open();
-    await userEvent.click(createButton());
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect(sent()).not.toHaveProperty('autoDone');
   });
 
   it('sends autoDone when the box is checked', async () => {
     await open();
-    await userEvent.click(screen.getByRole('checkbox', { name: 'Agent may mark it done' }));
-    await userEvent.click(createButton());
+    await user.click(screen.getByRole('checkbox', { name: 'Agent may mark it done' }));
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect(sent()).toMatchObject({ autoDone: true, when: 'now' });
   });
@@ -422,13 +427,13 @@ const machine = (name: string, dirs: (string | MachineDir)[] | null, extra: Part
 
 const directory = () => screen.getByRole('combobox', { name: 'Working directory' });
 const pick = async (path: string, group?: string) => {
-  await userEvent.click(directory());
+  await user.click(directory());
   const options = await screen.findAllByRole('option', { name: path, hidden: true });
   const target =
     group === undefined
       ? options[0]
       : options.find((option) => option.closest('[data-combobox-option]')?.parentElement?.textContent?.includes(group));
-  await userEvent.click(target ?? options[0]!);
+  await user.click(target ?? options[0]!);
 };
 
 describe('NewTaskModal working directory', () => {
@@ -437,7 +442,7 @@ describe('NewTaskModal working directory', () => {
     await open();
     await waitFor(() => expect(directory()).toBeDisabled());
     expect(screen.getByText(/No machine has listed a directory yet/)).toBeInTheDocument();
-    await userEvent.click(createButton());
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect(sent()).not.toHaveProperty('place');
   });
@@ -447,7 +452,7 @@ describe('NewTaskModal working directory', () => {
     await open();
     expect(await screen.findByText(/machines are down/)).toBeInTheDocument();
     expect(directory()).toBeDisabled();
-    await userEvent.click(createButton());
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
   });
 
@@ -456,7 +461,7 @@ describe('NewTaskModal working directory', () => {
     await open();
     await waitFor(() => expect(directory()).toBeEnabled());
     await pick('/work/b');
-    await userEvent.click(createButton());
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect(sent()).toMatchObject({ place: { machine: 'laptop', workdir: '/work/b' } });
   });
@@ -465,15 +470,15 @@ describe('NewTaskModal working directory', () => {
     listed.machines = [machine('laptop', [{ path: '/work/a', label: 'Board' }, '/work/b'])];
     await open();
     await waitFor(() => expect(directory()).toBeEnabled());
-    await userEvent.click(directory());
+    await user.click(directory());
     expect(await screen.findByRole('option', { name: 'Board — /work/a', hidden: true })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: '/work/b', hidden: true })).toBeInTheDocument();
-    await userEvent.type(directory(), 'boar');
+    enter(directory(), 'boar');
     await waitFor(() =>
       expect(screen.queryByRole('option', { name: '/work/b', hidden: true })).not.toBeInTheDocument(),
     );
-    await userEvent.click(screen.getByRole('option', { name: 'Board — /work/a', hidden: true }));
-    await userEvent.click(createButton());
+    await user.click(screen.getByRole('option', { name: 'Board — /work/a', hidden: true }));
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect(sent()).toMatchObject({ place: { machine: 'laptop', workdir: '/work/a' } });
   });
@@ -482,7 +487,7 @@ describe('NewTaskModal working directory', () => {
     listed.machines = [machine('laptop', [{ path: '/work/a', label: '<b>bold</b>' }])];
     await open();
     await waitFor(() => expect(directory()).toBeEnabled());
-    await userEvent.click(directory());
+    await user.click(directory());
     expect(await screen.findByRole('option', { name: '<b>bold</b> — /work/a', hidden: true })).toBeInTheDocument();
   });
 
@@ -490,7 +495,7 @@ describe('NewTaskModal working directory', () => {
     listed.machines = [machine('laptop', ['/work/a'])];
     await open();
     await waitFor(() => expect(directory()).toBeEnabled());
-    await userEvent.click(createButton());
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
     expect(sent()).not.toHaveProperty('place');
   });
@@ -499,10 +504,10 @@ describe('NewTaskModal working directory', () => {
     listed.machines = [machine('laptop', ['/work/app']), machine('desktop', ['/work/app'])];
     await open();
     await waitFor(() => expect(directory()).toBeEnabled());
-    await userEvent.click(directory());
+    await user.click(directory());
     expect(await screen.findAllByRole('option', { name: '/work/app', hidden: true })).toHaveLength(2);
     await pick('/work/app', 'desktop');
-    await userEvent.click(createButton());
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect(sent()).toMatchObject({ place: { machine: 'desktop', workdir: '/work/app' } });
   });
@@ -515,7 +520,7 @@ describe('NewTaskModal working directory', () => {
     ];
     await open();
     await waitFor(() => expect(directory()).toBeEnabled());
-    await userEvent.click(directory());
+    await user.click(directory());
     const labels = (await screen.findAllByText(/^(fresh|old|never)/, { selector: '.mantine-Select-groupLabel' })).map(
       (node) => node.textContent,
     );
@@ -529,7 +534,7 @@ describe('NewTaskModal working directory', () => {
     ];
     await open();
     await waitFor(() => expect(directory()).toBeEnabled());
-    await userEvent.click(directory());
+    await user.click(directory());
     expect(await screen.findByRole('option', { name: '/l', hidden: true })).toBeInTheDocument();
     expect(screen.queryByText('gone')).not.toBeInTheDocument();
   });
@@ -546,11 +551,11 @@ describe('NewTaskModal working directory', () => {
     await open();
     await waitFor(() => expect(directory()).toBeEnabled());
     await pick('/work/a');
-    await userEvent.click(screen.getByRole('combobox', { name: 'When' }));
-    await userEvent.click(await screen.findByRole('option', { name: 'Repeating', hidden: true }));
+    await user.click(screen.getByRole('combobox', { name: 'When' }));
+    await user.click(await screen.findByRole('option', { name: 'Repeating', hidden: true }));
     expect(directory()).toBeEnabled();
-    await userEvent.type(screen.getByLabelText(/Repeat/), '2h');
-    await userEvent.click(createButton());
+    enter(screen.getByLabelText(/Repeat/), '2h');
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect(sent()).toMatchObject({ when: { every: 7_200_000 }, place: { machine: 'laptop', workdir: '/work/a' } });
   });
@@ -564,7 +569,7 @@ describe('NewTaskModal last working directory', () => {
     await open();
     await waitFor(() => expect(directory()).toBeEnabled());
     await pick('/work/a', 'desktop');
-    await userEvent.click(createButton());
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     await waitFor(() => expect(stored()).toBe(JSON.stringify(['desktop', '/work/a'])));
   });
@@ -574,7 +579,7 @@ describe('NewTaskModal last working directory', () => {
     listed.machines = [machine('laptop', ['/work/a', '/work/b'])];
     await open();
     await waitFor(() => expect(directory()).toHaveValue('/work/b'));
-    await userEvent.click(createButton());
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect(sent()).toMatchObject({ place: { machine: 'laptop', workdir: '/work/b' } });
   });
@@ -586,7 +591,7 @@ describe('NewTaskModal last working directory', () => {
     await waitFor(() => expect(directory()).toBeEnabled());
     expect(directory()).toHaveValue('');
     expect(directory().closest('.mantine-Input-wrapper')?.querySelector('.mantine-InputClearButton-root')).toBeNull();
-    await userEvent.click(createButton());
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect(sent()).not.toHaveProperty('place');
     await waitFor(() => expect(stored()).toBeNull());
@@ -640,18 +645,18 @@ describe('NewTaskModal skills and models of the machines', () => {
   it('offers the models of every machine, then of the chosen one, labelled as the catalogue says', async () => {
     await open();
     await waitFor(() => expect(directory()).toBeEnabled());
-    await userEvent.click(modelField());
+    await user.click(modelField());
     expect(await screen.findByRole('option', { name: 'Haiku 9', hidden: true })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Opus 9', hidden: true })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'Opus', hidden: true })).not.toBeInTheDocument();
-    await userEvent.keyboard('{Escape}');
+    await user.keyboard('{Escape}');
     await pick('/work/a');
-    await userEvent.click(modelField());
+    await user.click(modelField());
     await waitFor(() =>
       expect(screen.queryByRole('option', { name: 'Haiku 9', hidden: true })).not.toBeInTheDocument(),
     );
-    await userEvent.click(screen.getByRole('option', { name: 'Opus 9', hidden: true }));
-    await userEvent.click(createButton());
+    await user.click(screen.getByRole('option', { name: 'Opus 9', hidden: true }));
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect(sent()).toMatchObject({ model: 'claude-opus-9', place: { machine: 'laptop', workdir: '/work/a' } });
   });
@@ -659,11 +664,11 @@ describe('NewTaskModal skills and models of the machines', () => {
   it('keeps the model that was picked when the new machine does not list it', async () => {
     await open();
     await waitFor(() => expect(directory()).toBeEnabled());
-    await userEvent.click(modelField());
-    await userEvent.click(await screen.findByRole('option', { name: 'Haiku 9', hidden: true }));
+    await user.click(modelField());
+    await user.click(await screen.findByRole('option', { name: 'Haiku 9', hidden: true }));
     await pick('/work/a');
     expect(modelField()).toHaveValue('Haiku 9');
-    await userEvent.click(createButton());
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect(sent()).toMatchObject({ model: 'claude-haiku-9' });
   });
@@ -674,7 +679,7 @@ describe('NewTaskModal skills and models of the machines', () => {
     await open();
     await waitFor(() => expect(directory()).toBeEnabled());
     expect(offeredSkills()).toBe('');
-    await userEvent.click(modelField());
+    await user.click(modelField());
     expect(await screen.findByRole('option', { name: 'Opus', hidden: true })).toBeInTheDocument();
   });
 });
@@ -682,20 +687,20 @@ describe('NewTaskModal skills and models of the machines', () => {
 describe('NewTaskModal icon', () => {
   it('sends no icon by default', async () => {
     await open();
-    await userEvent.click(createButton());
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect(sent()).not.toHaveProperty('icon');
   });
 
   it('sends the emoji picked in front of the title', async () => {
     await open();
-    await userEvent.click(screen.getByRole('button', { name: 'Add new task icon' }));
+    await user.click(screen.getByRole('button', { name: 'Add new task icon' }));
     fireEvent.change(await screen.findByRole('textbox', { name: 'Search emoji', hidden: true }), {
       target: { value: 'rocket' },
     });
-    await userEvent.click(await screen.findByRole('button', { name: 'rocket', hidden: true }));
+    await user.click(await screen.findByRole('button', { name: 'rocket', hidden: true }));
     expect(screen.getByRole('button', { name: 'New task icon: rocket. Change it' })).toHaveTextContent('🚀');
-    await userEvent.click(createButton());
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect(sent()).toMatchObject({ icon: '🚀', when: 'now' });
   });
@@ -704,15 +709,15 @@ describe('NewTaskModal icon', () => {
 describe('NewTaskModal labels', () => {
   it('sends no labels by default', async () => {
     await open();
-    await userEvent.click(createButton());
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect(sent()).not.toHaveProperty('labels');
   });
 
   it('sends the labels typed in the Labels field', async () => {
     await open();
-    await userEvent.type(screen.getByRole('combobox', { name: 'Labels' }), 'bug{Enter}ui{Enter}');
-    await userEvent.click(createButton());
+    await user.type(screen.getByRole('combobox', { name: 'Labels' }), 'bug{Enter}ui{Enter}');
+    await user.click(createButton());
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect(sent()).toMatchObject({ labels: ['bug', 'ui'], when: 'now' });
   });
