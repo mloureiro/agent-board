@@ -14,6 +14,7 @@ import { cookieValue, hashToken, sessionCookie, sessionOwner, tokenShaped } from
 import { Changes, CHANGES_DEBOUNCE_MS } from './services/changes';
 import { AppError, type AppErrorCode } from './services/errors';
 import { appRouter, type AppRouter } from './trpc/router';
+import { registerUiEvents } from './ui-events';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -114,10 +115,13 @@ export async function buildServer(config: Config, root: Db, options: ServerOptio
     if (sent !== null && req.username === null) reply.header('set-cookie', sessionCookie(config.auth, null));
   });
 
+  const pingMs = options.pingMs ?? 25_000;
   registerMachineApi(app, root, config, changes, {
-    pingMs: options.pingMs ?? 25_000,
+    pingMs,
     ...(options.vocabulary === undefined ? {} : { vocabulary: options.vocabulary }),
   });
+
+  registerUiEvents(app, root, config, changes, pingMs);
 
   if (config.auth.login && config.auth.saml) {
     const env: AuthEnv = { root, login: config.auth, log: app.log, oidc };

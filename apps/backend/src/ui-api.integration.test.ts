@@ -1,4 +1,4 @@
-import { MIN_UI_CLIENT, UI_API_HEADER, UI_API_VERSION } from '@agent-board/shared/ui';
+import { MIN_UI_CLIENT, UI_API_HEADER, UI_API_VERSION, UI_SERVER_FEATURES } from '@agent-board/shared/ui';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildServer } from './server';
 import { createSession } from './services/auth/sessions';
@@ -73,7 +73,11 @@ describe('a board without login', () => {
   it('answers the versions and features to ui.version', async () => {
     const answer = await call(app, 'ui.version', { type: 'query' });
     expect(answer.status).toBe(200);
-    expect(answer.body.result?.data).toEqual({ api: UI_API_VERSION, minClient: MIN_UI_CLIENT, features: [] });
+    expect(answer.body.result?.data).toEqual({
+      api: UI_API_VERSION,
+      minClient: MIN_UI_CLIENT,
+      features: [...UI_SERVER_FEATURES],
+    });
   });
 
   describe('built with a higher minimum', () => {
@@ -118,7 +122,11 @@ describe('a board with login', () => {
   it('answers ui.version without a session', async () => {
     const answer = await call(app, 'ui.version', { type: 'query' });
     expect(answer.status).toBe(200);
-    expect(answer.body.result?.data).toEqual({ api: UI_API_VERSION, minClient: MIN_UI_CLIENT, features: [] });
+    expect(answer.body.result?.data).toEqual({
+      api: UI_API_VERSION,
+      minClient: MIN_UI_CLIENT,
+      features: [...UI_SERVER_FEATURES],
+    });
   });
 
   it('still refuses a signed-out me, with or without the header', async () => {

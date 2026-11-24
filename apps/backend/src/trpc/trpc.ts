@@ -101,6 +101,7 @@ const scoped = t.middleware(async ({ ctx, next, path, type }) => {
       if (!result.ok) throw new Rollback(result);
       return result;
     });
+    if (type === 'mutation') ctx.changes.notifyViews(username);
     if (type === 'mutation' && changesDispatch(path)) ctx.changes.notify(username);
     if (type === 'mutation' && path === 'account.delete') ctx.changes.endStreams(username);
     return result;
