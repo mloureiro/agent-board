@@ -8,6 +8,8 @@ import { runHook } from '../worker/hook.mts';
 import { listenMain } from '../dispatch/listen.mts';
 import { watchUnitMain } from '../watch/unit.mts';
 import { workerMain } from '../worker/worker.mts';
+import { resolvedWorkerUnits } from '../setup/worker-units.mts';
+import { selfCommand } from '../self/self.mts';
 import type { ProgramShared } from './program-shared.mts';
 
 export function registerInternalCommands(shared: ProgramShared): void {
@@ -16,7 +18,7 @@ export function registerInternalCommands(shared: ProgramShared): void {
     .command('internal', { hidden: true })
     .description('What the dispatcher, the timers and a run call; not for typing')
     .action(() => {
-      throw new UsageError('internal needs dispatch, listen, watch, worker or hook');
+      throw new UsageError('internal needs dispatch, listen, watch, worker, hook or units');
     });
   const refuseInternalInRun = (): void => {
     notInRun('board internal is not available inside a board run');
@@ -71,5 +73,18 @@ export function registerInternalCommands(shared: ProgramShared): void {
       const run = env['AGENT_BOARD_TASK'];
       if (run && (args[1] !== run || args[0] !== runDir(env))) return;
       return runHook(args);
+    });
+  internal
+    .command('units')
+    .description('Print the worker units that board setup writes, as JSON, for packagers')
+    .action(() => {
+      refuseInternalInRun();
+      out(
+        JSON.stringify(
+          resolvedWorkerUnits(env, options.platform ?? process.platform, (name) => selfCommand('internal', name)),
+          null,
+          2,
+        ),
+      );
     });
 }
