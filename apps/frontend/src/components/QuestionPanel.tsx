@@ -330,6 +330,7 @@ function QuestionForm({
           value={message}
           onChange={setMessage}
           minRows={2}
+          maxRows={12}
           onSubmit={submit}
           autoFocus={focusNote}
           placeholder="Anything else the agent should know (optional)"

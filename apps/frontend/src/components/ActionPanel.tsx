@@ -118,6 +118,7 @@ function Composer({
             value={message}
             onChange={setMessage}
             minRows={shell.minRows}
+            maxRows={12}
             onSubmit={shell.onSubmit}
             suggestion={shell.suggestion}
             skills={shell.skills}
