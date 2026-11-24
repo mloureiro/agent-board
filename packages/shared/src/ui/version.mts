@@ -10,11 +10,11 @@ export const MIN_UI_SERVER = 1;
 export const UI_API_HEADER = 'x-board-ui-api';
 
 // An additive change to the UI API appends its name here, in the same commit that makes the server do it.
-export const UI_SERVER_FEATURES = [] as const;
+export const UI_SERVER_FEATURES = ['events'] as const;
 export type UiServerFeature = (typeof UI_SERVER_FEATURES)[number];
 
 // How a client says what is missing: "the board server does not support <label> yet".
-export const UI_FEATURE_LABELS: Record<UiServerFeature, string> = {};
+export const UI_FEATURE_LABELS: Record<UiServerFeature, string> = { events: 'live updates' };
 
 /** The UI API version a request header names: null when absent, a `ContractError` when it is not a positive integer. */
 export function parseUiApiHeader(value: string | string[] | undefined): number | null {

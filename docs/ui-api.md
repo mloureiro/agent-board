@@ -30,7 +30,7 @@ A client declares its version in the `x-board-ui-api` request header, a positive
 A client calls `ui.version` first. It is public, so it answers without a session:
 
 ```json
-{ "api": 1, "minClient": 1, "features": [] }
+{ "api": 1, "minClient": 1, "features": ["events"] }
 ```
 
 The client stops when `api` is below its own `MIN_UI_SERVER`.
@@ -41,7 +41,18 @@ A request whose header is below `MIN_UI_CLIENT` is refused before any board data
 
 ## Feature names
 
-An additive change to the API adds a feature name to `ui.version`'s `features` and bumps no number. A client checks for the one name it needs and disables only that part when it is missing. `UI_FEATURE_LABELS` holds the phrase a client shows for each. The list is empty today.
+An additive change to the API adds a feature name to `ui.version`'s `features` and bumps no number. A client checks for the one name it needs and disables only that part when it is missing. `UI_FEATURE_LABELS` holds the phrase a client shows for each. Today the list is `events`: the live-update stream.
+
+## Live updates
+
+`GET /api/ui/events` is a stream of server-sent events that says "something on your board changed", so a client need not poll fast. It needs the `events` feature.
+
+- **Auth.** The same as a procedure: the session cookie, or the no-login user. Without a user the answer is 401 `{ "error": "Sign in to use the board." }` and no stream starts.
+- **Lines.** `: connected` when it opens, then `event: changed` followed by an empty `data:` line each time the user's board changes, and `: ping` every 25 s. Nothing else is ever written: the stream carries no data, so a client reads the board again with the procedures.
+- **What changes it.** A committed mutation of the user, from the browser or the machine API. Reads and machine heartbeats do not. A burst of writes gives one event, half a second after the last. Another user's writes never reach the stream.
+- **When it ends.** The user signs out, the session expires or is revoked (checked at each ping on a board with sign-in), the account is deleted (at once), the client leaves, or the server closes. A client that sees it end opens it again, and polls slowly while it is down: a missed event is not replayed.
+
+The bundled web app keeps its own 5 s poll and does not use the stream.
 
 ## Procedures
 
