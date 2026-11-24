@@ -195,16 +195,33 @@ export function listBackups(stateDir: string): BackupEntry[] {
 
 export type BackupVerdict = { ok: true; manifest: BackupManifest } | { ok: false; problem: string };
 
-export function verifyBackup(dir: string): BackupVerdict {
+export type BackupRead =
+  { ok: true; manifest: BackupManifest; contents: Map<string, Buffer> } | { ok: false; problem: string };
+
+// Reads every file of a backup once and checks it against the manifest, so what is restored is what was checked.
+export function readBackup(dir: string): BackupRead {
   const manifest = manifestOf(dir);
   if (manifest === undefined) return { ok: false, problem: `${join(dir, MANIFEST)} is missing or not readable` };
+  const contents = new Map<string, Buffer>();
   for (const file of manifest.files) {
     const path = join(dir, file.path);
     const info = lstatSync(path, { throwIfNoEntry: false });
     if (info === undefined || !info.isFile()) return { ok: false, problem: `${path} is missing` };
-    if (sha256Of(readFileSync(path)) !== file.sha256) return { ok: false, problem: `${path} was changed` };
+    const content = readFileSync(path);
+    if (sha256Of(content) !== file.sha256) return { ok: false, problem: `${path} was changed` };
+    contents.set(file.path, content);
   }
-  return { ok: true, manifest };
+  return { ok: true, manifest, contents };
+}
+
+export function verifyBackup(dir: string): BackupVerdict {
+  const read = readBackup(dir);
+  return read.ok ? { ok: true, manifest: read.manifest } : read;
+}
+
+export function markRolledBack(dir: string, manifest: BackupManifest, at: Date): void {
+  const marked: BackupManifest = { ...manifest, rolledBackAt: at.toISOString() };
+  writeFileAtomic(join(dir, MANIFEST), `${JSON.stringify(marked, null, 2)}\n`, 0o600);
 }
 
 export function pruneBackups(stateDir: string, keep = 3, protect: readonly string[] = []): string[] {

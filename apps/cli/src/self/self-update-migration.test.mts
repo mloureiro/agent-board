@@ -195,7 +195,7 @@ test('a hand-over that fails makes the command fail with its exit code', async (
   }
 });
 
-test('a tick restarts the listener without blocking, hands nothing over and leaves the journal for its next run', async () => {
+test('a tick restarts the listener without blocking, hands nothing over, leaves the journal for its next run and frees the lock', async () => {
   const f = setup({ migration: { interactive: false, context: 'tick' } });
   try {
     assert.equal(await selfUpdate(f.deps, {}), 'updated');
@@ -203,7 +203,7 @@ test('a tick restarts the listener without blocking, hands nothing over and leav
     assert.equal(f.calls.restarts, 1);
     assert.equal(binary(f.execPath), 'new binary');
     assert.equal(readJournal(f.stateDir)?.steps.length, 2);
-    assert.equal((JSON.parse(readFileSync(lockPath(f.stateDir), 'utf8')) as { pid: number }).pid, process.pid);
+    assert.equal(existsSync(lockPath(f.stateDir)), false);
   } finally {
     f.clean();
   }
@@ -307,4 +307,32 @@ test('a plan answer outside the expected shape is refused', () => {
     plan({ steps: [step, step] }),
   ];
   for (const text of refused) assert.throws(() => parsePlan(text), /did not answer its migration plan/, text);
+});
+
+test('a journal that appears while the prompt waits is not overwritten and no backup is taken', async () => {
+  const f = setup();
+  try {
+    f.deps.migration = {
+      ...(f.deps.migration as UpdateMigration),
+      confirm: async () => {
+        writeJournal(f.stateDir, {
+          version: 1,
+          from: '0.37.0',
+          to: '0.4.0',
+          steps: ['other'],
+          done: [],
+          backup: 'someone-elses',
+          startedAt: '2026-11-24T10:15:03.000Z',
+        });
+        return true;
+      },
+    };
+    await assert.rejects(selfUpdate(f.deps, {}), /a migration is unfinished/);
+    assert.equal(readJournal(f.stateDir)?.backup, 'someone-elses');
+    assert.equal(binary(f.execPath), 'old binary');
+    assert.equal(existsSync(join(f.stateDir, 'backups')), false);
+    assert.equal(existsSync(lockPath(f.stateDir)), false);
+  } finally {
+    f.clean();
+  }
 });

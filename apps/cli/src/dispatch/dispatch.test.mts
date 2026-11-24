@@ -90,6 +90,7 @@ function setup(
     advertised?: string;
     compiled?: boolean;
     retryAfter?: Date;
+    held?: string;
     fails?: string;
     warnings?: string[];
   } = {},
@@ -120,7 +121,7 @@ function setup(
     },
   };
   const updates: string[] = [];
-  const state = fakeUpdateState({ deferred: updating.retryAfter });
+  const state = fakeUpdateState({ deferred: updating.retryAfter, held: updating.held });
   const update: UpdateDeps = {
     compiled: updating.compiled ?? true,
     version: '0.5.0',
@@ -1097,6 +1098,33 @@ test('a newer release is left alone by incompatible, and an equal or unknown one
   const unknown = setup([], [], {}, { autoUpdate: 'always' });
   await runDispatch(unknown.deps);
   assert.deepEqual([...incompatible.updates, ...equal.updates, ...unknown.updates], []);
+});
+
+test('a release at or below the one a rollback left behind is held, with always and with a too-old CLI', async () => {
+  const always = setup([todo('t1')], [], {}, { autoUpdate: 'always', advertised: '0.6.0', held: '0.6.0' });
+  await runDispatch(always.deps);
+  assert.deepEqual(always.updates, []);
+  assert.deepEqual(always.started, ['t1']);
+  assert.ok(
+    always.logs.includes('UPDATE-HELD 0.6.0 was rolled back; run "board self-update" to take it'),
+    always.logs.join('\n'),
+  );
+
+  const tooOldCli = setup([], [], {}, { held: '0.6.0' });
+  tooOld(tooOldCli.backend);
+  await assert.rejects(runDispatch(tooOldCli.deps), /older than the board server/);
+  assert.deepEqual(tooOldCli.updates, []);
+  assert.ok(tooOldCli.logs.some((line) => line.startsWith('UPDATE-HELD up to 0.6.0')));
+});
+
+test('a release above the held one updates as before', async () => {
+  const { deps, updates, logs } = setup([], [], {}, { autoUpdate: 'always', advertised: '0.7.0', held: '0.6.0' });
+  await runDispatch(deps);
+  assert.deepEqual(updates, ['self-update']);
+  assert.equal(
+    logs.some((line) => line.startsWith('UPDATE-HELD')),
+    false,
+  );
 });
 
 test('a failed update under always does not stop the tick, and a dry run never updates', async () => {

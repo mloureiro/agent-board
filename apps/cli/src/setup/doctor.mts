@@ -1139,7 +1139,16 @@ const checkMigration: Check = ({ migration }) => {
             : 'do the step by hand, then run "board self-update --resume"',
         ),
       );
-  } else if (state.waitingSteps > 0)
+  } else if (state.markerProblem !== undefined)
+    results.push(
+      problem(
+        'migration',
+        'fail',
+        state.markerProblem,
+        'fix or delete the file named in the message; every dispatch tick fails until then',
+      ),
+    );
+  else if (state.waitingSteps > 0)
     results.push(
       problem(
         'migration',
@@ -1149,6 +1158,15 @@ const checkMigration: Check = ({ migration }) => {
       ),
     );
   else results.push(ok('migration', 'nothing pending'));
+  if (state.heldThrough !== undefined)
+    results.push(
+      problem(
+        'auto-update',
+        'warn',
+        `releases up to ${state.heldThrough} are held after a rollback`,
+        'run "board self-update" to take the newest release, or wait for a newer one',
+      ),
+    );
   if (state.looseBackups.length > 0)
     results.push(
       problem(

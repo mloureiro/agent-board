@@ -59,6 +59,9 @@ const NO_UPDATES: DispatchDeps['update'] = {
     retryAfter: () => undefined,
     deferUpdateUntil: () => undefined,
     clearDeferral: () => undefined,
+    heldThrough: () => undefined,
+    holdThrough: () => undefined,
+    clearHold: () => undefined,
   },
   update: async () => 'unchanged',
 };

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { chmodSync, rmSync } from 'node:fs';
+import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { autoStep, fixture } from '../__tests__/helpers/migration.mts';
@@ -7,6 +7,8 @@ import { createBackup } from './backup.mts';
 import { pendingMigration } from './pending.mts';
 import { writeMarker } from './marker.mts';
 import { readMigrationState } from './state.mts';
+import { markerPath } from './marker.mts';
+import { createUpdateState, updateStateFile } from '../self/update-state.mts';
 import { unitFilesOf } from './units.mts';
 
 test('a machine with nothing pending and no backups reports an empty state', () => {
@@ -54,6 +56,32 @@ test('backups wider than 700 and 600 are listed, and ones made by the CLI are no
     const loose = readMigrationState(f.deps).looseBackups;
     assert.ok(loose.includes(backup.dir));
     assert.ok(loose.includes(join(backup.dir, 'config', 'env')));
+  } finally {
+    rmSync(f.dir, { recursive: true });
+  }
+});
+
+test('a marker that cannot be read is reported with the file, not counted as nothing waiting', () => {
+  const f = fixture([autoStep('a', '0.38.0')]);
+  try {
+    const path = markerPath(f.deps.paths.stateDir);
+    mkdirSync(join(path, '..'), { recursive: true });
+    writeFileSync(path, 'not json');
+    const state = readMigrationState(f.deps);
+    assert.equal(state.waitingSteps, 0);
+    assert.ok(state.markerProblem?.includes(path), state.markerProblem);
+  } finally {
+    rmSync(f.dir, { recursive: true });
+  }
+});
+
+test('the release a rollback holds auto-update at is part of the state', () => {
+  const f = fixture([]);
+  try {
+    writeMarker(f.deps.paths.stateDir, '0.40.0');
+    assert.equal(readMigrationState(f.deps).heldThrough, undefined);
+    createUpdateState(updateStateFile(f.deps.paths.stateDir)).holdThrough('0.40.0');
+    assert.equal(readMigrationState(f.deps).heldThrough, '0.40.0');
   } finally {
     rmSync(f.dir, { recursive: true });
   }

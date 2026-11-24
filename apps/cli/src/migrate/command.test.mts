@@ -103,3 +103,22 @@ test('board internal migration-plan prints the steps this binary would apply aga
     rmSync(f.dir, { recursive: true });
   }
 });
+
+test('board self-update --rollback cannot be combined with --check or --resume', async () => {
+  const f = fixture([]);
+  try {
+    for (const other of ['--check', '--resume'])
+      await assert.rejects(
+        runBoard(['self-update', '--rollback', other], {
+          env: f.deps.env,
+          writeOut: () => undefined,
+          version: '0.40.0',
+          interactive: false,
+          platform: 'linux',
+        }),
+        UsageError,
+      );
+  } finally {
+    rmSync(f.dir, { recursive: true });
+  }
+});
