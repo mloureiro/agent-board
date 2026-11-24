@@ -4,19 +4,21 @@ import { UsageError } from '../cli.mts';
 import { runDir } from '../worker/runtime.mts';
 import { dispatchMain } from '../dispatch/dispatch.mts';
 import { SystemError } from '../setup/system.mts';
+import { currentPlan } from '../migrate/pending.mts';
 import { runHook } from '../worker/hook.mts';
 import { listenMain } from '../dispatch/listen.mts';
 import { watchUnitMain } from '../watch/unit.mts';
 import { workerMain } from '../worker/worker.mts';
+import { realMigrationDeps } from './migration-deps.mts';
 import type { ProgramShared } from './program-shared.mts';
 
 export function registerInternalCommands(shared: ProgramShared): void {
-  const { program, options, env, out, contextOf, dryRunOption, notInRun } = shared;
+  const { program, options, env, out, contextOf, dryRunOption, notInRun, writeJson, jsonOption } = shared;
   const internal = program
     .command('internal', { hidden: true })
     .description('What the dispatcher, the timers and a run call; not for typing')
     .action(() => {
-      throw new UsageError('internal needs dispatch, listen, watch, worker or hook');
+      throw new UsageError('internal needs dispatch, listen, watch, worker, hook or migration-plan');
     });
   const refuseInternalInRun = (): void => {
     notInRun('board internal is not available inside a board run');
@@ -59,6 +61,18 @@ export function registerInternalCommands(shared: ProgramShared): void {
       refuseInternalInRun();
       return workerMain(task);
     });
+  // What the updating binary asks the staged one before replacing itself.
+  jsonOption(
+    internal.command('migration-plan').description('The migration steps this binary would apply, as JSON'),
+  ).action(() => {
+    notInRun('board internal is not available inside a board run');
+    const plan = currentPlan(realMigrationDeps(shared));
+    writeJson({
+      from: plan.from,
+      to: plan.to,
+      steps: plan.steps.map(({ id, since, title, kind }) => ({ id, since, title, kind })),
+    });
+  });
   // The hook of a run must never fail its tool call, so nothing it is given is a usage error.
   internal
     .command('hook')

@@ -37,6 +37,8 @@ function deps(configDir: string, overrides: Partial<InitDeps> = {}): InitDeps & 
   const printed: string[] = [];
   return {
     configDir,
+    stateDir: join(configDir, '..', 'state'),
+    version: '0.37.0',
     interactive: false,
     prompts: NO_PROMPTS,
     hostName: 'laptop',
@@ -236,7 +238,12 @@ test('board init runs the doctor checks after writing, and is refused inside a r
   const dir = tempDir();
   const out: string[] = [];
   const configDir = join(dir, 'cfg');
-  const env = { AGENT_BOARD_CONFIG_DIR: configDir, XDG_CONFIG_HOME: join(dir, 'xdg'), PATH: '' };
+  const env = {
+    AGENT_BOARD_CONFIG_DIR: configDir,
+    AGENT_BOARD_STATE_DIR: join(dir, 'state'),
+    XDG_CONFIG_HOME: join(dir, 'xdg'),
+    PATH: '',
+  };
   const verified: string[] = [];
   try {
     await runBoard(
@@ -291,7 +298,13 @@ test('board init points to board setup on Linux and macOS, and not on another sy
       await runBoard(
         ['init', '--url', 'https://board.example.com', '--token-file', tokenFile(dir), '--data-key-file', keyFile(dir)],
         {
-          env: { AGENT_BOARD_CONFIG_DIR: join(dir, 'cfg'), XDG_CONFIG_HOME: join(dir, 'xdg'), HOME: dir, PATH: '' },
+          env: {
+            AGENT_BOARD_CONFIG_DIR: join(dir, 'cfg'),
+            AGENT_BOARD_STATE_DIR: join(dir, 'state'),
+            XDG_CONFIG_HOME: join(dir, 'xdg'),
+            HOME: dir,
+            PATH: '',
+          },
           writeOut: (text) => out.push(text),
           interactive: false,
           platform,
@@ -314,7 +327,12 @@ test('a failing check after init fails the command', async () => {
       runBoard(
         ['init', '--url', 'https://board.example.com', '--token-file', tokenFile(dir), '--data-key-file', keyFile(dir)],
         {
-          env: { AGENT_BOARD_CONFIG_DIR: join(dir, 'cfg'), XDG_CONFIG_HOME: join(dir, 'xdg'), PATH: '' },
+          env: {
+            AGENT_BOARD_CONFIG_DIR: join(dir, 'cfg'),
+            AGENT_BOARD_STATE_DIR: join(dir, 'state'),
+            XDG_CONFIG_HOME: join(dir, 'xdg'),
+            PATH: '',
+          },
           writeOut: () => undefined,
           interactive: false,
           verifyServer: async () => {
@@ -867,6 +885,37 @@ test('a secret path with a leading space, quotes or export is normalised, and ne
       dataKeyFile: `export ${keyFile(dir)}`,
     });
     assert.equal(readFileSync(join(dir, 'ok', 'env'), 'utf8'), ENV_TEXT);
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test('init records the migration marker on a fresh machine and leaves an existing marker alone', async () => {
+  const dir = tempDir();
+  const flags = { url: 'https://board.example.com', tokenFile: tokenFile(dir), dataKeyFile: keyFile(dir) };
+  const markerFile = join(dir, 'state', 'migration', 'applied.json');
+  try {
+    await init(deps(join(dir, 'fresh'), { stateDir: join(dir, 'state') }), flags);
+    assert.deepEqual(JSON.parse(readFileSync(markerFile, 'utf8')), { appliedThrough: '0.37.0' });
+
+    await init(deps(join(dir, 'other'), { stateDir: join(dir, 'state'), version: '0.50.0' }), flags);
+    assert.deepEqual(JSON.parse(readFileSync(markerFile, 'utf8')), { appliedThrough: '0.37.0' });
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+test('init writes no marker for a machine that already has a web.json, which the baseline rule covers', async () => {
+  const dir = tempDir();
+  const configDir = join(dir, 'cfg');
+  try {
+    mkdirSync(configDir);
+    writeFileSync(join(configDir, 'web.json'), '{"url":"https://board.example.com"}\n');
+    await init(deps(configDir, { stateDir: join(dir, 'state') }), {
+      tokenFile: tokenFile(dir),
+      dataKeyFile: keyFile(dir),
+    });
+    assert.equal(readdirSync(dir).includes('state'), false);
   } finally {
     rmSync(dir, { recursive: true });
   }

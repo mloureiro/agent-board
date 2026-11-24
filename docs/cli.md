@@ -1601,13 +1601,20 @@ end. --check only reports whether a newer release exists.
 It needs `gh`, logged in. A checkout is updated with `git pull` and `pnpm
 install` instead, and says so. Not available inside a board run.
 
+--resume continues a migration that stopped: it runs the steps the journal still
+lists, then restarts the listener. It also works on a checkout, and says
+`nothing to resume` when nothing is pending. From a terminal it refuses while
+workers run.
+
 Options:
   --check     only report whether a newer release exists
+  --resume    continue a stopped migration
   -h, --help  display help for command
 
 Examples:
   board self-update --check
   board self-update
+  board self-update --resume
 ```
 
 ### board completion

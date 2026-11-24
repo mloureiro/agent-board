@@ -6,6 +6,7 @@ import { ConfigError, readSecretFile } from '../config/config.mts';
 import { parseEnv } from '../config/env-file.mts';
 import exampleConfig from '../../config.example.json' with { type: 'json' };
 import { UsageError } from '../cli.mts';
+import { readMarker, writeMarker } from '../migrate/marker.mts';
 
 export interface InitFlags {
   url?: string;
@@ -29,6 +30,9 @@ export interface Prompts {
 
 export interface InitDeps {
   configDir: string;
+  stateDir: string;
+  // The version of this CLI, as x.y.z: what a fresh machine's migration marker records.
+  version: string;
   interactive: boolean;
   prompts: Prompts;
   hostName: string;
@@ -403,6 +407,8 @@ export async function init(deps: InitDeps, flags: InitFlags): Promise<InitResult
   } finally {
     for (const temp of staged) rmSync(temp, { force: true });
   }
+  // A machine that had no web.json has nothing to migrate; one that had it keeps the baseline rule of the missing marker.
+  if (webMissing && readMarker(deps.stateDir) === undefined) writeMarker(deps.stateDir, deps.version);
 
   for (const path of result.written) deps.print(`wrote ${path}`);
   for (const path of result.backedUp) deps.print(`backed up the old file to ${path}`);
