@@ -1,6 +1,6 @@
 import { MantineProvider } from '@mantine/core';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
@@ -26,6 +26,8 @@ vi.mock('./components/MarkdownEditor', () => ({
   ),
 }));
 
+const user = userEvent.setup({ delay: null });
+
 describe('AppLayout New task', () => {
   it('keeps the prompt typed in the form while moving to another page and back', async () => {
     render(
@@ -42,12 +44,12 @@ describe('AppLayout New task', () => {
         </MantineProvider>
       </MemoryRouter>,
     );
-    await userEvent.click(screen.getByRole('button', { name: 'New task' }));
-    await userEvent.type(await screen.findByLabelText('Prompt'), 'half a task');
-    await userEvent.keyboard('{Escape}');
-    await userEvent.click(screen.getByText('go two'));
-    await userEvent.click(screen.getByText('go one'));
-    await userEvent.click(screen.getByRole('button', { name: 'New task' }));
+    await user.click(screen.getByRole('button', { name: 'New task' }));
+    fireEvent.change(await screen.findByLabelText('Prompt'), { target: { value: 'half a task' } });
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByText('go two'));
+    await user.click(screen.getByText('go one'));
+    await user.click(screen.getByRole('button', { name: 'New task' }));
     expect(await screen.findByLabelText('Prompt')).toHaveValue('half a task');
   });
 });
